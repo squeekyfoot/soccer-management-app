@@ -240,6 +240,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+    // --- NEW: Helper function to check roles ---
+  const isManager = () => {
+    return loggedInUser && loggedInUser.role === 'manager';
+  };
 
   // 4. "Provide" the state and functions to the app
   // Any component inside <AuthProvider> can now access these values.
@@ -254,7 +258,8 @@ export const AuthProvider = ({ children }) => {
     signOutUser,
     updateProfile,
     reauthenticate,
-    updateSoccerDetails
+    updateSoccerDetails,
+    isManager
   };
 
   return (

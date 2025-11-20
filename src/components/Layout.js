@@ -1,22 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext'; // Import the "brain"
-import MyProfile from './MyProfile'; // Import the child component
-import SportsInfo from './SportsInfo'; // Import the child component
+import { useAuth } from '../context/AuthContext'; 
+import MyProfile from './MyProfile'; 
+import SportsInfo from './SportsInfo'; 
+// NEW: Import the manager dashboard
+import ManagerDashboard from './ManagerDashboard'; 
 
-/**
- * This component holds the main "logged in" layout,
- * including the navigation and the content area.
- */
 function Layout() {
-  // Get the signOut function from our "brain"
-  const { signOutUser } = useAuth();
+  // NEW: Get isManager from the brain
+  const { signOutUser, isManager } = useAuth();
 
-  // This state is now LOCAL to the Layout component,
-  // because no other component needs to know about it.
   const [activeView, setActiveView] = useState('profile');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // This effect for resizing is also local to this component.
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -25,13 +20,15 @@ function Layout() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // This function decides which child component to render
   const renderActiveView = () => {
     switch (activeView) {
       case 'profile':
-        return <MyProfile />; // Show the Profile component
+        return <MyProfile />; 
       case 'sports':
-        return <SportsInfo />; // Show the Sports component
+        return <SportsInfo />; 
+      // NEW: Add the manager case
+      case 'manager':
+        return <ManagerDashboard />;
       default:
         return <MyProfile />;
     }
@@ -45,15 +42,12 @@ function Layout() {
         flexDirection: isMobile ? 'column' : 'row'
       }}
     >
-
-      {/* --- Mobile-Only Header --- */}
       {isMobile && (
         <header className="mobile-header">
           <h1>Team App</h1>
         </header>
       )}
 
-      {/* --- Navigation Sidebar / Tab Bar --- */}
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
         {!isMobile && <h3 style={{ marginTop: 0 }}>Team App</h3>}
         
@@ -67,13 +61,19 @@ function Layout() {
           Sports Info
         </button>
         
-        {/* We get signOutUser from the useAuth() hook */}
+        {/* NEW: Conditionally render the Manager Button */}
+        {isManager() && (
+          <button onClick={() => { setActiveView('manager'); }}
+            className={activeView === 'manager' ? 'active' : ''}>
+            Manager Dashboard
+          </button>
+        )}
+        
         <button onClick={signOutUser} className="sign-out-button">
           Sign Out
         </button>
       </nav>
 
-      {/* --- Main Content Area --- */}
       <main className={isMobile ? 'main-content mobile' : 'main-content'}>
         {renderActiveView()}
       </main>
