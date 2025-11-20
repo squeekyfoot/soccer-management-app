@@ -3,8 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import MyProfile from './MyProfile'; 
 import SportsInfo from './SportsInfo'; 
 import ManagerDashboard from './ManagerDashboard'; 
-// NEW: Import MyTeams
 import MyTeams from './MyTeams';
+// NEW: Import CalendarView
+import CalendarView from './CalendarView';
 
 function Layout() {
   const { signOutUser, isManager } = useAuth();
@@ -26,9 +27,11 @@ function Layout() {
         return <MyProfile />; 
       case 'sports':
         return <SportsInfo />; 
-      // NEW: Add the teams case
       case 'teams':
         return <MyTeams />;
+      // NEW: Add calendar case
+      case 'calendar':
+        return <CalendarView />;
       case 'manager':
         return <ManagerDashboard />;
       default:
@@ -58,10 +61,15 @@ function Layout() {
           My Profile
         </button>
 
-        {/* NEW: My Teams Button */}
         <button onClick={() => { setActiveView('teams'); }}
           className={activeView === 'teams' ? 'active' : ''}>
           My Teams
+        </button>
+
+        {/* NEW: My Schedule Button */}
+        <button onClick={() => { setActiveView('calendar'); }}
+          className={activeView === 'calendar' ? 'active' : ''}>
+          My Schedule
         </button>
 
         <button onClick={() => { setActiveView('sports'); }}

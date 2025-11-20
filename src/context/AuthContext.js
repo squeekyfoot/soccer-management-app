@@ -10,7 +10,7 @@ import {
 } from "firebase/auth";
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
-  query, where, arrayUnion, arrayRemove 
+  query, where, arrayUnion, arrayRemove, orderBy 
 } from "firebase/firestore";
 import { auth, db } from "../firebase"; 
 
@@ -321,11 +321,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- NEW: Fetch Rosters for the CURRENT USER ---
-  // This allows a player to see which teams they are on
   const fetchUserRosters = async (uid) => {
     try {
-      // Query rosters where the 'playerIDs' array contains this user's UID
       const rostersRef = collection(db, "rosters");
       const q = query(rostersRef, where("playerIDs", "array-contains", uid));
       
@@ -337,6 +334,86 @@ export const AuthProvider = ({ children }) => {
       return rosterList;
     } catch (error) {
       console.error("Error fetching user rosters:", error);
+      return [];
+    }
+  };
+
+  const createEvent = async (rosterId, eventData) => {
+    // Removed isManager check. Rules now handle security.
+    try {
+      await addDoc(collection(db, "rosters", rosterId, "events"), {
+        ...eventData,
+        createdAt: new Date()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating event:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  const fetchEvents = async (rosterId) => {
+    try {
+      const eventsRef = collection(db, "rosters", rosterId, "events");
+      const q = query(eventsRef, orderBy("dateTime", "asc"));
+      
+      const querySnapshot = await getDocs(q);
+      const eventsList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return eventsList;
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      return [];
+    }
+  };
+
+  const deleteEvent = async (rosterId, eventId) => {
+    // Only managers can delete for now
+    if (!isManager()) return false;
+    try {
+      await deleteDoc(doc(db, "rosters", rosterId, "events", eventId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // --- NEW: Fetch ALL Events for a User ---
+  // This fetches all teams the user is on, then fetches all events for those teams.
+  const fetchAllUserEvents = async (uid) => {
+    try {
+      // 1. Get all rosters the user is on
+      const rosters = await fetchUserRosters(uid);
+      
+      let allEvents = [];
+
+      // 2. Loop through each roster and get its events
+      for (const roster of rosters) {
+        const eventsRef = collection(db, "rosters", roster.id, "events");
+        const q = query(eventsRef); 
+        const querySnapshot = await getDocs(q);
+        
+        const rosterEvents = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          rosterName: roster.name, // Tag event with team name
+          ...doc.data()
+        }));
+        
+        allEvents = [...allEvents, ...rosterEvents];
+      }
+
+      // 3. Sort by date (JavaScript sort because we merged multiple queries)
+      allEvents.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+      
+      return allEvents;
+
+    } catch (error) {
+      console.error("Error fetching all events:", error);
       return [];
     }
   };
@@ -360,8 +437,12 @@ export const AuthProvider = ({ children }) => {
     deleteRoster,
     addPlayerToRoster,
     removePlayerFromRoster,
-    // NEW: Export this
-    fetchUserRosters
+    fetchUserRosters,
+    createEvent,
+    fetchEvents,
+    deleteEvent,
+    // NEW: Export this function
+    fetchAllUserEvents
   };
 
   return (
