@@ -338,8 +338,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // --- NEW: Event Management Functions ---
+
+  // Create an event (Any team member can do this now)
   const createEvent = async (rosterId, eventData) => {
-    // Removed isManager check. Rules now handle security.
     try {
       await addDoc(collection(db, "rosters", rosterId, "events"), {
         ...eventData,
@@ -353,43 +355,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Fetch events for ONE roster
   const fetchEvents = async (rosterId) => {
     try {
       const eventsRef = collection(db, "rosters", rosterId, "events");
       const q = query(eventsRef, orderBy("dateTime", "asc"));
-      
       const querySnapshot = await getDocs(q);
-      const eventsList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      return eventsList;
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
       console.error("Error fetching events:", error);
       return [];
     }
   };
 
-  const deleteEvent = async (rosterId, eventId) => {
-    // Only managers can delete for now
-    if (!isManager()) return false;
-    try {
-      await deleteDoc(doc(db, "rosters", rosterId, "events", eventId));
-      return true;
-    } catch (error) {
-      console.error("Error deleting event:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  // --- NEW: Fetch ALL Events for a User ---
-  // This fetches all teams the user is on, then fetches all events for those teams.
+  // Fetch ALL events for a user across ALL their teams
   const fetchAllUserEvents = async (uid) => {
     try {
       // 1. Get all rosters the user is on
       const rosters = await fetchUserRosters(uid);
-      
       let allEvents = [];
 
       // 2. Loop through each roster and get its events
@@ -400,16 +383,14 @@ export const AuthProvider = ({ children }) => {
         
         const rosterEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
-          rosterName: roster.name, // Tag event with team name
+          rosterName: roster.name, // Tag event with team name so we know who it's for
           ...doc.data()
         }));
-        
         allEvents = [...allEvents, ...rosterEvents];
       }
 
-      // 3. Sort by date (JavaScript sort because we merged multiple queries)
+      // 3. Sort by date
       allEvents.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
-      
       return allEvents;
 
     } catch (error) {
@@ -438,10 +419,9 @@ export const AuthProvider = ({ children }) => {
     addPlayerToRoster,
     removePlayerFromRoster,
     fetchUserRosters,
+    // NEW: Export event functions
     createEvent,
     fetchEvents,
-    deleteEvent,
-    // NEW: Export this function
     fetchAllUserEvents
   };
 

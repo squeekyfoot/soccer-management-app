@@ -61,15 +61,15 @@ function Layout() {
           My Profile
         </button>
 
-        <button onClick={() => { setActiveView('teams'); }}
-          className={activeView === 'teams' ? 'active' : ''}>
-          My Teams
-        </button>
-
         {/* NEW: My Schedule Button */}
         <button onClick={() => { setActiveView('calendar'); }}
           className={activeView === 'calendar' ? 'active' : ''}>
           My Schedule
+        </button>
+
+        <button onClick={() => { setActiveView('teams'); }}
+          className={activeView === 'teams' ? 'active' : ''}>
+          My Teams
         </button>
 
         <button onClick={() => { setActiveView('sports'); }}
