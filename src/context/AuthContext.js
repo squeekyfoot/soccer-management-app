@@ -119,7 +119,7 @@ export const AuthProvider = ({ children }) => {
         address: formData.address,
         notificationPreference: formData.notificationPreference,
         comments: formData.comments,
-        isAdmin: false
+        role: 'player' // <--- NEW WAY: Default role
       };
       
       await setDoc(doc(db, "users", user.uid), userProfileData);
