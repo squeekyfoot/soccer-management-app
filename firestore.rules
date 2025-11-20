@@ -1,44 +1,45 @@
-// These rules fix the "Phonebook Leak" and "Imposter Exploit".
 rules_version = '2';
 service cloud.firestore {
-match /databases/{database}/documents {
-// --- Helper Functions ---
+  match /databases/{database}/documents {
 
-// Check if the user is logged in and is the owner of the document
-function isOwner(userId) {
-  return request.auth != null && request.auth.uid == userId;
-}
+    // --- Helper Functions ---
+    
+    // Check if the user is the owner of the document
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
 
-// Future Helper: Check if user is a manager
-function isManager() {
-  return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
-}
+    // Check if the user has the 'manager' role in their profile
+    function isManager() {
+      return request.auth != null 
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
 
-// --- Collection Rules ---
+    // --- Collection Rules ---
 
-// 1. Users Collection (Profiles)
-match /users/{userId} {
-  // READ: Only the owner can see their full profile (protects phone/address)
-  allow read: if isOwner(userId);
+    // 1. Users Collection
+    match /users/{userId} {
+      // READ: Owners can see themselves. Managers can see everyone (to add them to teams).
+      allow read: if isOwner(userId) || isManager();
 
-  // WRITE: Only the owner can edit, AND they cannot change their 'role'
-  // (This prevents the "Self-Promotion" exploit)
-  allow write: if isOwner(userId) 
-               && (!request.resource.data.keys().hasAny(['role']) 
-                   || request.resource.data.role == resource.data.role);
+      // WRITE: Only the owner can edit their profile.
+      // AND they cannot change their 'role'.
+      allow write: if isOwner(userId) 
+                   && (!request.resource.data.keys().hasAny(['role']) 
+                       || request.resource.data.role == resource.data.role);
 
-  // 2. Sports Details Sub-collection
-  match /sportsDetails/{document=**} {
-    allow read, write: if isOwner(userId);
+      // Sports Details Sub-collection (Keep strictly private for now)
+      match /sportsDetails/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // 2. Rosters Collection
+    match /rosters/{rosterId} {
+      // Managers can do everything here (create, update, delete)
+      // Regular players can only READ rosters (so they can see their team)
+      allow read: if request.auth != null;
+      allow write: if isManager();
+    }
   }
-}
-
-// 3. Rosters (Future Placeholder)
-match /rosters/{rosterId} {
-  // Only managers will be able to write here
-  allow read, write: if isManager(); 
-}
-
-
-}
 }

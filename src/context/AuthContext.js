@@ -8,8 +8,11 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from "firebase/auth";
-// NEW: Added collection, addDoc, getDocs, deleteDoc, query, where
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from "firebase/firestore";
+// NEW: Added query, where, arrayUnion, arrayRemove
+import { 
+  doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
+  query, where, arrayUnion, arrayRemove 
+} from "firebase/firestore";
 import { auth, db } from "../firebase"; 
 
 const AuthContext = createContext();
@@ -213,23 +216,22 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
-  // --- NEW: Roster Management Functions ---
+  // --- Roster Management Functions ---
 
-  // 1. Create a new roster
   const createRoster = async (rosterName, season, maxCapacity) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
       return false;
     }
     try {
-      // We use 'addDoc' to let Firestore generate a unique ID for the roster
       await addDoc(collection(db, "rosters"), {
         name: rosterName,
         season: season,
         maxCapacity: Number(maxCapacity),
         createdBy: loggedInUser.uid,
         createdAt: new Date(),
-        playerIDs: [] // Start with an empty list of players
+        playerIDs: [],
+        players: [] // We will store a mini-summary of players here for easy display
       });
       return true;
     } catch (error) {
@@ -239,11 +241,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 2. Fetch all rosters
   const fetchRosters = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "rosters"));
-      // Convert the snapshot into a nice array of objects
       const rosterList = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -255,7 +255,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 3. Delete a roster
   const deleteRoster = async (rosterId) => {
     if (!isManager()) return false;
     try {
@@ -263,6 +262,72 @@ export const AuthProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error("Error deleting roster:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // NEW: Add a player to a roster by email
+  const addPlayerToRoster = async (rosterId, playerEmail) => {
+    if (!isManager()) return false;
+    
+    try {
+      // 1. Find the user by email
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", playerEmail));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        alert("No player found with that email address.");
+        return false;
+      }
+
+      // Get the first match (emails should be unique)
+      const playerDoc = querySnapshot.docs[0];
+      const playerData = playerDoc.data();
+
+      // Create a summary object to store in the roster
+      // This creates a snapshot of the player at this moment
+      const playerSummary = {
+        uid: playerDoc.id,
+        playerName: playerData.playerName || "Unknown",
+        email: playerData.email
+      };
+
+      // 2. Add to roster document
+      const rosterRef = doc(db, "rosters", rosterId);
+      
+      await updateDoc(rosterRef, {
+        // We add the UID to the ID list
+        playerIDs: arrayUnion(playerDoc.id),
+        // We add the summary object to the players list
+        players: arrayUnion(playerSummary) 
+      });
+
+      return true;
+
+    } catch (error) {
+      console.error("Error adding player:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // NEW: Remove a player from a roster
+  const removePlayerFromRoster = async (rosterId, playerSummary) => {
+    if (!isManager()) return false;
+    
+    try {
+      const rosterRef = doc(db, "rosters", rosterId);
+      
+      await updateDoc(rosterRef, {
+        playerIDs: arrayRemove(playerSummary.uid),
+        players: arrayRemove(playerSummary)
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error removing player:", error);
       alert("Error: " + error.message);
       return false;
     }
@@ -282,10 +347,12 @@ export const AuthProvider = ({ children }) => {
     reauthenticate,
     updateSoccerDetails,
     isManager,
-    // NEW: Export the roster functions
     createRoster,
     fetchRosters,
-    deleteRoster
+    deleteRoster,
+    // NEW: Export these
+    addPlayerToRoster,
+    removePlayerFromRoster
   };
 
   return (
