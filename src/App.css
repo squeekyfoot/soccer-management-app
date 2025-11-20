@@ -1,0 +1,208 @@
+/* --- Base App Styles --- */
+.App {
+  text-align: center;
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+/* --- Logged-In Layout --- */
+
+.sidebar {
+  width: 200px;
+  background-color: #1c1e22;
+  padding: 20px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  transition: transform 0.3s ease-in-out;
+}
+
+.main-content {
+  flex: 1;
+  padding: 40px;
+  color: white;
+  overflow-y: auto;
+  padding-top: 20px;
+}
+
+/* --- NEW: Info Table Styles --- */
+.info-table {
+  display: grid;
+  /* Creates two columns:
+     1. Labels (as wide as the longest label)
+     2. Values (take up the rest of the space) */
+  grid-template-columns: auto 1fr;
+  row-gap: 15px; /* Spacing between rows */
+  column-gap: 20px; /* Spacing between label and value */
+  margin-top: 20px;
+  text-align: left;
+}
+
+.info-label {
+  font-weight: bold;
+  color: #61dafb; /* Use the React blue highlight */
+  /* This aligns the labels to the right for a clean line */
+  text-align: right;
+}
+
+.info-value {
+  color: white;
+  /* This ensures long text (like an address) wraps correctly */
+  word-break: break-word;
+}
+
+
+/* --- Sidebar Buttons --- */
+.sidebar button {
+  padding: 10px;
+  background-color: #333;
+  color: white;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 16px;
+  border-radius: 5px;
+}
+
+.sidebar button.active {
+  background-color: #61dafb;
+  color: #000;
+  font-weight: bold;
+}
+
+.sidebar button:hover:not(.active) {
+  background-color: #444;
+}
+
+.sidebar .sign-out-button {
+  background-color: #ff6b6b;
+  margin-top: auto;
+}
+.sidebar .sign-out-button:hover {
+  background-color: #e05a5a;
+}
+
+/* --- Mobile Header --- */
+.mobile-header {
+  display: none;
+}
+
+
+/* --- MOBILE RESPONSIVE STYLES --- */
+@media (max-width: 768px) {
+  
+  /* --- Mobile Header Style --- */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50px;
+    background-color: #1c1e22;
+    border-bottom: 1px solid #333;
+    z-index: 1000;
+  }
+  
+  .mobile-header h1 {
+    color: white;
+    font-size: 1.2rem;
+    margin: 0;
+  }
+
+  /* --- Main content on mobile --- */
+  .main-content.mobile {
+    padding-top: 70px; /* 50px for header + 20px spacing */
+    padding-bottom: 80px; /* 60px for tab bar + 20px spacing */
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  /* --- NEW: Make info table stack on mobile --- */
+  .info-table {
+    /* Change to a single column */
+    grid-template-columns: 1fr;
+    row-gap: 5px; /* Reduce gap */
+  }
+
+  .info-label {
+    text-align: left; /* Align labels to the left */
+    color: #61dafb;
+    font-size: 0.8rem; /* Make labels smaller */
+    margin-top: 10px; /* Add space *above* each label */
+  }
+
+  .info-value {
+    /* Indent the value slightly under the label */
+    padding-left: 10px;
+  }
+  
+  /* --- Bottom Tab Bar --- */
+  .tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background-color: #1c1e22;
+    border-top: 1px solid #333;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 1000;
+  }
+
+  /* --- Tab Bar Buttons --- */
+  .tab-bar button {
+    flex: 1;
+    height: 100%;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 12px;
+    padding: 4px;
+    cursor: pointer;
+  }
+
+  /* --- Active Tab Bar Button --- */
+  .tab-bar button.active {
+    color: #61dafb;
+    font-weight: bold;
+    background: none;
+  }
+  
+  /* --- Sign Out Button on Tab Bar --- */
+  .tab-bar .sign-out-button {
+    color: #ff6b6b;
+    margin-top: 0;
+    background: none;
+  }
+
+  .tab-bar .sign-out-button:hover {
+    background: none;
+    color: #e05a5a;
+  }
+}
