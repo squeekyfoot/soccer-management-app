@@ -8,7 +8,6 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from "firebase/auth";
-// NEW: Added query, where, arrayUnion, arrayRemove
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
   query, where, arrayUnion, arrayRemove 
@@ -216,8 +215,6 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
-  // --- Roster Management Functions ---
-
   const createRoster = async (rosterName, season, maxCapacity) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
@@ -231,7 +228,7 @@ export const AuthProvider = ({ children }) => {
         createdBy: loggedInUser.uid,
         createdAt: new Date(),
         playerIDs: [],
-        players: [] // We will store a mini-summary of players here for easy display
+        players: [] 
       });
       return true;
     } catch (error) {
@@ -267,12 +264,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // NEW: Add a player to a roster by email
   const addPlayerToRoster = async (rosterId, playerEmail) => {
     if (!isManager()) return false;
     
     try {
-      // 1. Find the user by email
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", playerEmail));
       const querySnapshot = await getDocs(q);
@@ -282,25 +277,19 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
-      // Get the first match (emails should be unique)
       const playerDoc = querySnapshot.docs[0];
       const playerData = playerDoc.data();
 
-      // Create a summary object to store in the roster
-      // This creates a snapshot of the player at this moment
       const playerSummary = {
         uid: playerDoc.id,
         playerName: playerData.playerName || "Unknown",
         email: playerData.email
       };
 
-      // 2. Add to roster document
       const rosterRef = doc(db, "rosters", rosterId);
       
       await updateDoc(rosterRef, {
-        // We add the UID to the ID list
         playerIDs: arrayUnion(playerDoc.id),
-        // We add the summary object to the players list
         players: arrayUnion(playerSummary) 
       });
 
@@ -313,7 +302,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // NEW: Remove a player from a roster
   const removePlayerFromRoster = async (rosterId, playerSummary) => {
     if (!isManager()) return false;
     
@@ -330,6 +318,26 @@ export const AuthProvider = ({ children }) => {
       console.error("Error removing player:", error);
       alert("Error: " + error.message);
       return false;
+    }
+  };
+
+  // --- NEW: Fetch Rosters for the CURRENT USER ---
+  // This allows a player to see which teams they are on
+  const fetchUserRosters = async (uid) => {
+    try {
+      // Query rosters where the 'playerIDs' array contains this user's UID
+      const rostersRef = collection(db, "rosters");
+      const q = query(rostersRef, where("playerIDs", "array-contains", uid));
+      
+      const querySnapshot = await getDocs(q);
+      const rosterList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return rosterList;
+    } catch (error) {
+      console.error("Error fetching user rosters:", error);
+      return [];
     }
   };
 
@@ -350,9 +358,10 @@ export const AuthProvider = ({ children }) => {
     createRoster,
     fetchRosters,
     deleteRoster,
-    // NEW: Export these
     addPlayerToRoster,
-    removePlayerFromRoster
+    removePlayerFromRoster,
+    // NEW: Export this
+    fetchUserRosters
   };
 
   return (

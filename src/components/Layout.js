@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext'; 
 import MyProfile from './MyProfile'; 
 import SportsInfo from './SportsInfo'; 
-// NEW: Import the manager dashboard
 import ManagerDashboard from './ManagerDashboard'; 
+// NEW: Import MyTeams
+import MyTeams from './MyTeams';
 
 function Layout() {
-  // NEW: Get isManager from the brain
   const { signOutUser, isManager } = useAuth();
 
   const [activeView, setActiveView] = useState('profile');
@@ -26,7 +26,9 @@ function Layout() {
         return <MyProfile />; 
       case 'sports':
         return <SportsInfo />; 
-      // NEW: Add the manager case
+      // NEW: Add the teams case
+      case 'teams':
+        return <MyTeams />;
       case 'manager':
         return <ManagerDashboard />;
       default:
@@ -56,12 +58,17 @@ function Layout() {
           My Profile
         </button>
 
+        {/* NEW: My Teams Button */}
+        <button onClick={() => { setActiveView('teams'); }}
+          className={activeView === 'teams' ? 'active' : ''}>
+          My Teams
+        </button>
+
         <button onClick={() => { setActiveView('sports'); }}
           className={activeView === 'sports' ? 'active' : ''}>
           Sports Info
         </button>
         
-        {/* NEW: Conditionally render the Manager Button */}
         {isManager() && (
           <button onClick={() => { setActiveView('manager'); }}
             className={activeView === 'manager' ? 'active' : ''}>
