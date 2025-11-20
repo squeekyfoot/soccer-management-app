@@ -8,36 +8,25 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from "../firebase"; // Your firebase.js file
+// NEW: Added collection, addDoc, getDocs, deleteDoc, query, where
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc } from "firebase/firestore";
+import { auth, db } from "../firebase"; 
 
-// 1. Create the Context
-// This is the "channel" components will listen to.
 const AuthContext = createContext();
 
-// 2. Create a "hook"
-// This is a simple shortcut so components can just call `useAuth()`
-// instead of the more complex `useContext(AuthContext)`.
 export const useAuth = () => {
   return useContext(AuthContext);
 };
 
-// 3. Create the "Provider"
-// This is the component that does all the work.
-// It will hold all the state and logic.
 export const AuthProvider = ({ children }) => {
-  // --- All our global state lives here ---
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [soccerDetails, setSoccerDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
 
-  // --- Core Auth Logic (runs on app start) ---
   useEffect(() => {
-    // onAuthStateChanged is the listener that checks login status
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // User is logged in. Fetch their data.
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
         const soccerDocRef = doc(db, "users", user.uid, "sportsDetails", "soccer");
@@ -56,21 +45,14 @@ export const AuthProvider = ({ children }) => {
           setSoccerDetails(null);
         }
       } else {
-        // User is logged out.
         setLoggedInUser(null);
         setSoccerDetails(null);
       }
       setIsLoading(false);
     });
 
-    // Cleanup the listener when the app closes
     return () => unsubscribe();
-  }, []); // Empty array = runs once on mount
-
-  // --- All our functions now live here ---
-  
-  // Note: These functions now take arguments (email, password, etc.)
-  // that are passed up from the component forms.
+  }, []); 
 
   const signIn = async (email, password) => {
     setIsLoading(true);
@@ -119,12 +101,11 @@ export const AuthProvider = ({ children }) => {
         address: formData.address,
         notificationPreference: formData.notificationPreference,
         comments: formData.comments,
-        role: 'player' // <--- NEW WAY: Default role
+        role: 'player'
       };
       
       await setDoc(doc(db, "users", user.uid), userProfileData);
       setLoggedInUser(userProfileData);
-      // No need to clear forms here, the component will do that.
     } catch (error) {
       console.error("Error signing up:", error);
       alert("Error: " + error.message);
@@ -144,22 +125,18 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     if (!loggedInUser) return;
-
-    // 1. Handle Email Update (if necessary)
     if (profileData.email !== loggedInUser.email) {
       try {
         await updateEmail(auth.currentUser, profileData.email);
       } catch (error) {
         if (error.code === 'auth/requires-recent-login') {
-          setNeedsReauth(true); // Open the modal
+          setNeedsReauth(true); 
         } else {
           alert("Error: " + error.message);
         }
-        return; // Stop the function
+        return;
       }
     }
-
-    // 2. Handle Firestore Document Update
     try {
       const dataToUpdate = {
         playerName: profileData.playerName,
@@ -173,15 +150,13 @@ export const AuthProvider = ({ children }) => {
       const userDocRef = doc(db, "users", loggedInUser.uid);
       await updateDoc(userDocRef, dataToUpdate);
       
-      // 3. Update local state
       setLoggedInUser(prevUser => ({
         ...prevUser,
         ...dataToUpdate
       }));
       
       alert("Profile successfully updated!");
-      return true; // Signal to the component that it can close the form
-      
+      return true; 
     } catch (error) {
       alert("Error saving profile: " + error.message);
       return false;
@@ -193,24 +168,18 @@ export const AuthProvider = ({ children }) => {
     try {
       const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
       await reauthenticateWithCredential(auth.currentUser, credential);
-      
-      // Retry the email update
       await updateEmail(auth.currentUser, newEmail);
-      
-      // Update Firestore
       const userDocRef = doc(db, "users", loggedInUser.uid);
       await updateDoc(userDocRef, { email: newEmail });
 
-      // Update local state
       setLoggedInUser(prevUser => ({
         ...prevUser,
         email: newEmail
       }));
 
       alert("Email successfully updated!");
-      setNeedsReauth(false); // Close the modal
-      return true; // Signal success
-
+      setNeedsReauth(false); 
+      return true; 
     } catch (error) {
       alert("Error: Incorrect password or another error occurred. " + error.message);
       return false;
@@ -230,9 +199,9 @@ export const AuthProvider = ({ children }) => {
       const soccerDocRef = doc(db, "users", loggedInUser.uid, "sportsDetails", "soccer");
       await setDoc(soccerDocRef, soccerDataToSave);
       
-      setSoccerDetails(soccerDataToSave); // Update global state
+      setSoccerDetails(soccerDataToSave); 
       alert("Soccer info saved!");
-      return true; // Signal success
+      return true; 
 
     } catch (error) {
       alert("Error: " + error.message);
@@ -240,13 +209,66 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-    // --- NEW: Helper function to check roles ---
   const isManager = () => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
-  // 4. "Provide" the state and functions to the app
-  // Any component inside <AuthProvider> can now access these values.
+  // --- NEW: Roster Management Functions ---
+
+  // 1. Create a new roster
+  const createRoster = async (rosterName, season, maxCapacity) => {
+    if (!isManager()) {
+      alert("Only managers can create rosters.");
+      return false;
+    }
+    try {
+      // We use 'addDoc' to let Firestore generate a unique ID for the roster
+      await addDoc(collection(db, "rosters"), {
+        name: rosterName,
+        season: season,
+        maxCapacity: Number(maxCapacity),
+        createdBy: loggedInUser.uid,
+        createdAt: new Date(),
+        playerIDs: [] // Start with an empty list of players
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating roster:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // 2. Fetch all rosters
+  const fetchRosters = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "rosters"));
+      // Convert the snapshot into a nice array of objects
+      const rosterList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return rosterList;
+    } catch (error) {
+      console.error("Error fetching rosters:", error);
+      return [];
+    }
+  };
+
+  // 3. Delete a roster
+  const deleteRoster = async (rosterId) => {
+    if (!isManager()) return false;
+    try {
+      await deleteDoc(doc(db, "rosters", rosterId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting roster:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+
   const value = {
     loggedInUser,
     soccerDetails,
@@ -259,12 +281,15 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     reauthenticate,
     updateSoccerDetails,
-    isManager
+    isManager,
+    // NEW: Export the roster functions
+    createRoster,
+    fetchRosters,
+    deleteRoster
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {/* We render children so the rest of the app appears */}
       {children}
     </AuthContext.Provider>
   );
