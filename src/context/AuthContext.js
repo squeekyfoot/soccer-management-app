@@ -12,7 +12,9 @@ import {
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
   query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp 
 } from "firebase/firestore";
-import { auth, db } from "../firebase"; 
+// NEW: Storage imports
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { auth, db, storage } from "../firebase"; 
 
 const AuthContext = createContext();
 
@@ -51,11 +53,10 @@ export const AuthProvider = ({ children }) => {
       }
       setIsLoading(false);
     });
+
     return () => unsubscribe();
   }, []); 
 
-  // ... (signIn, signUp, signOutUser, updateProfile, reauthenticate, updateSoccerDetails, isManager REMAIN UNCHANGED) ...
-  
   const signIn = async (email, password) => {
     setIsLoading(true);
     try {
@@ -215,15 +216,12 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
-  // --- Roster Management (UPDATED) ---
-
   const createRoster = async (rosterName, season, maxCapacity) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
       return false;
     }
     try {
-      // 1. Create Roster
       const rosterRef = await addDoc(collection(db, "rosters"), {
         name: rosterName,
         season: season,
@@ -234,14 +232,12 @@ export const AuthProvider = ({ children }) => {
         players: [] 
       });
 
-      // 2. NEW: Create Linked Persistent Chat
-      // Managers are auto-added to the chat
       await addDoc(collection(db, "chats"), {
-        type: 'roster', // Special type
-        rosterId: rosterRef.id, // Link back to roster
-        name: `${rosterName} (${season})`, // Team Name
+        type: 'roster', 
+        rosterId: rosterRef.id,
+        name: `${rosterName} (${season})`,
         participants: [loggedInUser.uid],
-        visibleTo: [loggedInUser.uid], // Visible to manager initially
+        visibleTo: [loggedInUser.uid],
         participantDetails: [{
           uid: loggedInUser.uid,
           name: loggedInUser.playerName,
@@ -273,7 +269,6 @@ export const AuthProvider = ({ children }) => {
   const deleteRoster = async (rosterId) => {
     if (!isManager()) return false;
     try {
-      // Note: In a real app, we should also delete the linked Chat document here.
       await deleteDoc(doc(db, "rosters", rosterId));
       return true;
     } catch (error) {
@@ -285,7 +280,6 @@ export const AuthProvider = ({ children }) => {
 
   const addPlayerToRoster = async (rosterId, playerEmail) => {
     if (!isManager()) return false;
-    
     try {
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", playerEmail));
@@ -305,15 +299,12 @@ export const AuthProvider = ({ children }) => {
         email: playerData.email
       };
 
-      // 1. Update Roster
       const rosterRef = doc(db, "rosters", rosterId);
       await updateDoc(rosterRef, {
         playerIDs: arrayUnion(playerDoc.id),
         players: arrayUnion(playerSummary) 
       });
 
-      // 2. NEW: Update Linked Chat (Add player to chat)
-      // Find the chat associated with this roster
       const chatsRef = collection(db, "chats");
       const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
       const chatSnapshot = await getDocs(chatQ);
@@ -322,13 +313,11 @@ export const AuthProvider = ({ children }) => {
         const chatDoc = chatSnapshot.docs[0];
         await updateDoc(chatDoc.ref, {
           participants: arrayUnion(playerDoc.id),
-          visibleTo: arrayUnion(playerDoc.id), // Make it visible immediately
+          visibleTo: arrayUnion(playerDoc.id),
           participantDetails: arrayUnion(playerSummary)
         });
       }
-
       return true;
-
     } catch (error) {
       console.error("Error adding player:", error);
       alert("Error: " + error.message);
@@ -338,16 +327,13 @@ export const AuthProvider = ({ children }) => {
 
   const removePlayerFromRoster = async (rosterId, playerSummary) => {
     if (!isManager()) return false;
-    
     try {
-      // 1. Update Roster
       const rosterRef = doc(db, "rosters", rosterId);
       await updateDoc(rosterRef, {
         playerIDs: arrayRemove(playerSummary.uid),
         players: arrayRemove(playerSummary)
       });
 
-      // 2. NEW: Update Linked Chat (Remove player from chat)
       const chatsRef = collection(db, "chats");
       const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
       const chatSnapshot = await getDocs(chatQ);
@@ -360,7 +346,6 @@ export const AuthProvider = ({ children }) => {
           participantDetails: arrayRemove(playerSummary)
         });
       }
-
       return true;
     } catch (error) {
       console.error("Error removing player:", error);
@@ -369,8 +354,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ... (fetchUserRosters, createEvent, fetchEvents, deleteEvent, fetchAllUserEvents REMAIN UNCHANGED) ...
-  
   const fetchUserRosters = async (uid) => {
     try {
       const rostersRef = collection(db, "rosters");
@@ -425,10 +408,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const rosters = await fetchUserRosters(uid);
       let allEvents = [];
+
       for (const roster of rosters) {
         const eventsRef = collection(db, "rosters", roster.id, "events");
         const q = query(eventsRef); 
         const querySnapshot = await getDocs(q);
+        
         const rosterEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
           rosterName: roster.name, 
@@ -444,14 +429,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- UPDATED: Flexible Chat Functions ---
+  // --- NEW: Upload Image Function ---
+  const uploadImage = async (file, path) => {
+    if (!file) return null;
+    try {
+      const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return downloadURL;
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      throw error;
+    }
+  };
 
-  // 1. Create a new chat (DM or Group)
-  // NEW: Initializes visibleTo
   const createChat = async (participantEmails, chatName = "") => {
     try {
       const usersRef = collection(db, "users");
-      
       const participants = [];
       const participantIds = [loggedInUser.uid];
 
@@ -463,14 +457,11 @@ export const AuthProvider = ({ children }) => {
 
       for (const email of participantEmails) {
         if (email === loggedInUser.email) continue; 
-
         const q = query(usersRef, where("email", "==", email));
         const snapshot = await getDocs(q);
-        
         if (!snapshot.empty) {
           const userDoc = snapshot.docs[0];
           const userData = userDoc.data();
-          
           participantIds.push(userDoc.id);
           participants.push({
             uid: userDoc.id,
@@ -489,15 +480,13 @@ export const AuthProvider = ({ children }) => {
         type: participantIds.length > 2 ? 'group' : 'dm',
         name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
         participants: participantIds,
-        visibleTo: participantIds, // NEW: All participants see it initially
+        visibleTo: participantIds,
         participantDetails: participants,
         createdAt: serverTimestamp(),
         lastMessage: "Chat created",
         lastMessageTime: serverTimestamp()
       });
-
       return true;
-
     } catch (error) {
       console.error("Error creating chat:", error);
       alert("Error: " + error.message);
@@ -505,12 +494,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 2. Send a message
-  // NEW: Updates visibleTo for "Resurrection"
-  const sendMessage = async (chatId, text, currentParticipants) => {
+  // --- UPDATED: Send Message ---
+  const sendMessage = async (chatId, text, currentParticipants, imageUrl = null) => {
     try {
       await addDoc(collection(db, "chats", chatId, "messages"), {
         text: text,
+        imageUrl: imageUrl, // Store the URL
         senderId: loggedInUser.uid,
         senderName: loggedInUser.playerName,
         createdAt: serverTimestamp()
@@ -518,11 +507,16 @@ export const AuthProvider = ({ children }) => {
 
       // Update parent chat doc
       const chatRef = doc(db, "chats", chatId);
+      
+      // Construct summary text
+      let summary = text;
+      if (imageUrl) {
+        summary = text ? `📷 ${text}` : "📷 Sent an image";
+      }
+
       await updateDoc(chatRef, {
-        lastMessage: text,
+        lastMessage: summary,
         lastMessageTime: serverTimestamp(),
-        // NEW: Resurrection Logic
-        // Set visibleTo back to the full participants list so it reappears for everyone
         visibleTo: currentParticipants 
       });
 
@@ -534,14 +528,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 3. Fetch chats for the current user
-  // NEW: Queries 'visibleTo' instead of 'participants'
   const fetchUserChats = async (uid) => {
     try {
       const chatsRef = collection(db, "chats");
-      // NEW: Only fetch chats where I am in the 'visibleTo' array
       const q = query(chatsRef, where("visibleTo", "array-contains", uid), orderBy("lastMessageTime", "desc"));
-      
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -553,24 +543,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // NEW: Hide Chat Function
   const hideChat = async (chatId, currentVisibleTo, chatType) => {
-    // Rule: Cannot hide/delete roster chats
     if (chatType === 'roster') {
       alert("Team Roster chats cannot be deleted.");
       return false;
     }
-
     try {
-      // Calculate the new visibility list (remove myself)
       const newVisibleTo = currentVisibleTo.filter(uid => uid !== loggedInUser.uid);
-
       if (newVisibleTo.length === 0) {
-        // If NO ONE can see it anymore, delete the chat document entirely (Cleanup)
         await deleteDoc(doc(db, "chats", chatId));
-        console.log("Chat deleted permanently (no visible participants).");
       } else {
-        // Otherwise, just update the document to hide it for me
         const chatRef = doc(db, "chats", chatId);
         await updateDoc(chatRef, {
           visibleTo: newVisibleTo
@@ -611,8 +593,9 @@ export const AuthProvider = ({ children }) => {
     createChat,
     sendMessage,
     fetchUserChats,
-    // NEW: Export hideChat
-    hideChat
+    hideChat,
+    // NEW: Export uploadImage
+    uploadImage
   };
 
   return (

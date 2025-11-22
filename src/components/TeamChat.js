@@ -95,12 +95,17 @@ function UserSearch({ onSelectionChange }) {
 
 
 function TeamChat() {
-  const { sendMessage, createChat, hideChat, loggedInUser } = useAuth();
+  // NEW: Import uploadImage
+  const { sendMessage, createChat, hideChat, uploadImage, loggedInUser } = useAuth();
   
   const [myChats, setMyChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  
+  // NEW: State for selected file
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null); // Ref to trigger hidden file input
   
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState([]); 
@@ -108,18 +113,11 @@ function TeamChat() {
 
   const messagesEndRef = useRef(null);
 
-  // --- 1. REAL-TIME LISTENER FOR CHAT LIST ---
+  // 1. REAL-TIME LISTENER FOR CHAT LIST
   useEffect(() => {
-    if (!loggedInUser) {
-      console.log("DEBUG: No logged in user yet.");
-      return;
-    }
-
-    console.log("DEBUG: Setting up chat listener for user:", loggedInUser.uid);
+    if (!loggedInUser) return;
 
     const chatsRef = collection(db, "chats");
-    
-    // Query using 'visibleTo'
     const q = query(
       chatsRef, 
       where("visibleTo", "array-contains", loggedInUser.uid), 
@@ -127,14 +125,10 @@ function TeamChat() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log("DEBUG: Snapshot received. Docs count:", snapshot.size);
-      
       const chats = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      
-      console.log("DEBUG: Chats found:", chats);
       setMyChats(chats);
       
       if (selectedChat) {
@@ -144,11 +138,11 @@ function TeamChat() {
         }
       }
     }, (error) => {
-      console.error("DEBUG: Error listening to chat list:", error);
+      console.error("Error listening to chat list:", error);
     });
 
     return () => unsubscribe();
-  }, [loggedInUser]);
+  }, [loggedInUser, selectedChat]);
 
 
   // 2. LISTEN for messages
@@ -176,14 +170,40 @@ function TeamChat() {
     }, 100);
   };
 
+  // NEW: Handle file selection
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  // NEW: Updated Send Logic
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChat) return;
+    if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
 
     const text = newMessage;
+    const fileToUpload = selectedFile;
+
+    // Clear inputs immediately for better UX
     setNewMessage(""); 
-    // Pass participants list for resurrection logic
-    await sendMessage(selectedChat.id, text, selectedChat.participants);
+    setSelectedFile(null); 
+    
+    let imageUrl = null;
+
+    try {
+      // 1. Upload image if exists
+      if (fileToUpload) {
+        imageUrl = await uploadImage(fileToUpload, `chat_images/${selectedChat.id}`);
+      }
+
+      // 2. Send message with text and/or image URL
+      await sendMessage(selectedChat.id, text, selectedChat.participants, imageUrl);
+
+    } catch (error) {
+      console.error("Error sending message/image:", error);
+      alert("Failed to send message.");
+    }
   };
 
   const handleCreateChat = async (e) => {
@@ -200,15 +220,12 @@ function TeamChat() {
     }
   };
 
-  // Handle deleting/hiding a chat
   const handleDeleteChat = async (e, chat) => {
     e.stopPropagation(); 
-    
     if (chat.type === 'roster') {
       alert("Team Roster chats cannot be deleted.");
       return;
     }
-
     if (window.confirm("Are you sure you want to hide this conversation? It will reappear if someone sends a new message.")) {
       await hideChat(chat.id, chat.visibleTo, chat.type);
       if (selectedChat && selectedChat.id === chat.id) {
@@ -257,7 +274,6 @@ function TeamChat() {
                   </div>
                 </div>
                 
-                {/* Delete Button */}
                 {chat.type !== 'roster' && (
                   <button 
                     onClick={(e) => handleDeleteChat(e, chat)}
@@ -303,7 +319,15 @@ function TeamChat() {
                       borderTopRightRadius: isMe ? '2px' : '15px',
                       borderTopLeftRadius: isMe ? '15px' : '2px'
                     }}>
-                      {msg.text}
+                      {/* NEW: Display Image if available */}
+                      {msg.imageUrl && (
+                        <img 
+                          src={msg.imageUrl} 
+                          alt="Attachment" 
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', marginBottom: msg.text ? '10px' : '0' }}
+                        />
+                      )}
+                      {msg.text && <span>{msg.text}</span>}
                     </div>
                   </div>
                 );
@@ -311,20 +335,53 @@ function TeamChat() {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSend} style={{ padding: '15px', backgroundColor: '#282c34', borderTop: '1px solid #444', display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                placeholder="Type a message..." 
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }}
-              />
-              <button type="submit" style={{ 
-                padding: '10px 20px', borderRadius: '20px', border: 'none', 
-                backgroundColor: '#61dafb', color: '#000', fontWeight: 'bold', cursor: 'pointer'
-              }}>
-                Send
-              </button>
+            {/* NEW: Updated Input Area with File Picker */}
+            <form onSubmit={handleSend} style={{ padding: '15px', backgroundColor: '#282c34', borderTop: '1px solid #444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              
+              {/* File Preview */}
+              {selectedFile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'white', fontSize: '12px', paddingLeft: '10px' }}>
+                  <span>📎 {selectedFile.name}</span>
+                  <button type="button" onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}>✕</button>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {/* Hidden Input */}
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                />
+                
+                {/* Paperclip Button */}
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current.click()}
+                  style={{ 
+                    padding: '0 15px', borderRadius: '20px', border: '1px solid #555', 
+                    backgroundColor: '#3a3f4a', color: 'white', fontSize: '20px', cursor: 'pointer'
+                  }}
+                >
+                  📎
+                </button>
+
+                <input 
+                  type="text" 
+                  placeholder="Type a message..." 
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }}
+                />
+                <button type="submit" style={{ 
+                  padding: '10px 20px', borderRadius: '20px', border: 'none', 
+                  backgroundColor: '#61dafb', color: '#000', fontWeight: 'bold', cursor: 'pointer'
+                }}>
+                  Send
+                </button>
+              </div>
             </form>
           </>
         ) : (
@@ -334,7 +391,7 @@ function TeamChat() {
         )}
       </div>
 
-      {/* --- NEW CHAT MODAL --- */}
+      {/* --- NEW CHAT MODAL (Unchanged) --- */}
       {showNewChatModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -365,7 +422,6 @@ function TeamChat() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
