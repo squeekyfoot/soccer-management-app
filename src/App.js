@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import './App.css';
 // NEW: Import our custom hook
 import { useAuth } from './context/AuthContext';
@@ -16,6 +16,21 @@ import ReauthModal from './components/ReauthModal';
 function App() {
   // Get all the global state from our "brain" (AuthContext)
   const { loggedInUser, isLoading, needsReauth } = useAuth();
+
+useEffect(() => {
+  const handleUnload = () => {
+    // This doesn't delete the app, but it can serve as a 
+    // placeholder to forcefully detach listeners if needed.
+    // In modern Firebase SDKs, simply letting the page unload
+    // is usually sufficient, despite the console error.
+  };
+  
+  window.addEventListener('beforeunload', handleUnload);
+  
+  return () => {
+    window.removeEventListener('beforeunload', handleUnload);
+  };
+}, []);
 
   // 1. Show a loading screen while we check for a user
   if (isLoading) {
