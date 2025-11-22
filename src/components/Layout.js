@@ -4,8 +4,9 @@ import MyProfile from './MyProfile';
 import SportsInfo from './SportsInfo'; 
 import ManagerDashboard from './ManagerDashboard'; 
 import MyTeams from './MyTeams';
-// NEW: Import CalendarView
 import CalendarView from './CalendarView';
+// NEW: Import TeamChat
+import TeamChat from './TeamChat';
 
 function Layout() {
   const { signOutUser, isManager } = useAuth();
@@ -29,9 +30,11 @@ function Layout() {
         return <SportsInfo />; 
       case 'teams':
         return <MyTeams />;
-      // NEW: Add calendar case
       case 'calendar':
         return <CalendarView />;
+      // NEW: Add chat case
+      case 'chat':
+        return <TeamChat />;
       case 'manager':
         return <ManagerDashboard />;
       default:
@@ -61,7 +64,12 @@ function Layout() {
           My Profile
         </button>
 
-        {/* NEW: My Schedule Button */}
+        {/* NEW: Chat Button */}
+        <button onClick={() => { setActiveView('chat'); }}
+          className={activeView === 'chat' ? 'active' : ''}>
+          Chat
+        </button>
+
         <button onClick={() => { setActiveView('calendar'); }}
           className={activeView === 'calendar' ? 'active' : ''}>
           My Schedule

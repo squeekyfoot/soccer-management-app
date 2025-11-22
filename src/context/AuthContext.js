@@ -10,7 +10,7 @@ import {
 } from "firebase/auth";
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
-  query, where, arrayUnion, arrayRemove, orderBy 
+  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp 
 } from "firebase/firestore";
 import { auth, db } from "../firebase"; 
 
@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
 
+  // ... (useEffect for auth state listener remains the same) ...
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -37,7 +38,6 @@ export const AuthProvider = ({ children }) => {
         if (userDoc.exists()) {
           setLoggedInUser(userDoc.data());
         } else {
-          console.error("No user profile found!");
           setLoggedInUser(null);
         }
 
@@ -52,10 +52,11 @@ export const AuthProvider = ({ children }) => {
       }
       setIsLoading(false);
     });
-
     return () => unsubscribe();
   }, []); 
 
+  // ... (signIn, signUp, signOutUser, updateProfile, reauthenticate, updateSoccerDetails, isManager, Roster functions, Event functions REMAIN THE SAME) ...
+  
   const signIn = async (email, password) => {
     setIsLoading(true);
     try {
@@ -338,9 +339,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- NEW: Event Management Functions ---
-
-  // Create an event (Any team member can do this now)
   const createEvent = async (rosterId, eventData) => {
     try {
       await addDoc(collection(db, "rosters", rosterId, "events"), {
@@ -355,7 +353,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Fetch events for ONE roster
   const fetchEvents = async (rosterId) => {
     try {
       const eventsRef = collection(db, "rosters", rosterId, "events");
@@ -368,14 +365,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Fetch ALL events for a user across ALL their teams
+  const deleteEvent = async (rosterId, eventId) => {
+    if (!isManager()) return false;
+    try {
+      await deleteDoc(doc(db, "rosters", rosterId, "events", eventId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
   const fetchAllUserEvents = async (uid) => {
     try {
-      // 1. Get all rosters the user is on
       const rosters = await fetchUserRosters(uid);
       let allEvents = [];
 
-      // 2. Loop through each roster and get its events
       for (const roster of rosters) {
         const eventsRef = collection(db, "rosters", roster.id, "events");
         const q = query(eventsRef); 
@@ -383,18 +389,125 @@ export const AuthProvider = ({ children }) => {
         
         const rosterEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
-          rosterName: roster.name, // Tag event with team name so we know who it's for
+          rosterName: roster.name, 
           ...doc.data()
         }));
         allEvents = [...allEvents, ...rosterEvents];
       }
 
-      // 3. Sort by date
       allEvents.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
       return allEvents;
 
     } catch (error) {
       console.error("Error fetching all events:", error);
+      return [];
+    }
+  };
+
+  // --- NEW: Flexible Chat Functions ---
+
+  // 1. Create a new chat (DM or Group)
+  const createChat = async (participantEmails, chatName = "") => {
+    try {
+      // Convert emails to UIDs and summaries
+      const usersRef = collection(db, "users");
+      // Note: Firestore 'in' query supports max 10 values
+      // For MVP we will loop to find users. Not efficient for large groups but safe.
+      
+      const participants = [];
+      const participantIds = [loggedInUser.uid]; // Add myself first
+
+      // Add myself to summaries
+      participants.push({
+        uid: loggedInUser.uid,
+        name: loggedInUser.playerName,
+        email: loggedInUser.email
+      });
+
+      for (const email of participantEmails) {
+        if (email === loggedInUser.email) continue; // Skip myself
+
+        const q = query(usersRef, where("email", "==", email));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          const userDoc = snapshot.docs[0];
+          const userData = userDoc.data();
+          
+          participantIds.push(userDoc.id);
+          participants.push({
+            uid: userDoc.id,
+            name: userData.playerName || "Unknown",
+            email: userData.email
+          });
+        }
+      }
+
+      if (participantIds.length < 2) {
+        alert("Could not find any valid users to chat with.");
+        return false;
+      }
+
+      // Create the chat document
+      await addDoc(collection(db, "chats"), {
+        type: participantIds.length > 2 ? 'group' : 'dm',
+        name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
+        participants: participantIds, // Array of UIDs for security rules
+        participantDetails: participants, // Array of objects for UI
+        createdAt: serverTimestamp(),
+        lastMessage: "Chat created",
+        lastMessageTime: serverTimestamp()
+      });
+
+      return true;
+
+    } catch (error) {
+      console.error("Error creating chat:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // 2. Send a message
+  const sendMessage = async (chatId, text) => {
+    try {
+      // Add message to sub-collection
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        text: text,
+        senderId: loggedInUser.uid,
+        senderName: loggedInUser.playerName,
+        createdAt: serverTimestamp()
+      });
+
+      // Update the parent chat document with the "Last Message" (for the list view)
+      const chatRef = doc(db, "chats", chatId);
+      await updateDoc(chatRef, {
+        lastMessage: text,
+        lastMessageTime: serverTimestamp()
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error sending message:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // 3. Fetch chats for the current user
+  const fetchUserChats = async (uid) => {
+    try {
+      const chatsRef = collection(db, "chats");
+      // Query: chats where 'participants' array contains my UID
+      const q = query(chatsRef, where("participants", "array-contains", uid), orderBy("lastMessageTime", "desc"));
+      
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error("Error fetching chats:", error);
       return [];
     }
   };
@@ -419,10 +532,14 @@ export const AuthProvider = ({ children }) => {
     addPlayerToRoster,
     removePlayerFromRoster,
     fetchUserRosters,
-    // NEW: Export event functions
     createEvent,
     fetchEvents,
-    fetchAllUserEvents
+    deleteEvent,
+    fetchAllUserEvents,
+    // NEW: Chat exports
+    createChat,
+    sendMessage,
+    fetchUserChats
   };
 
   return (

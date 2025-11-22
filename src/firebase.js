@@ -2,9 +2,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// We use environment variables so the secrets are not in the code.
-// Designed to work with a .env file that is in the .gitignore
-// Purpose is to enable collaboration without sharing secrets.
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -18,6 +15,6 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Export the services you'll need
+// Initialize Services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
