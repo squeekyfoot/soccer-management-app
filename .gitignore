@@ -24,3 +24,6 @@ yarn-error.log*
 
 # security - created to store firebase keys
 .env
+
+# Firebase cache
+.firebase

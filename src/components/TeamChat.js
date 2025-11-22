@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, limit, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 
-// --- INTERNAL COMPONENT: User Search & Select ---
+// --- INTERNAL COMPONENT: User Search & Select (Unchanged) ---
 function UserSearch({ onSelectionChange }) {
   const [allUsers, setAllUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,7 +31,6 @@ function UserSearch({ onSelectionChange }) {
       setSuggestions([]);
       return;
     }
-    
     const lowerTerm = searchTerm.toLowerCase();
     const filtered = allUsers.filter(user => 
       (user.playerName && user.playerName.toLowerCase().includes(lowerTerm)) ||
@@ -39,7 +38,6 @@ function UserSearch({ onSelectionChange }) {
     ).filter(user => 
       !selectedUsers.find(s => s.uid === user.uid)
     );
-
     setSuggestions(filtered.slice(0, 5));
   }, [searchTerm, allUsers, selectedUsers]);
 
@@ -59,10 +57,7 @@ function UserSearch({ onSelectionChange }) {
 
   return (
     <div style={{ marginBottom: '15px' }}>
-      <label style={{ display: 'block', marginBottom: '5px', color: 'white' }}>
-        Add People:
-      </label>
-      
+      <label style={{ display: 'block', marginBottom: '5px', color: 'white' }}>Add People:</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '5px' }}>
         {selectedUsers.map(user => (
           <span key={user.uid} style={{
@@ -70,16 +65,10 @@ function UserSearch({ onSelectionChange }) {
             borderRadius: '15px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px'
           }}>
             {user.playerName || user.email}
-            <button 
-              onClick={() => removeUser(user)}
-              style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              ✕
-            </button>
+            <button onClick={() => removeUser(user)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
           </span>
         ))}
       </div>
-
       <input 
         type="text" 
         value={searchTerm}
@@ -87,18 +76,13 @@ function UserSearch({ onSelectionChange }) {
         placeholder="Search by name or email..."
         style={{ width: '100%', padding: '8px', backgroundColor: '#3a3f4a', border: 'none', color: 'white' }}
       />
-
       {suggestions.length > 0 && (
         <div style={{
           backgroundColor: '#222', border: '1px solid #444', borderRadius: '4px',
           position: 'absolute', width: '80%', zIndex: 10, maxHeight: '150px', overflowY: 'auto'
         }}>
           {suggestions.map(user => (
-            <div 
-              key={user.uid}
-              onClick={() => addUser(user)}
-              style={{ padding: '8px', borderBottom: '1px solid #333', cursor: 'pointer', color: 'white' }}
-            >
+            <div key={user.uid} onClick={() => addUser(user)} style={{ padding: '8px', borderBottom: '1px solid #333', cursor: 'pointer', color: 'white' }}>
               <div style={{ fontWeight: 'bold' }}>{user.playerName}</div>
               <div style={{ fontSize: '12px', color: '#aaa' }}>{user.email}</div>
             </div>
@@ -111,48 +95,63 @@ function UserSearch({ onSelectionChange }) {
 
 
 function TeamChat() {
-  const { sendMessage, createChat, loggedInUser } = useAuth();
+  const { sendMessage, createChat, hideChat, loggedInUser } = useAuth();
   
-  // Data State
   const [myChats, setMyChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   
-  // New Chat Modal State
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newChatName, setNewChatName] = useState("");
 
   const messagesEndRef = useRef(null);
 
-  // --- NEW: Real-Time Listener for My Chats ---
+  // --- 1. REAL-TIME LISTENER FOR CHAT LIST ---
   useEffect(() => {
-    if (!loggedInUser) return;
+    if (!loggedInUser) {
+      console.log("DEBUG: No logged in user yet.");
+      return;
+    }
 
-    // Query: chats where 'participants' array contains my UID
+    console.log("DEBUG: Setting up chat listener for user:", loggedInUser.uid);
+
     const chatsRef = collection(db, "chats");
+    
+    // Query using 'visibleTo'
     const q = query(
       chatsRef, 
-      where("participants", "array-contains", loggedInUser.uid), 
+      where("visibleTo", "array-contains", loggedInUser.uid), 
       orderBy("lastMessageTime", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log("DEBUG: Snapshot received. Docs count:", snapshot.size);
+      
       const chats = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      
+      console.log("DEBUG: Chats found:", chats);
       setMyChats(chats);
+      
+      if (selectedChat) {
+        const stillExists = chats.find(c => c.id === selectedChat.id);
+        if (!stillExists) {
+          setSelectedChat(null);
+        }
+      }
     }, (error) => {
-      console.error("Error listening to chats:", error);
+      console.error("DEBUG: Error listening to chat list:", error);
     });
 
     return () => unsubscribe();
   }, [loggedInUser]);
 
 
-  // 2. LISTEN for messages when a chat is selected (Unchanged)
+  // 2. LISTEN for messages
   useEffect(() => {
     if (!selectedChat) return;
 
@@ -183,8 +182,8 @@ function TeamChat() {
 
     const text = newMessage;
     setNewMessage(""); 
-    await sendMessage(selectedChat.id, text);
-    // No need to call loadChats(), the snapshot listener handles it!
+    // Pass participants list for resurrection logic
+    await sendMessage(selectedChat.id, text, selectedChat.participants);
   };
 
   const handleCreateChat = async (e) => {
@@ -193,14 +192,28 @@ function TeamChat() {
       alert("Please select at least one person.");
       return;
     }
-
     const success = await createChat(selectedEmails, newChatName);
     if (success) {
-      // alert("Chat created!"); // Optional: removed to make it smoother
       setShowNewChatModal(false);
       setSelectedEmails([]);
       setNewChatName("");
-      // No need to call loadChats()
+    }
+  };
+
+  // Handle deleting/hiding a chat
+  const handleDeleteChat = async (e, chat) => {
+    e.stopPropagation(); 
+    
+    if (chat.type === 'roster') {
+      alert("Team Roster chats cannot be deleted.");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to hide this conversation? It will reappear if someone sends a new message.")) {
+      await hideChat(chat.id, chat.visibleTo, chat.type);
+      if (selectedChat && selectedChat.id === chat.id) {
+        setSelectedChat(null);
+      }
     }
   };
 
@@ -231,13 +244,29 @@ function TeamChat() {
                   padding: '15px', 
                   cursor: 'pointer', 
                   backgroundColor: selectedChat?.id === chat.id ? '#3a3f4a' : 'transparent',
-                  borderBottom: '1px solid #333'
+                  borderBottom: '1px solid #333',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                 }}
               >
-                <div style={{ fontWeight: 'bold', color: 'white' }}>{chat.name || "Chat"}</div>
-                <div style={{ fontSize: '12px', color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {chat.lastMessage}
+                <div style={{ overflow: 'hidden', flex: 1, marginRight: '10px' }}>
+                  <div style={{ fontWeight: 'bold', color: 'white' }}>
+                    {chat.type === 'roster' ? `⚽ ${chat.name}` : chat.name || "Chat"}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {chat.lastMessage}
+                  </div>
                 </div>
+                
+                {/* Delete Button */}
+                {chat.type !== 'roster' && (
+                  <button 
+                    onClick={(e) => handleDeleteChat(e, chat)}
+                    style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '16px', padding: '5px' }}
+                    title="Hide conversation"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             ))
           )}
@@ -314,7 +343,6 @@ function TeamChat() {
         }}>
           <div style={{ backgroundColor: '#282c34', padding: '30px', borderRadius: '8px', width: '400px', border: '1px solid #61dafb', position: 'relative' }}>
             <h3 style={{ marginTop: 0, color: 'white' }}>Start New Chat</h3>
-            
             <label style={{ display: 'block', marginBottom: '10px', color: 'white' }}>
               Chat Name (Optional):
               <input 
@@ -325,10 +353,7 @@ function TeamChat() {
                 style={{ width: '100%', padding: '8px', marginTop: '5px', backgroundColor: '#3a3f4a', border: 'none', color: 'white' }}
               />
             </label>
-
-            {/* UserSearch Component */}
             <UserSearch onSelectionChange={setSelectedEmails} />
-
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
               <button onClick={handleCreateChat} style={{ flex: 1, padding: '10px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
                 Start Chat

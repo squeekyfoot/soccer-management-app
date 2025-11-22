@@ -26,7 +26,6 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
 
-  // ... (useEffect for auth state listener remains the same) ...
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -55,7 +54,7 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []); 
 
-  // ... (signIn, signUp, signOutUser, updateProfile, reauthenticate, updateSoccerDetails, isManager, Roster functions, Event functions REMAIN THE SAME) ...
+  // ... (signIn, signUp, signOutUser, updateProfile, reauthenticate, updateSoccerDetails, isManager REMAIN UNCHANGED) ...
   
   const signIn = async (email, password) => {
     setIsLoading(true);
@@ -216,13 +215,16 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
+  // --- Roster Management (UPDATED) ---
+
   const createRoster = async (rosterName, season, maxCapacity) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
       return false;
     }
     try {
-      await addDoc(collection(db, "rosters"), {
+      // 1. Create Roster
+      const rosterRef = await addDoc(collection(db, "rosters"), {
         name: rosterName,
         season: season,
         maxCapacity: Number(maxCapacity),
@@ -231,6 +233,25 @@ export const AuthProvider = ({ children }) => {
         playerIDs: [],
         players: [] 
       });
+
+      // 2. NEW: Create Linked Persistent Chat
+      // Managers are auto-added to the chat
+      await addDoc(collection(db, "chats"), {
+        type: 'roster', // Special type
+        rosterId: rosterRef.id, // Link back to roster
+        name: `${rosterName} (${season})`, // Team Name
+        participants: [loggedInUser.uid],
+        visibleTo: [loggedInUser.uid], // Visible to manager initially
+        participantDetails: [{
+          uid: loggedInUser.uid,
+          name: loggedInUser.playerName,
+          email: loggedInUser.email
+        }],
+        createdAt: serverTimestamp(),
+        lastMessage: "Team chat created",
+        lastMessageTime: serverTimestamp()
+      });
+
       return true;
     } catch (error) {
       console.error("Error creating roster:", error);
@@ -242,11 +263,7 @@ export const AuthProvider = ({ children }) => {
   const fetchRosters = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "rosters"));
-      const rosterList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      return rosterList;
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
       console.error("Error fetching rosters:", error);
       return [];
@@ -256,6 +273,7 @@ export const AuthProvider = ({ children }) => {
   const deleteRoster = async (rosterId) => {
     if (!isManager()) return false;
     try {
+      // Note: In a real app, we should also delete the linked Chat document here.
       await deleteDoc(doc(db, "rosters", rosterId));
       return true;
     } catch (error) {
@@ -287,12 +305,27 @@ export const AuthProvider = ({ children }) => {
         email: playerData.email
       };
 
+      // 1. Update Roster
       const rosterRef = doc(db, "rosters", rosterId);
-      
       await updateDoc(rosterRef, {
         playerIDs: arrayUnion(playerDoc.id),
         players: arrayUnion(playerSummary) 
       });
+
+      // 2. NEW: Update Linked Chat (Add player to chat)
+      // Find the chat associated with this roster
+      const chatsRef = collection(db, "chats");
+      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
+      const chatSnapshot = await getDocs(chatQ);
+
+      if (!chatSnapshot.empty) {
+        const chatDoc = chatSnapshot.docs[0];
+        await updateDoc(chatDoc.ref, {
+          participants: arrayUnion(playerDoc.id),
+          visibleTo: arrayUnion(playerDoc.id), // Make it visible immediately
+          participantDetails: arrayUnion(playerSummary)
+        });
+      }
 
       return true;
 
@@ -307,12 +340,26 @@ export const AuthProvider = ({ children }) => {
     if (!isManager()) return false;
     
     try {
+      // 1. Update Roster
       const rosterRef = doc(db, "rosters", rosterId);
-      
       await updateDoc(rosterRef, {
         playerIDs: arrayRemove(playerSummary.uid),
         players: arrayRemove(playerSummary)
       });
+
+      // 2. NEW: Update Linked Chat (Remove player from chat)
+      const chatsRef = collection(db, "chats");
+      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
+      const chatSnapshot = await getDocs(chatQ);
+
+      if (!chatSnapshot.empty) {
+        const chatDoc = chatSnapshot.docs[0];
+        await updateDoc(chatDoc.ref, {
+          participants: arrayRemove(playerSummary.uid),
+          visibleTo: arrayRemove(playerSummary.uid),
+          participantDetails: arrayRemove(playerSummary)
+        });
+      }
 
       return true;
     } catch (error) {
@@ -322,17 +369,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ... (fetchUserRosters, createEvent, fetchEvents, deleteEvent, fetchAllUserEvents REMAIN UNCHANGED) ...
+  
   const fetchUserRosters = async (uid) => {
     try {
       const rostersRef = collection(db, "rosters");
       const q = query(rostersRef, where("playerIDs", "array-contains", uid));
-      
       const querySnapshot = await getDocs(q);
-      const rosterList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      return rosterList;
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
       console.error("Error fetching user rosters:", error);
       return [];
@@ -381,12 +425,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const rosters = await fetchUserRosters(uid);
       let allEvents = [];
-
       for (const roster of rosters) {
         const eventsRef = collection(db, "rosters", roster.id, "events");
         const q = query(eventsRef); 
         const querySnapshot = await getDocs(q);
-        
         const rosterEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
           rosterName: roster.name, 
@@ -394,30 +436,25 @@ export const AuthProvider = ({ children }) => {
         }));
         allEvents = [...allEvents, ...rosterEvents];
       }
-
       allEvents.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
       return allEvents;
-
     } catch (error) {
       console.error("Error fetching all events:", error);
       return [];
     }
   };
 
-  // --- NEW: Flexible Chat Functions ---
+  // --- UPDATED: Flexible Chat Functions ---
 
   // 1. Create a new chat (DM or Group)
+  // NEW: Initializes visibleTo
   const createChat = async (participantEmails, chatName = "") => {
     try {
-      // Convert emails to UIDs and summaries
       const usersRef = collection(db, "users");
-      // Note: Firestore 'in' query supports max 10 values
-      // For MVP we will loop to find users. Not efficient for large groups but safe.
       
       const participants = [];
-      const participantIds = [loggedInUser.uid]; // Add myself first
+      const participantIds = [loggedInUser.uid];
 
-      // Add myself to summaries
       participants.push({
         uid: loggedInUser.uid,
         name: loggedInUser.playerName,
@@ -425,7 +462,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       for (const email of participantEmails) {
-        if (email === loggedInUser.email) continue; // Skip myself
+        if (email === loggedInUser.email) continue; 
 
         const q = query(usersRef, where("email", "==", email));
         const snapshot = await getDocs(q);
@@ -448,12 +485,12 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
-      // Create the chat document
       await addDoc(collection(db, "chats"), {
         type: participantIds.length > 2 ? 'group' : 'dm',
         name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
-        participants: participantIds, // Array of UIDs for security rules
-        participantDetails: participants, // Array of objects for UI
+        participants: participantIds,
+        visibleTo: participantIds, // NEW: All participants see it initially
+        participantDetails: participants,
         createdAt: serverTimestamp(),
         lastMessage: "Chat created",
         lastMessageTime: serverTimestamp()
@@ -469,9 +506,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 2. Send a message
-  const sendMessage = async (chatId, text) => {
+  // NEW: Updates visibleTo for "Resurrection"
+  const sendMessage = async (chatId, text, currentParticipants) => {
     try {
-      // Add message to sub-collection
       await addDoc(collection(db, "chats", chatId, "messages"), {
         text: text,
         senderId: loggedInUser.uid,
@@ -479,11 +516,14 @@ export const AuthProvider = ({ children }) => {
         createdAt: serverTimestamp()
       });
 
-      // Update the parent chat document with the "Last Message" (for the list view)
+      // Update parent chat doc
       const chatRef = doc(db, "chats", chatId);
       await updateDoc(chatRef, {
         lastMessage: text,
-        lastMessageTime: serverTimestamp()
+        lastMessageTime: serverTimestamp(),
+        // NEW: Resurrection Logic
+        // Set visibleTo back to the full participants list so it reappears for everyone
+        visibleTo: currentParticipants 
       });
 
       return true;
@@ -495,11 +535,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 3. Fetch chats for the current user
+  // NEW: Queries 'visibleTo' instead of 'participants'
   const fetchUserChats = async (uid) => {
     try {
       const chatsRef = collection(db, "chats");
-      // Query: chats where 'participants' array contains my UID
-      const q = query(chatsRef, where("participants", "array-contains", uid), orderBy("lastMessageTime", "desc"));
+      // NEW: Only fetch chats where I am in the 'visibleTo' array
+      const q = query(chatsRef, where("visibleTo", "array-contains", uid), orderBy("lastMessageTime", "desc"));
       
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
@@ -509,6 +550,37 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Error fetching chats:", error);
       return [];
+    }
+  };
+
+  // NEW: Hide Chat Function
+  const hideChat = async (chatId, currentVisibleTo, chatType) => {
+    // Rule: Cannot hide/delete roster chats
+    if (chatType === 'roster') {
+      alert("Team Roster chats cannot be deleted.");
+      return false;
+    }
+
+    try {
+      // Calculate the new visibility list (remove myself)
+      const newVisibleTo = currentVisibleTo.filter(uid => uid !== loggedInUser.uid);
+
+      if (newVisibleTo.length === 0) {
+        // If NO ONE can see it anymore, delete the chat document entirely (Cleanup)
+        await deleteDoc(doc(db, "chats", chatId));
+        console.log("Chat deleted permanently (no visible participants).");
+      } else {
+        // Otherwise, just update the document to hide it for me
+        const chatRef = doc(db, "chats", chatId);
+        await updateDoc(chatRef, {
+          visibleTo: newVisibleTo
+        });
+      }
+      return true;
+    } catch (error) {
+      console.error("Error hiding chat:", error);
+      alert("Error: " + error.message);
+      return false;
     }
   };
 
@@ -536,10 +608,11 @@ export const AuthProvider = ({ children }) => {
     fetchEvents,
     deleteEvent,
     fetchAllUserEvents,
-    // NEW: Chat exports
     createChat,
     sendMessage,
-    fetchUserChats
+    fetchUserChats,
+    // NEW: Export hideChat
+    hideChat
   };
 
   return (
