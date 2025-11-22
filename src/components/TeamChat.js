@@ -2,97 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, limit, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
-
-// --- INTERNAL COMPONENT: User Search & Select (Unchanged) ---
-function UserSearch({ onSelectionChange }) {
-  const [allUsers, setAllUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-
-  useEffect(() => {
-    const fetchAllUsers = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "users"));
-        const users = querySnapshot.docs.map(doc => ({
-          uid: doc.id,
-          ...doc.data()
-        }));
-        setAllUsers(users);
-      } catch (error) {
-        console.error("Error fetching users for search:", error);
-      }
-    };
-    fetchAllUsers();
-  }, []);
-
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setSuggestions([]);
-      return;
-    }
-    const lowerTerm = searchTerm.toLowerCase();
-    const filtered = allUsers.filter(user => 
-      (user.playerName && user.playerName.toLowerCase().includes(lowerTerm)) ||
-      (user.email && user.email.toLowerCase().includes(lowerTerm))
-    ).filter(user => 
-      !selectedUsers.find(s => s.uid === user.uid)
-    );
-    setSuggestions(filtered.slice(0, 5));
-  }, [searchTerm, allUsers, selectedUsers]);
-
-  const addUser = (user) => {
-    const newSelection = [...selectedUsers, user];
-    setSelectedUsers(newSelection);
-    onSelectionChange(newSelection.map(u => u.email));
-    setSearchTerm("");
-    setSuggestions([]);
-  };
-
-  const removeUser = (userToRemove) => {
-    const newSelection = selectedUsers.filter(u => u.uid !== userToRemove.uid);
-    setSelectedUsers(newSelection);
-    onSelectionChange(newSelection.map(u => u.email));
-  };
-
-  return (
-    <div style={{ marginBottom: '15px' }}>
-      <label style={{ display: 'block', marginBottom: '5px', color: 'white' }}>Add People:</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '5px' }}>
-        {selectedUsers.map(user => (
-          <span key={user.uid} style={{
-            backgroundColor: '#0078d4', color: 'white', padding: '4px 8px',
-            borderRadius: '15px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px'
-          }}>
-            {user.playerName || user.email}
-            <button onClick={() => removeUser(user)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-          </span>
-        ))}
-      </div>
-      <input 
-        type="text" 
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search by name or email..."
-        style={{ width: '100%', padding: '8px', backgroundColor: '#3a3f4a', border: 'none', color: 'white' }}
-      />
-      {suggestions.length > 0 && (
-        <div style={{
-          backgroundColor: '#222', border: '1px solid #444', borderRadius: '4px',
-          position: 'absolute', width: '80%', zIndex: 10, maxHeight: '150px', overflowY: 'auto'
-        }}>
-          {suggestions.map(user => (
-            <div key={user.uid} onClick={() => addUser(user)} style={{ padding: '8px', borderBottom: '1px solid #333', cursor: 'pointer', color: 'white' }}>
-              <div style={{ fontWeight: 'bold' }}>{user.playerName}</div>
-              <div style={{ fontSize: '12px', color: '#aaa' }}>{user.email}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// NEW: Import the extracted component
+import UserSearch from './UserSearch';
 
 function TeamChat() {
   const { sendMessage, createChat, hideChat, uploadImage, loggedInUser } = useAuth();
@@ -102,7 +13,6 @@ function TeamChat() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   
-  // State for selected file
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null); 
   
@@ -314,12 +224,11 @@ function TeamChat() {
                       borderTopRightRadius: isMe ? '2px' : '15px',
                       borderTopLeftRadius: isMe ? '15px' : '2px'
                     }}>
-                      {/* NEW: Image Display with Click Handler */}
                       {msg.imageUrl && (
                         <img 
                           src={msg.imageUrl} 
                           alt="Attachment" 
-                          onClick={() => setViewingImage(msg.imageUrl)} // CLICK TO OPEN
+                          onClick={() => setViewingImage(msg.imageUrl)}
                           style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', marginBottom: msg.text ? '10px' : '0', cursor: 'pointer' }}
                         />
                       )}
@@ -333,7 +242,6 @@ function TeamChat() {
 
             <form onSubmit={handleSend} style={{ padding: '15px', backgroundColor: '#282c34', borderTop: '1px solid #444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               
-              {/* File Preview */}
               {selectedFile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'white', fontSize: '12px', paddingLeft: '10px' }}>
                   <span>📎 {selectedFile.name}</span>
@@ -384,7 +292,6 @@ function TeamChat() {
         )}
       </div>
 
-      {/* --- NEW CHAT MODAL --- */}
       {showNewChatModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -403,6 +310,7 @@ function TeamChat() {
                 style={{ width: '100%', padding: '8px', marginTop: '5px', backgroundColor: '#3a3f4a', border: 'none', color: 'white' }}
               />
             </label>
+            {/* Use the imported UserSearch component */}
             <UserSearch onSelectionChange={setSelectedEmails} />
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
               <button onClick={handleCreateChat} style={{ flex: 1, padding: '10px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -416,7 +324,6 @@ function TeamChat() {
         </div>
       )}
 
-      {/* --- NEW: IMAGE VIEWER MODAL --- */}
       {viewingImage && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -424,7 +331,6 @@ function TeamChat() {
           display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000,
           flexDirection: 'column'
         }}>
-          {/* Close Button */}
           <button 
             onClick={() => setViewingImage(null)}
             style={{

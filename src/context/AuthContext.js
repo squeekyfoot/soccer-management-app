@@ -566,8 +566,105 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+const createGroup = async (groupData) => {
+    try {
+      await addDoc(collection(db, "groups"), {
+        ...groupData,
+        createdBy: loggedInUser.uid,
+        createdAt: serverTimestamp(),
+        members: [loggedInUser.uid], // Creator is first member
+        memberDetails: [{
+          uid: loggedInUser.uid,
+          name: loggedInUser.playerName,
+          email: loggedInUser.email
+        }]
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating group:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  const fetchUserGroups = async (uid) => {
+    try {
+      const groupsRef = collection(db, "groups");
+      const q = query(groupsRef, where("members", "array-contains", uid));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+      return [];
+    }
+  };
+
+  const createGroupPost = async (groupId, text, imageUrl = null) => {
+    try {
+      await addDoc(collection(db, "groups", groupId, "posts"), {
+        text: text,
+        imageUrl: imageUrl,
+        authorId: loggedInUser.uid,
+        authorName: loggedInUser.playerName,
+        createdAt: serverTimestamp(),
+        replies: [] // Initialize empty replies array
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating post:", error);
+      return false;
+    }
+  };
+const addGroupMembers = async (groupId, emails) => {
+    try {
+      const usersRef = collection(db, "users");
+      const newMembers = [];
+      const newMemberIds = [];
+
+      for (const email of emails) {
+        // Avoid adding self again or existing members logic handled by caller or Firestore set (arrayUnion handles uniqueness)
+        const q = query(usersRef, where("email", "==", email));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          const userDoc = snapshot.docs[0];
+          const userData = userDoc.data();
+          
+          newMemberIds.push(userDoc.id);
+          newMembers.push({
+            uid: userDoc.id,
+            name: userData.playerName || "Unknown",
+            email: userData.email
+          });
+        }
+      }
+
+      if (newMemberIds.length === 0) {
+        return false; // No valid users found
+      }
+
+      const groupRef = doc(db, "groups", groupId);
+      
+      // We use arrayUnion to add new items without overwriting
+      // Note: For memberDetails array of objects, exact object match is required for uniqueness. 
+      // This is generally okay here since we construct it consistently.
+      await updateDoc(groupRef, {
+        members: arrayUnion(...newMemberIds),
+        memberDetails: arrayUnion(...newMembers)
+      });
+
+      return true;
+
+    } catch (error) {
+      console.error("Error adding group members:", error);
+      alert("Error adding members: " + error.message);
+      return false;
+    }
+  };
+
 
   const value = {
+    // ... (All existing exports) ...
     loggedInUser,
     soccerDetails,
     isLoading,
@@ -594,8 +691,12 @@ export const AuthProvider = ({ children }) => {
     sendMessage,
     fetchUserChats,
     hideChat,
-    // NEW: Export uploadImage
-    uploadImage
+    uploadImage,
+    createGroup,
+    fetchUserGroups,
+    createGroupPost,
+    // NEW: Export addGroupMembers
+    addGroupMembers
   };
 
   return (

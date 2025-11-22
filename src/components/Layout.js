@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext'; 
-// NEW: Import Home
 import Home from './Home';
 import MyProfile from './MyProfile'; 
 import ManagerDashboard from './ManagerDashboard'; 
 import TeamChat from './TeamChat';
+// NEW: Import Groups
+import Groups from './Groups';
 
 function Layout() {
-  // We no longer need signOutUser here (it's in Profile now)
   const { isManager } = useAuth();
-
-  // Default view is now 'home'
   const [activeView, setActiveView] = useState('home');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -26,6 +24,9 @@ function Layout() {
     switch (activeView) {
       case 'home':
         return <Home />;
+      // NEW: Add Groups case
+      case 'groups':
+        return <Groups />;
       case 'messaging':
         return <TeamChat />;
       case 'profile':
@@ -54,33 +55,33 @@ function Layout() {
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
         {!isMobile && <h3 style={{ marginTop: 0 }}>Team App</h3>}
         
-        {/* 1. HOME */}
         <button onClick={() => { setActiveView('home'); }}
           className={activeView === 'home' ? 'active' : ''}>
           Home
         </button>
 
-        {/* 2. MESSAGING (Renamed from Chat) */}
+        {/* NEW: Groups Button */}
+        <button onClick={() => { setActiveView('groups'); }}
+          className={activeView === 'groups' ? 'active' : ''}>
+          Groups
+        </button>
+
         <button onClick={() => { setActiveView('messaging'); }}
           className={activeView === 'messaging' ? 'active' : ''}>
           Messaging
         </button>
 
-        {/* 3. PROFILE */}
         <button onClick={() => { setActiveView('profile'); }}
           className={activeView === 'profile' ? 'active' : ''}>
           Profile
         </button>
         
-        {/* 4. MANAGER (Conditional) */}
         {isManager() && (
           <button onClick={() => { setActiveView('manager'); }}
             className={activeView === 'manager' ? 'active' : ''}>
             Manager Dashboard
           </button>
         )}
-        
-        {/* Sign Out is removed from here */}
       </nav>
 
       <main className={isMobile ? 'main-content mobile' : 'main-content'}>

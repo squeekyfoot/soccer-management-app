@@ -1,25 +1,41 @@
-# **Project Roadmap**
+Project Roadmap
 
-## **Phase 1-3: Foundation, Roles, Rosters (Completed)**
+✅ Phase 1-5: Foundation, Roles, Rosters, Schedule, Messaging (Completed)
 
-* \[x\] Security, Architecture, RBAC, Roster Management.
+[x] Security, Architecture, RBAC, Roster Management, Calendar, Team Chat.
 
-## **Phase 4: Personal Schedule (Completed)**
+👥 Phase 6: Groups & Community (CURRENT PRIORITY)
 
-* \[x\] Event Creation & Calendar View.
+Goal: Create spaces for sub-communities (e.g., "Monday Night Crew") that span teams.
 
-## **Phase 5: Team Communication (CURRENT PRIORITY)**
+[ ] Data Model:
 
-*Goal: Allow teams to chat in real-time.*
+Create groups collection.
 
-* \[ \] **Security Rules:** Allow roster members to read/write to messages sub-collection.  
-* \[ \] **Chat Logic:** Add sendMessage to Context.  
-* \[ \] **Chat UI:**  
-  * Build a real-time view that listens for updates.  
-  * Dropdown to switch between teams (if a player is on multiple).  
-  * Message bubbles (Me vs. Them).
+Fields: name, description, about, links (array of objects), members (array of UIDs).
 
-## **Phase 6: Mobile Parity & Distribution**
+Sub-collections: posts (for feed), events (group-specific).
 
-* \[ \] **Mobile App Refactor:** Port all web features to React Native.  
-* \[ \] **Distribution:** TestFlight.
+[ ] Security Rules:
+
+Allow read if user is in members.
+
+Allow write (posts/events) if user is in members.
+
+[ ] Group Logic (Context):
+
+createGroup, fetchUserGroups, joinGroup.
+
+createPost, fetchPosts.
+
+[ ] Group UI:
+
+Group List: Main navigation view.
+
+Group Detail: Tabs for "About", "Posts", "Events", "Members".
+
+🚀 Phase 7: Mobile Parity & Distribution
+
+[ ] Mobile App Refactor: Port all web features to React Native.
+
+[ ] Distribution: TestFlight.
