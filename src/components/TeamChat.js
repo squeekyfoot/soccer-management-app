@@ -95,7 +95,6 @@ function UserSearch({ onSelectionChange }) {
 
 
 function TeamChat() {
-  // NEW: Import uploadImage
   const { sendMessage, createChat, hideChat, uploadImage, loggedInUser } = useAuth();
   
   const [myChats, setMyChats] = useState([]);
@@ -103,13 +102,16 @@ function TeamChat() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   
-  // NEW: State for selected file
+  // State for selected file
   const [selectedFile, setSelectedFile] = useState(null);
-  const fileInputRef = useRef(null); // Ref to trigger hidden file input
+  const fileInputRef = useRef(null); 
   
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newChatName, setNewChatName] = useState("");
+
+  // NEW: State for Image Viewer Modal
+  const [viewingImage, setViewingImage] = useState(null);
 
   const messagesEndRef = useRef(null);
 
@@ -170,14 +172,12 @@ function TeamChat() {
     }, 100);
   };
 
-  // NEW: Handle file selection
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
   };
 
-  // NEW: Updated Send Logic
   const handleSend = async (e) => {
     e.preventDefault();
     if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
@@ -185,21 +185,16 @@ function TeamChat() {
     const text = newMessage;
     const fileToUpload = selectedFile;
 
-    // Clear inputs immediately for better UX
     setNewMessage(""); 
     setSelectedFile(null); 
     
     let imageUrl = null;
 
     try {
-      // 1. Upload image if exists
       if (fileToUpload) {
         imageUrl = await uploadImage(fileToUpload, `chat_images/${selectedChat.id}`);
       }
-
-      // 2. Send message with text and/or image URL
       await sendMessage(selectedChat.id, text, selectedChat.participants, imageUrl);
-
     } catch (error) {
       console.error("Error sending message/image:", error);
       alert("Failed to send message.");
@@ -319,12 +314,13 @@ function TeamChat() {
                       borderTopRightRadius: isMe ? '2px' : '15px',
                       borderTopLeftRadius: isMe ? '15px' : '2px'
                     }}>
-                      {/* NEW: Display Image if available */}
+                      {/* NEW: Image Display with Click Handler */}
                       {msg.imageUrl && (
                         <img 
                           src={msg.imageUrl} 
                           alt="Attachment" 
-                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', marginBottom: msg.text ? '10px' : '0' }}
+                          onClick={() => setViewingImage(msg.imageUrl)} // CLICK TO OPEN
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', marginBottom: msg.text ? '10px' : '0', cursor: 'pointer' }}
                         />
                       )}
                       {msg.text && <span>{msg.text}</span>}
@@ -335,7 +331,6 @@ function TeamChat() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* NEW: Updated Input Area with File Picker */}
             <form onSubmit={handleSend} style={{ padding: '15px', backgroundColor: '#282c34', borderTop: '1px solid #444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               
               {/* File Preview */}
@@ -347,7 +342,6 @@ function TeamChat() {
               )}
 
               <div style={{ display: 'flex', gap: '10px' }}>
-                {/* Hidden Input */}
                 <input 
                   type="file" 
                   accept="image/*"
@@ -356,7 +350,6 @@ function TeamChat() {
                   style={{ display: 'none' }}
                 />
                 
-                {/* Paperclip Button */}
                 <button 
                   type="button"
                   onClick={() => fileInputRef.current.click()}
@@ -391,7 +384,7 @@ function TeamChat() {
         )}
       </div>
 
-      {/* --- NEW CHAT MODAL (Unchanged) --- */}
+      {/* --- NEW CHAT MODAL --- */}
       {showNewChatModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -422,6 +415,34 @@ function TeamChat() {
           </div>
         </div>
       )}
+
+      {/* --- NEW: IMAGE VIEWER MODAL --- */}
+      {viewingImage && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.9)', // Darker background for images
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000,
+          flexDirection: 'column'
+        }}>
+          {/* Close Button */}
+          <button 
+            onClick={() => setViewingImage(null)}
+            style={{
+              position: 'absolute', top: '20px', right: '20px',
+              background: 'none', border: 'none', color: 'white', fontSize: '30px', cursor: 'pointer'
+            }}
+          >
+            ✕
+          </button>
+
+          <img 
+            src={viewingImage} 
+            alt="Full size" 
+            style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }}
+          />
+        </div>
+      )}
+
     </div>
   );
 }
