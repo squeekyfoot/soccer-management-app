@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -12,9 +12,12 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// 1. Check if an app is ALREADY initialized.
+// If yes (getApps().length > 0), use that existing app (getApp()).
+// If no, create a new one (initializeApp).
+// This prevents "Duplicate App" errors during hot-reloading.
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Services
+// 2. Export services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
