@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext'; 
+// NEW: Import Home
+import Home from './Home';
 import MyProfile from './MyProfile'; 
-import SportsInfo from './SportsInfo'; 
 import ManagerDashboard from './ManagerDashboard'; 
-import MyTeams from './MyTeams';
-import CalendarView from './CalendarView';
-// NEW: Import TeamChat
 import TeamChat from './TeamChat';
 
 function Layout() {
-  const { signOutUser, isManager } = useAuth();
+  // We no longer need signOutUser here (it's in Profile now)
+  const { isManager } = useAuth();
 
-  const [activeView, setActiveView] = useState('profile');
+  // Default view is now 'home'
+  const [activeView, setActiveView] = useState('home');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -24,21 +24,16 @@ function Layout() {
 
   const renderActiveView = () => {
     switch (activeView) {
+      case 'home':
+        return <Home />;
+      case 'messaging':
+        return <TeamChat />;
       case 'profile':
         return <MyProfile />; 
-      case 'sports':
-        return <SportsInfo />; 
-      case 'teams':
-        return <MyTeams />;
-      case 'calendar':
-        return <CalendarView />;
-      // NEW: Add chat case
-      case 'chat':
-        return <TeamChat />;
       case 'manager':
         return <ManagerDashboard />;
       default:
-        return <MyProfile />;
+        return <Home />;
     }
   };
 
@@ -59,32 +54,25 @@ function Layout() {
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
         {!isMobile && <h3 style={{ marginTop: 0 }}>Team App</h3>}
         
+        {/* 1. HOME */}
+        <button onClick={() => { setActiveView('home'); }}
+          className={activeView === 'home' ? 'active' : ''}>
+          Home
+        </button>
+
+        {/* 2. MESSAGING (Renamed from Chat) */}
+        <button onClick={() => { setActiveView('messaging'); }}
+          className={activeView === 'messaging' ? 'active' : ''}>
+          Messaging
+        </button>
+
+        {/* 3. PROFILE */}
         <button onClick={() => { setActiveView('profile'); }}
           className={activeView === 'profile' ? 'active' : ''}>
-          My Profile
-        </button>
-
-        {/* NEW: Chat Button */}
-        <button onClick={() => { setActiveView('chat'); }}
-          className={activeView === 'chat' ? 'active' : ''}>
-          Chat
-        </button>
-
-        <button onClick={() => { setActiveView('calendar'); }}
-          className={activeView === 'calendar' ? 'active' : ''}>
-          My Schedule
-        </button>
-
-        <button onClick={() => { setActiveView('teams'); }}
-          className={activeView === 'teams' ? 'active' : ''}>
-          My Teams
-        </button>
-
-        <button onClick={() => { setActiveView('sports'); }}
-          className={activeView === 'sports' ? 'active' : ''}>
-          Sports Info
+          Profile
         </button>
         
+        {/* 4. MANAGER (Conditional) */}
         {isManager() && (
           <button onClick={() => { setActiveView('manager'); }}
             className={activeView === 'manager' ? 'active' : ''}>
@@ -92,9 +80,7 @@ function Layout() {
           </button>
         )}
         
-        <button onClick={signOutUser} className="sign-out-button">
-          Sign Out
-        </button>
+        {/* Sign Out is removed from here */}
       </nav>
 
       <main className={isMobile ? 'main-content mobile' : 'main-content'}>

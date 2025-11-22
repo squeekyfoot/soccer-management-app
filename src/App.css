@@ -193,16 +193,4 @@
     font-weight: bold;
     background: none;
   }
-  
-  /* --- Sign Out Button on Tab Bar --- */
-  .tab-bar .sign-out-button {
-    color: #ff6b6b;
-    margin-top: 0;
-    background: none;
-  }
-
-  .tab-bar .sign-out-button:hover {
-    background: none;
-    color: #e05a5a;
-  }
 }
