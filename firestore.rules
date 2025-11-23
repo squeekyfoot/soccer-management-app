@@ -2,10 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ... (Helper functions remain the same) ...
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-
     function isManager() {
       return request.auth != null 
              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
@@ -13,7 +13,11 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      allow read: if isOwner(userId) || isManager();
+      // READ: Allow ANY authenticated user to read user profiles.
+      // This enables "User Search" for players to find each other.
+      allow read: if request.auth != null;
+
+      // WRITE: Only the owner can edit, AND they cannot change their 'role'
       allow write: if isOwner(userId) 
                    && (!request.resource.data.keys().hasAny(['role']) 
                        || request.resource.data.role == resource.data.role);
@@ -23,6 +27,8 @@ service cloud.firestore {
       }
     }
 
+    // ... (Keep Rosters, Chats, Groups rules exactly as they were) ...
+    
     // 2. Rosters Collection
     match /rosters/{rosterId} {
       allow read: if request.auth != null;
@@ -64,18 +70,14 @@ service cloud.firestore {
       }
     }
 
-    // 4. NEW: Groups Collection
+    // 4. Groups Collection
     match /groups/{groupId} {
-      // Anyone can create a group (for now)
       allow create: if request.auth != null;
       
-      // Members can read
       allow read: if request.auth != null && request.auth.uid in resource.data.members;
       
-      // Members can update (e.g. adding links)
       allow update: if request.auth != null && request.auth.uid in resource.data.members;
 
-      // Group Posts
       match /posts/{postId} {
         allow read, write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
       }

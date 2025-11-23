@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // Import the "brain"
-// NEW: Import SportsInfo to render it here
+import React, { useState, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 import SportsInfo from './SportsInfo';
 
 function MyProfile() {
@@ -8,6 +7,30 @@ function MyProfile() {
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileFormData, setProfileFormData] = useState({});
+  
+  // Image State
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(loggedInUser?.photoURL || "");
+  const [isRemovingImage, setIsRemovingImage] = useState(false);
+  
+  const fileInputRef = useRef(null);
+
+  // Handle file selection
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setIsRemovingImage(false);
+    }
+  };
+
+  // Handle "Remove" button
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setPreviewUrl("");
+    setIsRemovingImage(true);
+  };
 
   const handleProfileFormChange = (e) => {
     const { name, value } = e.target;
@@ -19,13 +42,50 @@ function MyProfile() {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    const success = await updateProfile(profileFormData);
+    // Pass the form data, the file, and the remove flag
+    const success = await updateProfile(profileFormData, selectedFile, isRemovingImage);
     if (success) {
       setIsEditingProfile(false);
+      setSelectedFile(null);
+      setIsRemovingImage(false);
     }
   };
 
-  // --- EDIT MODE ---
+  const styles = {
+    profileHeader: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      marginBottom: '30px'
+    },
+    imageContainer: {
+      width: '150px',
+      height: '150px',
+      borderRadius: '50%',
+      overflow: 'hidden',
+      backgroundColor: '#444',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: '15px',
+      border: '3px solid #61dafb'
+    },
+    profileImage: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover'
+    },
+    placeholderText: {
+      color: '#888',
+      fontSize: '40px'
+    },
+    actionButtons: {
+      display: 'flex',
+      gap: '10px',
+      marginTop: '10px'
+    }
+  };
+
   if (isEditingProfile) {
     return (
       <form onSubmit={handleProfileSubmit} style={{
@@ -33,7 +93,45 @@ function MyProfile() {
         maxWidth: '500px', textAlign: 'left', margin: '0 auto'
       }}>
         <h2>Edit My Profile</h2>
-        {/* ... (Inputs remain the same as before) ... */}
+
+        <div style={styles.profileHeader}>
+          <div style={styles.imageContainer}>
+            {previewUrl ? (
+              <img src={previewUrl} alt="Profile" style={styles.profileImage} />
+            ) : (
+              <span style={styles.placeholderText}>?</span>
+            )}
+          </div>
+          
+          <div style={styles.actionButtons}>
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              onChange={handleFileChange} 
+              accept="image/*"
+              style={{ display: 'none' }}
+            />
+            
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current.click()}
+              style={{ padding: '8px 15px', backgroundColor: '#333', border: '1px solid #555', color: 'white', cursor: 'pointer', borderRadius: '5px' }}
+            >
+              {previewUrl ? "Change Picture" : "Add Picture"}
+            </button>
+
+            {previewUrl && (
+              <button 
+                type="button"
+                onClick={handleRemoveImage}
+                style={{ padding: '8px 15px', backgroundColor: '#333', border: '1px solid #ff6b6b', color: '#ff6b6b', cursor: 'pointer', borderRadius: '5px' }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+
         <label style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
           Player Name:
           <input type="text" name="playerName" value={profileFormData.playerName} onChange={handleProfileFormChange} required style={{ padding: '8px' }} />
@@ -64,36 +162,63 @@ function MyProfile() {
 
         <div style={{ display: 'flex', gap: '10px' }}>
           <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontSize: '16px' }}>Save</button>
-          <button type="button" onClick={() => setIsEditingProfile(false)} style={{ padding: '10px 20px', backgroundColor: '#555', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px' }}>Cancel</button>
+          <button 
+            type="button" 
+            onClick={() => {
+              setIsEditingProfile(false);
+              setPreviewUrl(loggedInUser.photoURL || ""); 
+              setSelectedFile(null);
+              setIsRemovingImage(false);
+            }} 
+            style={{ padding: '10px 20px', backgroundColor: '#555', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px' }}
+          >
+            Cancel
+          </button>
         </div>
       </form>
     );
   }
 
-  // --- VIEW MODE ---
   return (
     <div style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto' }}>
       
-      {/* Section 1: Basic Profile */}
-      <section style={{ marginBottom: '40px', paddingBottom: '20px', borderBottom: '1px solid #444' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>My Profile</h2>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #444', paddingBottom: '20px', gap: '20px' }}>
+        <div style={{ 
+          width: '100px', height: '100px', borderRadius: '50%', overflow: 'hidden', 
+          backgroundColor: '#444', display: 'flex', justifyContent: 'center', alignItems: 'center',
+          border: '2px solid #61dafb', flexShrink: 0
+        }}>
+          {loggedInUser.photoURL ? (
+            <img src={loggedInUser.photoURL} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <span style={{ fontSize: '30px', color: '#888' }}>
+              {loggedInUser.playerName ? loggedInUser.playerName.charAt(0).toUpperCase() : "?"}
+            </span>
+          )}
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <h2 style={{ margin: 0 }}>{loggedInUser.playerName}</h2>
+          <p style={{ color: '#aaa', margin: '5px 0' }}>{loggedInUser.email}</p>
+          
           <button
             onClick={() => {
               setProfileFormData(loggedInUser);
+              setPreviewUrl(loggedInUser.photoURL || "");
               setIsEditingProfile(true);
             }}
             style={{
               padding: '8px 15px', backgroundColor: '#333', border: '1px solid #555',
-              color: 'white', cursor: 'pointer', borderRadius: '5px'
+              color: 'white', cursor: 'pointer', borderRadius: '5px', marginTop: '10px'
             }}>
-            Edit
+            {loggedInUser.photoURL ? "Edit Profile" : "Add Profile Picture"}
           </button>
         </div>
+      </div>
 
-        <div className="info-table" style={{ marginTop: '20px' }}>
-          <div className="info-label">Player Name:</div><div className="info-value">{loggedInUser.playerName}</div>
-          <div className="info-label">Email:</div><div className="info-value">{loggedInUser.email}</div>
+      <section style={{ marginBottom: '40px' }}>
+        <h3 style={{ marginTop: 0 }}>Details</h3>
+        <div className="info-table">
           <div className="info-label">Phone:</div><div className="info-value">{loggedInUser.phone}</div>
           <div className="info-label">Address:</div><div className="info-value">{loggedInUser.address}</div>
           <div className="info-label">Preference:</div><div className="info-value">{loggedInUser.notificationPreference}</div>
@@ -102,12 +227,10 @@ function MyProfile() {
         </div>
       </section>
 
-      {/* Section 2: Sports Info (Imported Component) */}
       <section style={{ marginBottom: '40px' }}>
         <SportsInfo />
       </section>
 
-      {/* Section 3: Sign Out */}
       <section style={{ textAlign: 'center' }}>
         <button 
           onClick={signOutUser} 

@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   updateEmail,
+  updateProfile as firebaseUpdateProfile,
   EmailAuthProvider,
   reauthenticateWithCredential
 } from "firebase/auth";
@@ -12,8 +13,7 @@ import {
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
   query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp 
 } from "firebase/firestore";
-// NEW: Storage imports
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "../firebase"; 
 
 const AuthContext = createContext();
@@ -104,7 +104,8 @@ export const AuthProvider = ({ children }) => {
         address: formData.address,
         notificationPreference: formData.notificationPreference,
         comments: formData.comments,
-        role: 'player'
+        role: 'player',
+        photoURL: ""
       };
       
       await setDoc(doc(db, "users", user.uid), userProfileData);
@@ -126,8 +127,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateProfile = async (profileData) => {
+  const uploadProfileImage = async (file, uid) => {
+    if (!file) return null;
+    try {
+      const storageRef = ref(storage, `users/${uid}/profile.jpg`);
+      await uploadBytes(storageRef, file);
+      return await getDownloadURL(storageRef);
+    } catch (error) {
+      console.error("Error uploading profile image:", error);
+      throw error;
+    }
+  };
+
+  const deleteProfileImage = async (uid) => {
+    try {
+      const storageRef = ref(storage, `users/${uid}/profile.jpg`);
+      await deleteObject(storageRef);
+    } catch (error) {
+      console.warn("Error deleting image (might not exist):", error);
+    }
+  };
+
+  const updateProfile = async (profileData, newImageFile = null, removeImage = false) => {
     if (!loggedInUser) return;
+
     if (profileData.email !== loggedInUser.email) {
       try {
         await updateEmail(auth.currentUser, profileData.email);
@@ -140,18 +163,34 @@ export const AuthProvider = ({ children }) => {
         return;
       }
     }
+
     try {
+      let photoURL = loggedInUser.photoURL;
+
+      if (removeImage) {
+        await deleteProfileImage(loggedInUser.uid);
+        photoURL = "";
+      } else if (newImageFile) {
+        photoURL = await uploadProfileImage(newImageFile, loggedInUser.uid);
+      }
+
       const dataToUpdate = {
         playerName: profileData.playerName,
         phone: profileData.phone,
         address: profileData.address,
         notificationPreference: profileData.notificationPreference,
         comments: profileData.comments,
-        email: profileData.email
+        email: profileData.email,
+        photoURL: photoURL || ""
       };
       
       const userDocRef = doc(db, "users", loggedInUser.uid);
       await updateDoc(userDocRef, dataToUpdate);
+      
+      await firebaseUpdateProfile(auth.currentUser, {
+        displayName: profileData.playerName,
+        photoURL: photoURL
+      });
       
       setLoggedInUser(prevUser => ({
         ...prevUser,
@@ -215,6 +254,8 @@ export const AuthProvider = ({ children }) => {
   const isManager = () => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
+
+  // --- Roster Management ---
 
   const createRoster = async (rosterName, season, maxCapacity) => {
     if (!isManager()) {
@@ -280,6 +321,7 @@ export const AuthProvider = ({ children }) => {
 
   const addPlayerToRoster = async (rosterId, playerEmail) => {
     if (!isManager()) return false;
+    
     try {
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", playerEmail));
@@ -318,6 +360,7 @@ export const AuthProvider = ({ children }) => {
         });
       }
       return true;
+
     } catch (error) {
       console.error("Error adding player:", error);
       alert("Error: " + error.message);
@@ -327,6 +370,7 @@ export const AuthProvider = ({ children }) => {
 
   const removePlayerFromRoster = async (rosterId, playerSummary) => {
     if (!isManager()) return false;
+    
     try {
       const rosterRef = doc(db, "rosters", rosterId);
       await updateDoc(rosterRef, {
@@ -408,7 +452,6 @@ export const AuthProvider = ({ children }) => {
     try {
       const rosters = await fetchUserRosters(uid);
       let allEvents = [];
-
       for (const roster of rosters) {
         const eventsRef = collection(db, "rosters", roster.id, "events");
         const q = query(eventsRef); 
@@ -429,7 +472,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- NEW: Upload Image Function ---
+  // --- Chat Functions ---
+
   const uploadImage = async (file, path) => {
     if (!file) return null;
     try {
@@ -494,21 +538,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- UPDATED: Send Message ---
   const sendMessage = async (chatId, text, currentParticipants, imageUrl = null) => {
     try {
       await addDoc(collection(db, "chats", chatId, "messages"), {
         text: text,
-        imageUrl: imageUrl, // Store the URL
+        imageUrl: imageUrl,
         senderId: loggedInUser.uid,
         senderName: loggedInUser.playerName,
         createdAt: serverTimestamp()
       });
 
-      // Update parent chat doc
       const chatRef = doc(db, "chats", chatId);
-      
-      // Construct summary text
       let summary = text;
       if (imageUrl) {
         summary = text ? `📷 ${text}` : "📷 Sent an image";
@@ -566,17 +606,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-const createGroup = async (groupData) => {
-    try {
+  // --- Group Functions ---
+
+  const createGroup = async (groupData) => {
+     try {
       await addDoc(collection(db, "groups"), {
         ...groupData,
         createdBy: loggedInUser.uid,
         createdAt: serverTimestamp(),
-        members: [loggedInUser.uid], // Creator is first member
+        members: [loggedInUser.uid], 
         memberDetails: [{
           uid: loggedInUser.uid,
           name: loggedInUser.playerName,
-          email: loggedInUser.email
+          email: loggedInUser.email,
+          photoURL: loggedInUser.photoURL || "",
+          role: 'owner' 
         }]
       });
       return true;
@@ -600,14 +644,15 @@ const createGroup = async (groupData) => {
   };
 
   const createGroupPost = async (groupId, text, imageUrl = null) => {
-    try {
+     try {
       await addDoc(collection(db, "groups", groupId, "posts"), {
         text: text,
         imageUrl: imageUrl,
         authorId: loggedInUser.uid,
         authorName: loggedInUser.playerName,
+        authorPhoto: loggedInUser.photoURL || "",
         createdAt: serverTimestamp(),
-        replies: [] // Initialize empty replies array
+        replies: [] 
       });
       return true;
     } catch (error) {
@@ -615,14 +660,29 @@ const createGroup = async (groupData) => {
       return false;
     }
   };
-const addGroupMembers = async (groupId, emails) => {
+
+  const addGroupMembers = async (groupId, emails) => {
     try {
+      // 1. Verify permissions: Get current group data first
+      const groupRef = doc(db, "groups", groupId);
+      const groupSnap = await getDoc(groupRef);
+      
+      if (!groupSnap.exists()) return false;
+      
+      const groupData = groupSnap.data();
+      const myMemberDetails = groupData.memberDetails.find(m => m.uid === loggedInUser.uid);
+      
+      if (!myMemberDetails || (myMemberDetails.role !== 'owner' && myMemberDetails.role !== 'admin')) {
+        alert("Only Owners and Admins can add members.");
+        return false;
+      }
+
+      // 2. Proceed to add
       const usersRef = collection(db, "users");
       const newMembers = [];
       const newMemberIds = [];
 
       for (const email of emails) {
-        // Avoid adding self again or existing members logic handled by caller or Firestore set (arrayUnion handles uniqueness)
         const q = query(usersRef, where("email", "==", email));
         const snapshot = await getDocs(q);
         
@@ -630,31 +690,28 @@ const addGroupMembers = async (groupId, emails) => {
           const userDoc = snapshot.docs[0];
           const userData = userDoc.data();
           
-          newMemberIds.push(userDoc.id);
-          newMembers.push({
-            uid: userDoc.id,
-            name: userData.playerName || "Unknown",
-            email: userData.email
-          });
+          if (!groupData.members.includes(userDoc.id)) {
+             newMemberIds.push(userDoc.id);
+             newMembers.push({
+               uid: userDoc.id,
+               name: userData.playerName || "Unknown",
+               email: userData.email,
+               photoURL: userData.photoURL || "",
+               role: 'member'
+             });
+          }
         }
       }
 
       if (newMemberIds.length === 0) {
-        return false; // No valid users found
+        return true; 
       }
 
-      const groupRef = doc(db, "groups", groupId);
-      
-      // We use arrayUnion to add new items without overwriting
-      // Note: For memberDetails array of objects, exact object match is required for uniqueness. 
-      // This is generally okay here since we construct it consistently.
       await updateDoc(groupRef, {
         members: arrayUnion(...newMemberIds),
         memberDetails: arrayUnion(...newMembers)
       });
-
       return true;
-
     } catch (error) {
       console.error("Error adding group members:", error);
       alert("Error adding members: " + error.message);
@@ -662,9 +719,68 @@ const addGroupMembers = async (groupId, emails) => {
     }
   };
 
+  const updateGroupMemberRole = async (groupId, memberUid, newRole, currentMemberDetails) => {
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      const updatedMemberDetails = currentMemberDetails.map(member => {
+        if (member.uid === memberUid) {
+          return { ...member, role: newRole };
+        }
+        return member;
+      });
+      await updateDoc(groupRef, { memberDetails: updatedMemberDetails });
+      return true;
+    } catch (error) {
+      console.error("Error updating role:", error);
+      alert("Error updating role: " + error.message);
+      return false;
+    }
+  };
+
+  const transferGroupOwnership = async (groupId, newOwnerUid, currentMemberDetails) => {
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      const updatedMemberDetails = currentMemberDetails.map(member => {
+        if (member.uid === loggedInUser.uid) {
+          return { ...member, role: 'admin' }; 
+        }
+        if (member.uid === newOwnerUid) {
+          return { ...member, role: 'owner' };
+        }
+        return member;
+      });
+      await updateDoc(groupRef, { memberDetails: updatedMemberDetails });
+      return true;
+    } catch (error) {
+      console.error("Error transferring ownership:", error);
+      alert("Error transferring ownership: " + error.message);
+      return false;
+    }
+  };
+
+  const removeGroupMember = async (groupId, memberUid, currentMemberDetails, currentMembers) => {
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      
+      // Filter out the member from both the details array and the UIDs array
+      const updatedMemberDetails = currentMemberDetails.filter(m => m.uid !== memberUid);
+      const updatedMembers = currentMembers.filter(uid => uid !== memberUid);
+
+      await updateDoc(groupRef, {
+        memberDetails: updatedMemberDetails,
+        members: updatedMembers
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error removing member:", error);
+      alert("Error removing member: " + error.message);
+      return false;
+    }
+  };
+
 
   const value = {
-    // ... (All existing exports) ...
     loggedInUser,
     soccerDetails,
     isLoading,
@@ -695,8 +811,10 @@ const addGroupMembers = async (groupId, emails) => {
     createGroup,
     fetchUserGroups,
     createGroupPost,
-    // NEW: Export addGroupMembers
-    addGroupMembers
+    addGroupMembers,
+    updateGroupMemberRole,
+    transferGroupOwnership,
+    removeGroupMember
   };
 
   return (

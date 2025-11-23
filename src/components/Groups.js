@@ -1,34 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; // Added getDoc to refresh group data
+import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; 
 import { db } from "../firebase";
-// NEW: Import UserSearch
 import UserSearch from './UserSearch';
 
 function Groups() {
-  // NEW: Import addGroupMembers
-  const { fetchUserGroups, createGroup, createGroupPost, uploadImage, addGroupMembers, loggedInUser } = useAuth();
+  const { 
+    fetchUserGroups, createGroup, createGroupPost, 
+    addGroupMembers, updateGroupMemberRole, transferGroupOwnership, removeGroupMember,
+    loggedInUser 
+  } = useAuth();
 
-  // View State
   const [myGroups, setMyGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Create Group Form
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDesc, setNewGroupDesc] = useState("");
 
-  // Group Detail View State
-  const [activeTab, setActiveTab] = useState('posts'); // 'about', 'posts', 'members'
+  const [activeTab, setActiveTab] = useState('posts'); 
   const [groupPosts, setGroupPosts] = useState([]);
   const [newPostText, setNewPostText] = useState("");
 
-  // NEW: Add Member Modal State
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedMemberEmails, setSelectedMemberEmails] = useState([]);
 
-  // Initial Load
+  const [activeMemberMenu, setActiveMemberMenu] = useState(null); 
+
   useEffect(() => {
     if (loggedInUser) loadGroups();
   }, [loggedInUser]);
@@ -40,25 +39,17 @@ function Groups() {
     setIsLoading(false);
   };
 
-  // Real-time listener for posts when a group is selected
   useEffect(() => {
     if (!selectedGroup) return;
-
     const postsRef = collection(db, "groups", selectedGroup.id, "posts");
     const q = query(postsRef, orderBy("createdAt", "desc"));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const posts = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setGroupPosts(posts);
     });
-
     return () => unsubscribe();
   }, [selectedGroup]);
 
-  // NEW: Refresh selected group data (member list)
   const refreshSelectedGroup = async () => {
     if (!selectedGroup) return;
     const groupRef = doc(db, "groups", selectedGroup.id);
@@ -68,19 +59,14 @@ function Groups() {
     }
   };
 
-
-  // --- Actions ---
-
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newGroupName) return;
-
     const success = await createGroup({
       name: newGroupName,
       description: newGroupDesc,
-      links: [] // Start with no links
+      links: [] 
     });
-
     if (success) {
       alert("Group created!");
       setShowCreateForm(false);
@@ -93,28 +79,82 @@ function Groups() {
   const handlePostSubmit = async (e) => {
     e.preventDefault();
     if (!newPostText) return;
-    
     await createGroupPost(selectedGroup.id, newPostText, null);
     setNewPostText("");
   };
 
-  // NEW: Handle adding members
   const handleAddMembers = async () => {
     if (selectedMemberEmails.length === 0) return;
-
     const success = await addGroupMembers(selectedGroup.id, selectedMemberEmails);
     if (success) {
       alert("Members added!");
       setShowAddMember(false);
       setSelectedMemberEmails([]);
-      refreshSelectedGroup(); // Refresh to show new members
+      refreshSelectedGroup(); 
     }
   };
 
-  // --- Render ---
+  const handlePromote = async (memberUid) => {
+    const success = await updateGroupMemberRole(selectedGroup.id, memberUid, 'admin', selectedGroup.memberDetails);
+    if (success) {
+      setActiveMemberMenu(null); 
+      refreshSelectedGroup();
+    }
+  };
+
+  const handleDemote = async (memberUid) => {
+    const success = await updateGroupMemberRole(selectedGroup.id, memberUid, 'member', selectedGroup.memberDetails);
+    if (success) {
+      setActiveMemberMenu(null);
+      refreshSelectedGroup();
+    }
+  };
+
+  const handleTransferOwnership = async (memberUid) => {
+    if (window.confirm("Are you sure you want to transfer ownership? You will become an Admin. This cannot be undone by you.")) {
+      const success = await transferGroupOwnership(selectedGroup.id, memberUid, selectedGroup.memberDetails);
+      if (success) {
+        setActiveMemberMenu(null);
+        refreshSelectedGroup();
+      }
+    }
+  };
+
+  const handleRemoveMember = async (memberUid) => {
+    if (window.confirm("Are you sure you want to remove this member from the group?")) {
+      const success = await removeGroupMember(selectedGroup.id, memberUid, selectedGroup.memberDetails, selectedGroup.members);
+      if (success) {
+        setActiveMemberMenu(null);
+        refreshSelectedGroup();
+      }
+    }
+  };
+
+  const getMyGroupRole = () => {
+    if (!selectedGroup || !selectedGroup.memberDetails) return 'member';
+    const me = selectedGroup.memberDetails.find(m => m.uid === loggedInUser.uid);
+    return me ? (me.role || 'member') : 'member';
+  };
+
+  const getMembersByRole = () => {
+    if (!selectedGroup || !selectedGroup.memberDetails) return { owners: [], admins: [], members: [] };
+    const owners = [];
+    const admins = [];
+    const members = [];
+    selectedGroup.memberDetails.forEach(m => {
+      const role = m.role || 'member'; 
+      if (role === 'owner') owners.push(m);
+      else if (role === 'admin') admins.push(m);
+      else members.push(m);
+    });
+    return { owners, admins, members };
+  };
 
   if (selectedGroup) {
-    /* --- GROUP DETAIL VIEW --- */
+    const myRole = getMyGroupRole();
+    const { owners, admins, members } = getMembersByRole();
+    const canManageMembers = myRole === 'owner' || myRole === 'admin';
+
     return (
       <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
         <button onClick={() => setSelectedGroup(null)} style={{ background: 'none', border: 'none', color: '#61dafb', cursor: 'pointer', marginBottom: '15px' }}>
@@ -126,7 +166,6 @@ function Groups() {
           <p style={{ color: '#ccc', marginTop: '5px' }}>{selectedGroup.description}</p>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #444', marginBottom: '20px' }}>
           {['posts', 'about', 'members'].map(tab => (
             <button 
@@ -144,31 +183,22 @@ function Groups() {
           ))}
         </div>
 
-        {/* Tab Content */}
         {activeTab === 'posts' && (
           <div>
-            {/* Post Input */}
             <form onSubmit={handlePostSubmit} style={{ marginBottom: '30px', display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                placeholder="Share something with the group..." 
-                value={newPostText}
-                onChange={(e) => setNewPostText(e.target.value)}
-                style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }}
-              />
-              <button type="submit" style={{ padding: '10px 20px', borderRadius: '20px', border: 'none', backgroundColor: '#61dafb', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>
-                Post
-              </button>
+              <input type="text" placeholder="Share something..." value={newPostText} onChange={(e) => setNewPostText(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }} />
+              <button type="submit" style={{ padding: '10px 20px', borderRadius: '20px', border: 'none', backgroundColor: '#61dafb', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>Post</button>
             </form>
-
-            {/* Post Feed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {groupPosts.map(post => (
                 <div key={post.id} style={{ backgroundColor: '#222', padding: '15px', borderRadius: '8px', border: '1px solid #444' }}>
-                  <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px' }}>
+                  <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                       {post.authorPhoto ? <img src={post.authorPhoto} alt={post.authorName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#ccc' }}>{post.authorName?.charAt(0).toUpperCase()}</span>}
+                    </div>
                     <strong>{post.authorName}</strong> • {post.createdAt?.toDate().toLocaleString()}
                   </div>
-                  <div style={{ fontSize: '15px' }}>{post.text}</div>
+                  <div style={{ fontSize: '15px', marginLeft: '32px' }}>{post.text}</div>
                 </div>
               ))}
             </div>
@@ -180,7 +210,6 @@ function Groups() {
             <h3>About this Group</h3>
             <p>{selectedGroup.description || "No description."}</p>
             <h4>Group Links</h4>
-            {/* Placeholder for links list */}
             <p style={{ color: '#888', fontStyle: 'italic' }}>No links added yet.</p>
           </div>
         )}
@@ -189,16 +218,11 @@ function Groups() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3>Members ({selectedGroup.memberDetails?.length || 0})</h3>
-              {/* NEW: Add Member Button */}
-              <button 
-                onClick={() => setShowAddMember(true)}
-                style={{ padding: '8px 15px', backgroundColor: '#61dafb', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                + Add Member
-              </button>
+              {canManageMembers && (
+                <button onClick={() => setShowAddMember(true)} style={{ padding: '8px 15px', backgroundColor: '#61dafb', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>+ Add Member</button>
+              )}
             </div>
 
-            {/* NEW: Add Member Modal (Inline) */}
             {showAddMember && (
               <div style={{ backgroundColor: '#3a3f4a', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #61dafb' }}>
                 <h4 style={{ marginTop: 0 }}>Add Members to Group</h4>
@@ -210,65 +234,104 @@ function Groups() {
               </div>
             )}
 
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {selectedGroup.memberDetails?.map(m => (
-                <li key={m.uid} style={{ padding: '10px', borderBottom: '1px solid #333' }}>
-                  <strong>{m.name}</strong> <span style={{ color: '#888' }}>({m.email})</span>
-                </li>
-              ))}
-            </ul>
+            {['Owner', 'Admins', 'Members'].map(section => {
+              let list = [];
+              if (section === 'Owner') list = owners;
+              if (section === 'Admins') list = admins;
+              if (section === 'Members') list = members;
+
+              if (list.length === 0) return null;
+
+              return (
+                <div key={section} style={{ marginBottom: '30px' }}>
+                  <h4 style={{ borderBottom: '1px solid #666', paddingBottom: '5px', color: '#aaa', textTransform: 'uppercase', fontSize: '12px' }}>{section}</h4>
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {list.map(m => (
+                      <li key={m.uid} style={{ padding: '10px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#444', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #61dafb' }}>
+                            {m.photoURL ? <img src={m.photoURL} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '16px', color: '#ccc' }}>{m.name ? m.name.charAt(0).toUpperCase() : "?"}</span>}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 'bold' }}>{m.name}</div>
+                            <div style={{ fontSize: '12px', color: '#888' }}>{m.email}</div>
+                          </div>
+                        </div>
+
+                        {/* Logic for showing ellipsis button */}
+                        {/* I can manage if: 
+                            1. I am Owner (can manage everyone except myself)
+                            2. I am Admin (can manage Members only)
+                        */}
+                        { (myRole === 'owner' && m.uid !== loggedInUser.uid) || 
+                          (myRole === 'admin' && m.role !== 'owner' && m.role !== 'admin' && m.uid !== loggedInUser.uid) ? (
+                          <div style={{ position: 'relative' }}>
+                            <button 
+                              onClick={() => setActiveMemberMenu(activeMemberMenu === m.uid ? null : m.uid)}
+                              style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '20px', cursor: 'pointer', padding: '0 10px' }}
+                            >
+                              ⋮
+                            </button>
+                            {activeMemberMenu === m.uid && (
+                              <div style={{ 
+                                position: 'absolute', right: 0, top: '100%', backgroundColor: '#222', 
+                                border: '1px solid #555', borderRadius: '5px', zIndex: 10, width: '160px',
+                                boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                              }}>
+                                {myRole === 'owner' && m.role !== 'admin' && (
+                                  <button onClick={() => handlePromote(m.uid)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: 'white', cursor: 'pointer', borderBottom: '1px solid #333' }}>Promote to Admin</button>
+                                )}
+                                {myRole === 'owner' && m.role === 'admin' && (
+                                  <button onClick={() => handleDemote(m.uid)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: 'white', cursor: 'pointer', borderBottom: '1px solid #333' }}>Demote to Member</button>
+                                )}
+                                {myRole === 'owner' && (
+                                  <button onClick={() => handleTransferOwnership(m.uid)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}>Transfer Ownership</button>
+                                )}
+                                
+                                {/* Remove Button logic */}
+                                {/* Owner can remove anyone. Admin can remove only Members. */}
+                                {(myRole === 'owner' || (myRole === 'admin' && m.role !== 'admin' && m.role !== 'owner')) && (
+                                  <button onClick={() => handleRemoveMember(m.uid)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}>Remove from Group</button>
+                                )}
+
+                                {/* Cancel Button */}
+                                <button onClick={() => setActiveMemberMenu(null)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>Cancel</button>
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
         )}
-
       </div>
     );
   }
 
-  /* --- GROUP LIST VIEW --- */
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <h2>My Groups</h2>
-        <button 
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          style={{ padding: '10px 15px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontWeight: 'bold', borderRadius: '5px' }}
-        >
-          {showCreateForm ? "Cancel" : "+ Create Group"}
-        </button>
+        <button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: '10px 15px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontWeight: 'bold', borderRadius: '5px' }}>{showCreateForm ? "Cancel" : "+ Create Group"}</button>
       </div>
-
       {showCreateForm && (
         <form onSubmit={handleCreateGroup} style={{ backgroundColor: '#3a3f4a', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
           <h3 style={{ marginTop: 0 }}>New Group</h3>
-          <input 
-            type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-            style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', boxSizing: 'border-box' }}
-          />
-          <textarea 
-            placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)}
-            style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', minHeight: '60px', boxSizing: 'border-box' }}
-          />
+          <input type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', boxSizing: 'border-box' }} />
+          <textarea placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', minHeight: '60px', boxSizing: 'border-box' }} />
           <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Create</button>
         </form>
       )}
-
       <div style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
         {myGroups.map(group => (
-          <div 
-            key={group.id} 
-            onClick={() => setSelectedGroup(group)}
-            style={{ 
-              backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', border: '1px solid #444', cursor: 'pointer',
-              transition: 'transform 0.2s'
-            }}
-          >
+          <div key={group.id} onClick={() => setSelectedGroup(group)} style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', border: '1px solid #444', cursor: 'pointer', transition: 'transform 0.2s' }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#61dafb' }}>{group.name}</h3>
-            <p style={{ margin: 0, color: '#ccc', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {group.description}
-            </p>
-            <div style={{ marginTop: '15px', fontSize: '12px', color: '#888' }}>
-              {group.memberDetails?.length || 0} Members
-            </div>
+            <p style={{ margin: 0, color: '#ccc', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.description}</p>
+            <div style={{ marginTop: '15px', fontSize: '12px', color: '#888' }}>{group.memberDetails?.length || 0} Members</div>
           </div>
         ))}
       </div>

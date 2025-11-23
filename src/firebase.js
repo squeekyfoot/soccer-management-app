@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-// NEW: Import Storage
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -14,9 +13,9 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
+// Initialize Firebase (Singleton Pattern)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-// NEW: Export Storage
 export const storage = getStorage(app);
