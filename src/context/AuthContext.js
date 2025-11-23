@@ -255,8 +255,6 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
-  // --- Roster Management ---
-
   const createRoster = async (rosterName, season, maxCapacity) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
@@ -472,8 +470,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- Chat Functions ---
-
   const uploadImage = async (file, path) => {
     if (!file) return null;
     try {
@@ -487,6 +483,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // --- FIXED: createChat returns Object ---
   const createChat = async (participantEmails, chatName = "") => {
     try {
       const usersRef = collection(db, "users");
@@ -520,7 +517,7 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
-      await addDoc(collection(db, "chats"), {
+      const docRef = await addDoc(collection(db, "chats"), {
         type: participantIds.length > 2 ? 'group' : 'dm',
         name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
         participants: participantIds,
@@ -528,9 +525,12 @@ export const AuthProvider = ({ children }) => {
         participantDetails: participants,
         createdAt: serverTimestamp(),
         lastMessage: "Chat created",
-        lastMessageTime: serverTimestamp()
+        lastMessageTime: new Date() // FIXED: Use new Date() for immediate sort availability
       });
-      return true;
+      
+      // CORRECT: Returns object with ID and participants
+      return { id: docRef.id, participants: participantIds }; 
+
     } catch (error) {
       console.error("Error creating chat:", error);
       alert("Error: " + error.message);
@@ -554,10 +554,14 @@ export const AuthProvider = ({ children }) => {
         summary = text ? `📷 ${text}` : "📷 Sent an image";
       }
 
+      // FIXED: Fallback if currentParticipants is somehow missing/null
+      // (Though it shouldn't be with the fix in createChat/TeamChat)
+      const visibleToUpdate = currentParticipants || [loggedInUser.uid];
+
       await updateDoc(chatRef, {
         lastMessage: summary,
-        lastMessageTime: serverTimestamp(),
-        visibleTo: currentParticipants 
+        lastMessageTime: new Date(), // FIXED: Use new Date()
+        visibleTo: visibleToUpdate
       });
 
       return true;
@@ -605,8 +609,6 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
   };
-
-  // --- Group Functions ---
 
   const createGroup = async (groupData) => {
      try {
@@ -663,7 +665,6 @@ export const AuthProvider = ({ children }) => {
 
   const addGroupMembers = async (groupId, emails) => {
     try {
-      // 1. Verify permissions: Get current group data first
       const groupRef = doc(db, "groups", groupId);
       const groupSnap = await getDoc(groupRef);
       
@@ -677,7 +678,6 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
-      // 2. Proceed to add
       const usersRef = collection(db, "users");
       const newMembers = [];
       const newMemberIds = [];
@@ -761,8 +761,6 @@ export const AuthProvider = ({ children }) => {
   const removeGroupMember = async (groupId, memberUid, currentMemberDetails, currentMembers) => {
     try {
       const groupRef = doc(db, "groups", groupId);
-      
-      // Filter out the member from both the details array and the UIDs array
       const updatedMemberDetails = currentMemberDetails.filter(m => m.uid !== memberUid);
       const updatedMembers = currentMembers.filter(uid => uid !== memberUid);
 
@@ -778,7 +776,6 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
   };
-
 
   const value = {
     loggedInUser,
