@@ -4,11 +4,13 @@ import Home from './Home';
 import MyProfile from './MyProfile'; 
 import ManagerDashboard from './ManagerDashboard'; 
 import TeamChat from './TeamChat';
-// NEW: Import Groups
 import Groups from './Groups';
 
+// NEW: Import Icons
+import { House, Users, MessageSquare, User, Settings, LogOut } from 'lucide-react';
+
 function Layout() {
-  const { isManager } = useAuth();
+  const { isManager, signOutUser } = useAuth();
   const [activeView, setActiveView] = useState('home');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -22,21 +24,25 @@ function Layout() {
 
   const renderActiveView = () => {
     switch (activeView) {
-      case 'home':
-        return <Home />;
-      // NEW: Add Groups case
-      case 'groups':
-        return <Groups />;
-      case 'messaging':
-        return <TeamChat />;
-      case 'profile':
-        return <MyProfile />; 
-      case 'manager':
-        return <ManagerDashboard />;
-      default:
-        return <Home />;
+      case 'home': return <Home />;
+      case 'groups': return <Groups />;
+      case 'messaging': return <TeamChat />;
+      case 'profile': return <MyProfile />; 
+      case 'manager': return <ManagerDashboard />;
+      default: return <Home />;
     }
   };
+
+  // Helper to render nav buttons cleanly
+  const NavButton = ({ view, label, icon: Icon }) => (
+    <button 
+      onClick={() => setActiveView(view)}
+      className={`nav-btn ${activeView === view ? 'active' : ''}`}
+    >
+      <Icon size={20} />
+      <span>{label}</span>
+    </button>
+  );
 
   return (
     <div
@@ -53,35 +59,23 @@ function Layout() {
       )}
 
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
-        {!isMobile && <h3 style={{ marginTop: 0 }}>Team App</h3>}
+        {!isMobile && <h3 style={{ marginTop: 0, marginBottom: '20px', paddingLeft: '10px' }}>Team App</h3>}
         
-        <button onClick={() => { setActiveView('home'); }}
-          className={activeView === 'home' ? 'active' : ''}>
-          Home
-        </button>
-
-        {/* NEW: Groups Button */}
-        <button onClick={() => { setActiveView('groups'); }}
-          className={activeView === 'groups' ? 'active' : ''}>
-          Groups
-        </button>
-
-        <button onClick={() => { setActiveView('messaging'); }}
-          className={activeView === 'messaging' ? 'active' : ''}>
-          Messaging
-        </button>
-
-        <button onClick={() => { setActiveView('profile'); }}
-          className={activeView === 'profile' ? 'active' : ''}>
-          Profile
-        </button>
+        {/* Navigation Items */}
+        <NavButton view="home" label="Home" icon={House} />
+        <NavButton view="groups" label="Groups" icon={Users} />
+        <NavButton view="messaging" label="Messaging" icon={MessageSquare} />
+        <NavButton view="profile" label="Profile" icon={User} />
         
         {isManager() && (
-          <button onClick={() => { setActiveView('manager'); }}
-            className={activeView === 'manager' ? 'active' : ''}>
-            Manager Dashboard
-          </button>
+          <NavButton view="manager" label="Manager" icon={Settings} />
         )}
+        
+        {/* Sign Out (Custom style) */}
+        <button onClick={signOutUser} className="nav-btn sign-out-btn">
+          <LogOut size={20} />
+          <span>Sign Out</span>
+        </button>
       </nav>
 
       <main className={isMobile ? 'main-content mobile' : 'main-content'}>
