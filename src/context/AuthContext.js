@@ -7,7 +7,8 @@ import {
   updateEmail,
   updateProfile as firebaseUpdateProfile,
   EmailAuthProvider,
-  reauthenticateWithCredential
+  reauthenticateWithCredential,
+  deleteUser
 } from "firebase/auth";
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
@@ -77,6 +78,7 @@ export const AuthProvider = ({ children }) => {
       if (userDoc.exists()) {
         setLoggedInUser(userDoc.data());
       } else {
+        // User exists in Auth but not DB. This is a rare edge case for established users.
         alert("Authentication successful, but no profile was found.");
         setLoggedInUser(null);
       }
@@ -92,8 +94,11 @@ export const AuthProvider = ({ children }) => {
       alert("Password must be at least 6 characters long.");
       return;
     }
+    
+    let userCredential;
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      // 1. Create user in Firebase Auth
+      userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
       
       const userProfileData = {
@@ -104,15 +109,27 @@ export const AuthProvider = ({ children }) => {
         address: formData.address,
         notificationPreference: formData.notificationPreference,
         comments: formData.comments,
-        role: 'player',
+        role: 'player', // Hardcoded to player to match Security Rules
         photoURL: ""
       };
       
+      // 2. Create document in Firestore
       await setDoc(doc(db, "users", user.uid), userProfileData);
       setLoggedInUser(userProfileData);
+
     } catch (error) {
       console.error("Error signing up:", error);
       alert("Error: " + error.message);
+
+      // 3. Cleanup: If Firestore write failed, delete the Auth user so they can try again.
+      if (userCredential && userCredential.user) {
+        try {
+          await deleteUser(userCredential.user);
+          console.log("Cleaned up orphaned auth user.");
+        } catch (cleanupError) {
+          console.error("Failed to cleanup user:", cleanupError);
+        }
+      }
     }
   };
 
@@ -483,7 +500,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- FIXED: createChat returns Object ---
   const createChat = async (participantEmails, chatName = "") => {
     try {
       const usersRef = collection(db, "users");
@@ -517,6 +533,34 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
+      const chatsRef = collection(db, "chats");
+      const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
+      const chatSnapshot = await getDocs(q);
+
+      const existingChat = chatSnapshot.docs.find(doc => {
+        const data = doc.data();
+        if (data.participants.length !== participantIds.length) return false;
+        return participantIds.every(id => data.participants.includes(id));
+      });
+
+      if (existingChat) {
+        const existingData = existingChat.data();
+        const chatRef = doc(db, "chats", existingChat.id);
+
+        if (!existingData.visibleTo.includes(loggedInUser.uid)) {
+           await updateDoc(chatRef, {
+             visibleTo: arrayUnion(loggedInUser.uid)
+           });
+        }
+
+        return { 
+          id: existingChat.id, 
+          participants: existingData.participants,
+          name: existingData.name, 
+          ...existingData
+        };
+      }
+
       const docRef = await addDoc(collection(db, "chats"), {
         type: participantIds.length > 2 ? 'group' : 'dm',
         name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
@@ -525,10 +569,9 @@ export const AuthProvider = ({ children }) => {
         participantDetails: participants,
         createdAt: serverTimestamp(),
         lastMessage: "Chat created",
-        lastMessageTime: new Date() // FIXED: Use new Date() for immediate sort availability
+        lastMessageTime: new Date() 
       });
       
-      // CORRECT: Returns object with ID and participants
       return { id: docRef.id, participants: participantIds }; 
 
     } catch (error) {
@@ -554,13 +597,11 @@ export const AuthProvider = ({ children }) => {
         summary = text ? `📷 ${text}` : "📷 Sent an image";
       }
 
-      // FIXED: Fallback if currentParticipants is somehow missing/null
-      // (Though it shouldn't be with the fix in createChat/TeamChat)
       const visibleToUpdate = currentParticipants || [loggedInUser.uid];
 
       await updateDoc(chatRef, {
         lastMessage: summary,
-        lastMessageTime: new Date(), // FIXED: Use new Date()
+        lastMessageTime: new Date(), 
         visibleTo: visibleToUpdate
       });
 

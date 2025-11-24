@@ -26,6 +26,12 @@ function TeamChat() {
   const [activeChatMenu, setActiveChatMenu] = useState(null);
   const messagesEndRef = useRef(null);
 
+  // --- FIX: Circular Dependency ---
+  const selectedChatRef = useRef(selectedChat);
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
+
   // 1. REAL-TIME LISTENER FOR CHAT LIST
   useEffect(() => {
     if (!loggedInUser) return;
@@ -44,19 +50,24 @@ function TeamChat() {
       }));
       setMyChats(chats);
       
-      // If the selected chat was updated, update our local selection too
-      if (selectedChat) {
-        const updatedSelected = chats.find(c => c.id === selectedChat.id);
+      // --- FIX: Sync Selected Chat ---
+      const currentSelected = selectedChatRef.current;
+      
+      if (currentSelected) {
+        const updatedSelected = chats.find(c => c.id === currentSelected.id);
         if (updatedSelected) {
-            setSelectedChat(updatedSelected);
+            if (JSON.stringify(updatedSelected) !== JSON.stringify(currentSelected)) {
+                setSelectedChat(updatedSelected);
+            }
         }
       }
+
     }, (error) => {
       console.error("Error listening to chat list:", error);
     });
 
     return () => unsubscribe();
-  }, [loggedInUser, selectedChat]); 
+  }, [loggedInUser]);
 
   // 2. LISTEN for messages
   useEffect(() => {
@@ -90,9 +101,15 @@ function TeamChat() {
     if (e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
+    // --- FIX START: Reset Input Value ---
+    // We clear the input value immediately so that if the user tries 
+    // to select the same file again (e.g., after sending), the onChange event fires.
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    // --- FIX END ---
   };
 
-  // Reset right column for new chat
   const startNewChat = () => {
       setIsCreatingChat(true);
       setSelectedChat(null);
@@ -116,7 +133,7 @@ function TeamChat() {
             return;
         }
 
-        // 1. Create the chat
+        // 1. Create the chat (or find existing)
         const chatResult = await createChat(selectedEmails, newChatName);
         
         if (chatResult && chatResult.id) {
@@ -124,6 +141,9 @@ function TeamChat() {
              const participants = chatResult.participants;
              const text = newMessage;
              const fileToUpload = selectedFile;
+
+             // Use existing name if returned (consolidated chat), otherwise use new name
+             const resolvedChatName = chatResult.name || newChatName || "New Chat";
 
              // Clear inputs
              setNewMessage(""); 
@@ -138,14 +158,15 @@ function TeamChat() {
              // 3. Send the Message
              await sendMessage(newChatId, text, participants, imageUrl);
 
-             // 4. OPTIMISTIC UI UPDATE
+             // 4. Update UI Selection
+             // We construct the chat object to select immediately
              const optimisticChat = {
                  id: newChatId,
-                 name: newChatName || "New Chat",
+                 name: resolvedChatName,
                  lastMessage: text || "Sent an image",
                  type: selectedEmails.length > 0 ? 'group' : 'dm',
                  participants: participants,
-                 participantDetails: [] 
+                 participantDetails: chatResult.participantDetails || [] 
              };
 
              const optimisticMessage = {
@@ -157,10 +178,11 @@ function TeamChat() {
                  createdAt: { toDate: () => new Date() }
              };
 
-             setMyChats(prev => [optimisticChat, ...prev]);
+             // Select the chat immediately
              setSelectedChat(optimisticChat);
              setMessages([optimisticMessage]); 
              
+             // Switch view
              setIsCreatingChat(false);
              setNewChatName("");
              setSelectedEmails([]);
@@ -211,15 +233,14 @@ function TeamChat() {
     : true; 
 
   return (
-    // CHANGE: Remove 'max-width', change height to '100%', remove border-radius for full-screen feel on mobile
     <div style={{ 
       display: 'flex', 
-      height: '100%', // Fill parent 
-      width: '100%', // Fill parent
+      height: '100%', 
+      width: '100%', 
       maxWidth: '1000px', 
-      margin: '0 auto', // Center on desktop
-      backgroundColor: '#282c34', // Ensure background is set
-      border: '1px solid #444', // Border is fine for desktop
+      margin: '0 auto', 
+      backgroundColor: '#282c34', 
+      border: '1px solid #444', 
       borderRadius: '8px', 
       overflow: 'hidden',
       boxSizing: 'border-box'
