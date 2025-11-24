@@ -1,119 +1,106 @@
-# **My Team App (Web)**
+# **Soccer Team Management App**
 
-This document describes the project structure, file by file, to help new developers and to maintain context for AI-assisted development.  
-This project is built with React and Firebase, and it uses a **Context-based architecture** to manage application state.
+This is a community-driven sports team management application designed to help players, managers, and communities coordinate rosters, schedules, and communication.
 
-## **Project Structure Overview**
+## **Architecture Overview**
 
-my-team-app/  
-├── public/  
-├── src/  
-│   ├── components/  
-│   │   ├── AuthPage.js  
-│   │   ├── Layout.js  
-│   │   ├── MyProfile.js  
-│   │   ├── ReauthModal.js  
-│   │   └── SportsInfo.js  
-│   ├── context/  
-│   │   └── AuthContext.js  
-│   ├── App.js  
-│   ├── App.css  
-│   ├── firebase.js  
-│   └── index.js  
-├── .firebaserc  
-├── firebase.json  
-├── package.json  
-└── README.md (This file)
+The project is built as a **Single Page Application (SPA)** using React. It relies heavily on a **Context-based architecture** where a single "Brain" (AuthContext.js) manages the global state and API calls, while smaller "dumb" components handle the UI.
 
-## **Core Files & Components**
+### **Core Technology Stack**
 
-### **1\. src/firebase.js**
+* **Frontend:** React (Create React App)  
+* **Backend:** Firebase (Serverless)  
+  * **Authentication:** Manages users (Email/Password).  
+  * **Firestore Database:** Stores all structured data (profiles, rosters, chats).  
+  * **Storage:** Stores user-uploaded media (profile pictures, chat images).  
+  * **Hosting:** Serves the web app globally.  
+* **Styling:** Custom CSS (responsive grid/flexbox system).  
+* **Icons:** lucide-react library.
 
-* **Purpose:** Initializes and configures the connection to your Firebase project.  
-* **Key Responsibilities:**  
-  * Holds your secret firebaseConfig keys.  
-  * Initializes the Firebase app.  
-  * Exports the auth (Authentication) and db (Firestore) services for the rest of the app to use.
+## **Directory Structure & File Guide**
 
-### **2\. src/index.js**
+### **Root Configuration**
 
-* **Purpose:** The main entry point for the React application.  
-* **Key Responsibilities:**  
-  * Finds the \<div id="root"\> in the public/index.html file.  
-  * **Wraps the entire \<App /\> component in the \<AuthProvider\>.** This is critical, as it makes the "brain" (AuthContext) available to every other component.
+* **firebase.js**: The bridge to Firebase. It initializes the app using environment variables and exports the auth, db (Firestore), and storage services. It uses a "Singleton Pattern" to prevent duplicate initialization errors during development.  
+* **index.js**: The entry point. It wraps the entire \<App /\> in the \<AuthProvider\> so that state is available globally.
 
-### **3\. src/context/AuthContext.js (The "Brain")**
+### **The Brain (State Management)**
 
-* **Purpose:** This is the most important file. It's a global "provider" that holds all the application's *global state* and the *functions* to change that state.  
-* **Key Responsibilities:**  
-  * **Global State:** loggedInUser, soccerDetails, isLoading, needsReauth.  
-  * **Global Functions:** signIn, signUp, signOutUser, updateProfile, reauthenticate, updateSoccerDetails.  
-  * **Auth Listener:** Contains the onAuthStateChanged hook that checks if a user is logged in when the app first loads.  
-  * **useAuth() Hook:** Exports a custom hook so components can easily access this data (e.g., const { signIn } \= useAuth();).
+* **src/context/AuthContext.js**: This is the most critical file. It contains **all** the business logic and state management.  
+  * **State:** Holds loggedInUser, soccerDetails, needsReauth, etc.  
+  * **Auth Functions:** signIn, signUp, signOutUser, updateProfile.  
+  * **Roster Logic:** createRoster, addPlayerToRoster, fetchRosters.  
+  * **Event Logic:** createEvent, fetchEvents (Master Schedule).  
+  * **Chat Logic:** createChat, sendMessage, fetchUserChats (Real-time).  
+  * **Group Logic:** createGroup, addGroupMembers, updateGroupMemberRole.
 
-### **4\. src/App.js (The "Router")**
+### **The Router & Layout**
 
-* **Purpose:** This file is no longer a "God Component." It is now a simple "router."  
-* **Key Responsibilities:**  
-  * Uses the useAuth() hook to check isLoading and loggedInUser.  
-  * Renders a "Loading..." message if isLoading is true.  
-  * Renders the \<ReauthModal /\> component if needsReauth is true.  
-  * Renders **\<Layout /\>** if a user is logged in.  
-  * Renders **\<AuthPage /\>** if no user is logged in.
+* **src/App.js**: Acts as the main router. It checks if a user is logged in and decides whether to show the AuthPage (Sign In/Up) or the main Layout. It also handles global listeners like beforeunload cleanup.  
+* **src/components/Layout.js**: Defines the main shell of the app.  
+  * **Desktop:** Shows a persistent sidebar navigation on the left.  
+  * **Mobile:** Shows a top header and a bottom tab bar navigation.  
+  * **Routing:** Decides which "Page Component" (Home, Messaging, etc.) to render in the main content area.
 
-## **Components (src/components/)**
+### **Page Components (The Views)**
 
-### **5\. src/components/AuthPage.js**
+These components correspond to the main navigation buttons.
 
-* **Purpose:** The main "logged out" page.  
-* **Key Responsibilities:**  
-  * Renders the "Sign In" form.  
-  * Renders the "Sign Up" form.  
-  * Holds the **local state** for the form inputs (e.g., email, password, playerName).  
-  * Calls the signIn() and signUp() functions (from the "brain") when the forms are submitted.
+1. **src/components/Home.js**: The default dashboard.  
+   * Combines the **Calendar View** and **My Rosters** list into a single view.  
+2. **src/components/Groups.js**: Manages community groups that span across teams.  
+   * Features: Create Group, Feed (Posts), About, and Member Management (Promote/Demote/Remove).  
+3. **src/components/TeamChat.js**: The messaging center.  
+   * **Left Column:** Real-time list of active conversations (DMs and Groups).  
+   * **Right Column:** The active chat window or the "New Chat" creation flow.  
+   * **Features:** Image uploads, real-time updates, "New Chat" user search.  
+4. **src/components/MyProfile.js**: The user's personal settings.  
+   * Displays and edits profile details (Name, Phone, Address).  
+   * Manages Profile Picture (upload/delete).  
+   * Embeds the **Sports Info** form.  
+5. **src/components/ManagerDashboard.js**: (Manager Role Only)  
+   * Allows creation and deletion of Team Rosters.  
+   * Allows adding players to rosters via email search.
 
-### **6\. src/components/Layout.js**
+### **Sub-Components & Utilities**
 
-* **Purpose:** The main "logged in" view. This component holds the persistent navigation and content area.  
-* **Key Responsibilities:**  
-  * Holds the **local state** for isMobile and activeView (which page is showing).  
-  * Renders the responsive navigation (desktop sidebar or mobile top/bottom bars).  
-  * Renders the correct "page" component (\<MyProfile /\> or \<SportsInfo /\>) based on the activeView state.  
-  * Calls the signOutUser() function from the "brain."
+* **src/components/SportsInfo.js**: A sub-form used inside the Profile page to handle soccer-specific data (Jersey size, position, etc.).  
+* **src/components/UserSearch.js**: A reusable component that provides a "Typeahead" search to find users by name or email. Used in Chat and Groups.  
+* **src/components/CalendarView.js**: Renders the visual month grid and list of upcoming events. Used in Home.  
+* **src/components/ReauthModal.js**: A popup modal that appears when a sensitive action (like changing email) requires the user to re-enter their password.
 
-### **7\. src/components/MyProfile.js**
+## **Security Rules (Firestore)**
 
-* **Purpose:** Shows and edits the user's main profile.  
-* **Key Responsibilities:**  
-  * Gets loggedInUser from the useAuth() hook to *display* the data.  
-  * Holds **local state** for isEditingProfile and profileFormData.  
-  * Renders the profile in "view mode" (using the .info-table layout).  
-  * Renders the "edit profile" form when isEditingProfile is true.  
-  * Calls the updateProfile() function from the "brain" when the form is submitted.
+The app uses a strict "Owner/Manager" security model enforced by Firestore Rules (firestore.rules).
 
-### **8\. src/components/SportsInfo.js**
+* **Users:** Only the owner can edit their profile. Everyone can read profiles (for search).  
+* **Rosters:** Only Managers can create/edit rosters. Everyone can read.  
+* **Chats:** Only participants of a chat (listed in the participants array) can read or write messages.  
+* **Groups:** Members can read/post. Only Owners/Admins can manage members.  
+* **Events:** Any team member can create an event for their team.
 
-* **Purpose:** Shows and edits the user's soccer-specific info.  
-* **Key Responsibilities:**  
-  * Gets soccerDetails from the useAuth() hook to *display* the data.  
-  * Holds **local state** for isEditingSoccer and soccerFormData.  
-  * Renders the "add info" prompt if soccerDetails is null.  
-  * Renders the sports info in "view mode" (using the .info-table layout).  
-  * Renders the "edit sports" form.  
-  * Calls the updateSoccerDetails() function from the "brain" when the form is submitted.
+## **Development Setup**
 
-### **9\. src/components/ReauthModal.js**
+### **Prerequisites**
 
-* **Purpose:** A global modal that appears *on top of* all other components when a user needs to re-authenticate (e.g., to change their email).  
-* **Key Responsibilities:**  
-  * Holds **local state** for the reauthPassword input.  
-  * Calls the reauthenticate() function from the "brain" when submitted.  
-  * Calls setNeedsReauth(false) to close itself.
+* Node.js & npm  
+* Firebase CLI (npm install \-g firebase-tools)
 
-### **10\. src/App.css**
+### **Installation**
 
-* **Purpose:** A global stylesheet for the *entire application*.  
-* **Key Responsibilities:**  
-  * Provides all styles for the desktop sidebar, mobile header, and mobile tab bar.  
-  * Provides the styles for the .info-table used in profile/sports pages.  
-  * Provides basic app-wide styles (background color, text color, etc.).
+1. Clone the repository.  
+2. Run npm install to install dependencies.  
+3. Create a .env file in the root with your Firebase keys (see .env.example).
+
+### **Running Locally**
+
+npm start
+
+Runs the app in development mode. Open [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) to view it in your browser.
+
+### **Deployment**
+
+npm run build  
+firebase deploy
+
+Builds the app for production to the build folder and deploys it to Firebase Hosting.

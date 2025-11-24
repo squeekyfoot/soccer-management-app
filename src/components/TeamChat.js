@@ -16,7 +16,8 @@ function TeamChat() {
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null); 
   
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  // Inline Creation Mode State
+  const [isCreatingChat, setIsCreatingChat] = useState(true);
   
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newChatName, setNewChatName] = useState("");
@@ -25,6 +26,7 @@ function TeamChat() {
   const [activeChatMenu, setActiveChatMenu] = useState(null);
   const messagesEndRef = useRef(null);
 
+  // 1. REAL-TIME LISTENER FOR CHAT LIST
   useEffect(() => {
     if (!loggedInUser) return;
 
@@ -42,10 +44,11 @@ function TeamChat() {
       }));
       setMyChats(chats);
       
+      // If the selected chat was updated, update our local selection too
       if (selectedChat) {
-        const stillExists = chats.find(c => c.id === selectedChat.id);
-        if (!stillExists) {
-          setSelectedChat(null);
+        const updatedSelected = chats.find(c => c.id === selectedChat.id);
+        if (updatedSelected) {
+            setSelectedChat(updatedSelected);
         }
       }
     }, (error) => {
@@ -53,8 +56,9 @@ function TeamChat() {
     });
 
     return () => unsubscribe();
-  }, [loggedInUser, selectedChat]);
+  }, [loggedInUser, selectedChat]); 
 
+  // 2. LISTEN for messages
   useEffect(() => {
     if (!selectedChat || isCreatingChat) {
         setMessages([]); 
@@ -88,6 +92,7 @@ function TeamChat() {
     }
   };
 
+  // Reset right column for new chat
   const startNewChat = () => {
       setIsCreatingChat(true);
       setSelectedChat(null);
@@ -100,6 +105,7 @@ function TeamChat() {
   const handleSend = async (e) => {
     e.preventDefault();
 
+    // --- CASE 1: Creating New Chat ---
     if (isCreatingChat) {
         if (selectedEmails.length === 0) {
             alert("Please add at least one person to the chat.");
@@ -110,7 +116,7 @@ function TeamChat() {
             return;
         }
 
-        // NEW: Expecting { id, participants } from createChat
+        // 1. Create the chat
         const chatResult = await createChat(selectedEmails, newChatName);
         
         if (chatResult && chatResult.id) {
@@ -119,22 +125,26 @@ function TeamChat() {
              const text = newMessage;
              const fileToUpload = selectedFile;
 
+             // Clear inputs
              setNewMessage(""); 
              setSelectedFile(null); 
              
+             // 2. Upload Image if needed
              let imageUrl = null;
              if (fileToUpload) {
                  imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
              }
              
-             // NEW: Pass correct participants list to sendMessage
+             // 3. Send the Message
              await sendMessage(newChatId, text, participants, imageUrl);
 
+             // 4. OPTIMISTIC UI UPDATE
              const optimisticChat = {
                  id: newChatId,
                  name: newChatName || "New Chat",
                  lastMessage: text || "Sent an image",
-                 type: selectedEmails.length > 1 ? 'group' : 'dm',
+                 type: selectedEmails.length > 0 ? 'group' : 'dm',
+                 participants: participants,
                  participantDetails: [] 
              };
 
@@ -157,6 +167,7 @@ function TeamChat() {
         }
 
     } else {
+        // --- CASE 2: Existing Chat ---
         if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
 
         const text = newMessage;
@@ -200,9 +211,22 @@ function TeamChat() {
     : true; 
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 100px)', maxWidth: '1000px', border: '1px solid #444', borderRadius: '8px', overflow: 'hidden' }}>
+    // CHANGE: Remove 'max-width', change height to '100%', remove border-radius for full-screen feel on mobile
+    <div style={{ 
+      display: 'flex', 
+      height: '100%', // Fill parent 
+      width: '100%', // Fill parent
+      maxWidth: '1000px', 
+      margin: '0 auto', // Center on desktop
+      backgroundColor: '#282c34', // Ensure background is set
+      border: '1px solid #444', // Border is fine for desktop
+      borderRadius: '8px', 
+      overflow: 'hidden',
+      boxSizing: 'border-box'
+    }}>
       
-      <div style={{ width: '30%', backgroundColor: '#282c34', borderRight: '1px solid #444', display: 'flex', flexDirection: 'column' }}>
+      {/* --- LEFT SIDE: Chat List --- */}
+      <div style={{ width: '30%', minWidth: '250px', backgroundColor: '#282c34', borderRight: '1px solid #444', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '15px', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <button 
             onClick={startNewChat}
@@ -275,8 +299,10 @@ function TeamChat() {
         </div>
       </div>
 
+      {/* --- RIGHT SIDE: Chat Window OR New Chat Form --- */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#1c1e22' }}>
         
+        {/* CASE 1: Creating New Chat */}
         {isCreatingChat && (
             <>
                 <div style={{ padding: '20px', borderBottom: '1px solid #444', backgroundColor: '#282c34' }}>
@@ -305,6 +331,7 @@ function TeamChat() {
             </>
         )}
 
+        {/* CASE 2: Viewing Existing Chat */}
         {!isCreatingChat && selectedChat && (
           <>
             <div style={{ padding: '15px', borderBottom: '1px solid #444', backgroundColor: '#282c34' }}>
@@ -351,12 +378,14 @@ function TeamChat() {
           </>
         )}
 
+        {/* CASE 3: No Selection */}
         {!isCreatingChat && !selectedChat && (
              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
                 Select a conversation or start a new one.
              </div>
         )}
 
+        {/* INPUT AREA (Visible for both Create and View) */}
         {(isCreatingChat || selectedChat) && (
             <form onSubmit={handleSend} style={{ padding: '15px', backgroundColor: '#282c34', borderTop: '1px solid #444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               
@@ -411,6 +440,7 @@ function TeamChat() {
         )}
       </div>
 
+      {/* --- IMAGE VIEWER MODAL --- */}
       {viewingImage && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',

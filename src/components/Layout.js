@@ -6,7 +6,6 @@ import ManagerDashboard from './ManagerDashboard';
 import TeamChat from './TeamChat';
 import Groups from './Groups';
 
-// NEW: Import Icons
 import { House, Users, MessageSquare, User, Settings, LogOut } from 'lucide-react';
 
 function Layout() {
@@ -33,7 +32,6 @@ function Layout() {
     }
   };
 
-  // Helper to render nav buttons cleanly
   const NavButton = ({ view, label, icon: Icon }) => (
     <button 
       onClick={() => setActiveView(view)}
@@ -43,6 +41,10 @@ function Layout() {
       <span>{label}</span>
     </button>
   );
+
+  // NEW: Determine if the current view needs a fixed height (no page scroll)
+  // Only 'messaging' needs to be fixed so the chat bars stay anchored.
+  const isFixedView = activeView === 'messaging';
 
   return (
     <div
@@ -61,7 +63,6 @@ function Layout() {
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
         {!isMobile && <h3 style={{ marginTop: 0, marginBottom: '20px', paddingLeft: '10px' }}>Team App</h3>}
         
-        {/* Navigation Items */}
         <NavButton view="home" label="Home" icon={House} />
         <NavButton view="groups" label="Groups" icon={Users} />
         <NavButton view="messaging" label="Messaging" icon={MessageSquare} />
@@ -71,14 +72,14 @@ function Layout() {
           <NavButton view="manager" label="Manager" icon={Settings} />
         )}
         
-        {/* Sign Out (Custom style) */}
         <button onClick={signOutUser} className="nav-btn sign-out-btn">
           <LogOut size={20} />
           <span>Sign Out</span>
         </button>
       </nav>
 
-      <main className={isMobile ? 'main-content mobile' : 'main-content'}>
+      {/* NEW: Apply 'fixed-height' class conditionally */}
+      <main className={`main-content ${isMobile ? 'mobile' : ''} ${isFixedView ? 'fixed-height' : 'scrollable'}`}>
         {renderActiveView()}
       </main>
 

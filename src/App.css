@@ -26,19 +26,36 @@
   color: white;
   display: flex;
   flex-direction: column;
-  gap: 5px; /* Spacing between buttons */
+  gap: 5px;
   flex-shrink: 0; 
   border-right: 1px solid #333;
 }
 
+/* --- MAIN CONTENT LAYOUT --- */
 .main-content {
   flex: 1; 
+  /* By default, we want padding */
   padding: 40px;
   color: white;
+  /* We handle overflow via specific classes below */
+}
+
+/* Scrollable View (Profile, Home, Groups) */
+.main-content.scrollable {
   overflow-y: auto;
 }
 
-/* --- Navigation Buttons (Shared) --- */
+/* Fixed Height View (Messaging) */
+.main-content.fixed-height {
+  overflow: hidden; /* Don't let the page scroll */
+  display: flex;
+  flex-direction: column;
+  padding: 20px; /* Reduce padding for chat */
+  height: 100%; /* Force full height */
+  box-sizing: border-box;
+}
+
+/* --- Navigation Buttons --- */
 .nav-btn {
   background: none;
   border: none;
@@ -49,7 +66,7 @@
   border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 12px; /* Space between icon and text */
+  gap: 12px;
   transition: all 0.2s ease;
   width: 100%;
   text-align: left;
@@ -61,14 +78,13 @@
 }
 
 .nav-btn.active {
-  background-color: #333; /* Subtle active background */
-  color: #61dafb; /* React Blue for active text/icon */
+  background-color: #333;
+  color: #61dafb;
   font-weight: 600;
 }
 
-/* Sign Out Button */
 .nav-btn.sign-out-btn {
-  margin-top: auto; /* Push to bottom on desktop */
+  margin-top: auto;
   color: #ff6b6b;
 }
 .nav-btn.sign-out-btn:hover {
@@ -126,10 +142,26 @@
   }
 
   .main-content.mobile {
+    /* Base padding for mobile */
+    padding-left: 0; /* Remove side padding for full width chat */
+    padding-right: 0;
+  }
+
+  /* Scrollable Mobile Pages */
+  .main-content.mobile.scrollable {
     padding-top: 70px; 
-    padding-bottom: 90px; /* Extra space for tab bar */
+    padding-bottom: 90px;
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  /* Fixed Mobile Pages (Chat) */
+  .main-content.mobile.fixed-height {
+    padding-top: 50px; /* Match header height */
+    padding-bottom: 70px; /* Match tab bar height */
+    padding-left: 0;
+    padding-right: 0;
+    height: 100vh; /* Force to fill viewport */
   }
 
   /* --- Info Table Mobile --- */
@@ -152,7 +184,7 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 70px; /* Taller for icon + text */
+    height: 70px; 
     background-color: #1c1e22;
     border-top: 1px solid #333;
     display: flex;
@@ -160,24 +192,23 @@
     align-items: center;
     justify-content: space-around; 
     z-index: 1000;
-    padding-bottom: 10px; /* Safe area for iPhone home bar */
+    padding-bottom: 10px; 
   }
 
-  /* --- Mobile Nav Buttons --- */
   .nav-btn {
-    flex-direction: column; /* Stack icon on top */
+    flex-direction: column; 
     justify-content: center;
     align-items: center;
-    gap: 4px; /* Smaller gap */
+    gap: 4px; 
     padding: 8px 4px;
-    font-size: 10px; /* Smaller text */
+    font-size: 10px; 
     border-radius: 0;
     height: 100%;
     flex: 1;
   }
   
   .nav-btn:hover {
-    background-color: transparent; /* No hover bg on mobile */
+    background-color: transparent; 
     color: white;
   }
 
@@ -187,6 +218,6 @@
   }
 
   .nav-btn.sign-out-btn {
-    margin-top: 0; /* Reset margin */
+    margin-top: 0; 
   }
 }
