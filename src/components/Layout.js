@@ -9,7 +9,7 @@ import Groups from './Groups';
 import { House, Users, MessageSquare, User, Settings, LogOut } from 'lucide-react';
 
 function Layout() {
-  const { isManager, signOutUser } = useAuth();
+  const { isManager, signOutUser, myChats, loggedInUser } = useAuth();
   const [activeView, setActiveView] = useState('home');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -20,6 +20,14 @@ function Layout() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Calculate total unread
+  const unreadTotal = myChats.reduce((sum, chat) => {
+    if (chat.unreadCounts && loggedInUser && chat.unreadCounts[loggedInUser.uid]) {
+      return sum + chat.unreadCounts[loggedInUser.uid];
+    }
+    return sum;
+  }, 0);
 
   const renderActiveView = () => {
     switch (activeView) {
@@ -32,18 +40,42 @@ function Layout() {
     }
   };
 
-  const NavButton = ({ view, label, icon: Icon }) => (
+  const NavButton = ({ view, label, icon: Icon, showBadge }) => (
     <button 
       onClick={() => setActiveView(view)}
       className={`nav-btn ${activeView === view ? 'active' : ''}`}
+      style={{ position: 'relative' }}
     >
-      <Icon size={20} />
+      <div style={{ position: 'relative' }}>
+        <Icon size={20} />
+        {/* Mobile Badge: Overlap Icon Top Right */}
+        {isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: -2,
+            right: -4,
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: '#61dafb'
+          }} />
+        )}
+      </div>
+      
       <span>{label}</span>
+      
+      {/* Desktop Badge: Next to Text */}
+      {!isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
+        <div style={{
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          backgroundColor: '#61dafb'
+        }} />
+      )}
     </button>
   );
 
-  // NEW: Determine if the current view needs a fixed height (no page scroll)
-  // Only 'messaging' needs to be fixed so the chat bars stay anchored.
   const isFixedView = activeView === 'messaging';
 
   return (
@@ -65,7 +97,10 @@ function Layout() {
         
         <NavButton view="home" label="Home" icon={House} />
         <NavButton view="groups" label="Groups" icon={Users} />
-        <NavButton view="messaging" label="Messaging" icon={MessageSquare} />
+        
+        {/* Badge Enabled */}
+        <NavButton view="messaging" label="Messaging" icon={MessageSquare} showBadge={true} />
+        
         <NavButton view="profile" label="Profile" icon={User} />
         
         {isManager() && (
@@ -78,7 +113,6 @@ function Layout() {
         </button>
       </nav>
 
-      {/* NEW: Apply 'fixed-height' class conditionally */}
       <main className={`main-content ${isMobile ? 'mobile' : ''} ${isFixedView ? 'fixed-height' : 'scrollable'}`}>
         {renderActiveView()}
       </main>

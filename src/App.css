@@ -152,12 +152,17 @@
   }
 
   /* Fixed Mobile Pages (Chat) */
+  /* UPDATED: Uses fixed positioning to lock the chat area between Header and Footer */
   .main-content.mobile.fixed-height {
-    padding-top: 50px; 
-    padding-bottom: 70px; 
-    padding-left: 0;
-    padding-right: 0;
-    height: 100vh; 
+    position: fixed;
+    top: 50px;      /* Anchored to Header */
+    bottom: 70px;   /* Anchored to Tab Bar */
+    left: 0;
+    right: 0;
+    height: auto;   /* Height is determined by top/bottom anchors */
+    padding: 0;     /* No padding needed */
+    overflow: hidden; /* Prevent the body from scrolling */
+    z-index: 1;
   }
 
   /* --- Info Table Mobile --- */

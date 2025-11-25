@@ -12,7 +12,7 @@ import {
 } from "firebase/auth";
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
-  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp 
+  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, increment, onSnapshot 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "../firebase"; 
@@ -28,6 +28,9 @@ export const AuthProvider = ({ children }) => {
   const [soccerDetails, setSoccerDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
+  
+  // Global Chat State
+  const [myChats, setMyChats] = useState([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -51,6 +54,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         setLoggedInUser(null);
         setSoccerDetails(null);
+        setMyChats([]); 
       }
       setIsLoading(false);
     });
@@ -58,29 +62,60 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []); 
 
+  // Global Listener for Chats
+  useEffect(() => {
+    if (!loggedInUser) {
+      setMyChats([]);
+      return;
+    }
+
+    const chatsRef = collection(db, "chats");
+    const q = query(
+      chatsRef, 
+      where("visibleTo", "array-contains", loggedInUser.uid), 
+      orderBy("lastMessageTime", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const chats = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setMyChats(chats);
+    }, (error) => {
+      console.error("Error listening to chat list:", error);
+    });
+
+    return () => unsubscribe();
+  }, [loggedInUser]);
+
+  // --- Mark Chat as Read ---
+  const markChatAsRead = async (chatId) => {
+    if (!loggedInUser) return;
+    
+    // FIX: Define chatRef here so it's visible to both try AND catch blocks
+    const chatRef = doc(db, "chats", chatId);
+
+    try {
+      await updateDoc(chatRef, {
+        [`unreadCounts.${loggedInUser.uid}`]: 0
+      });
+    } catch (error) {
+      // Fallback if nested field doesn't exist yet
+      try {
+        await setDoc(chatRef, {
+          unreadCounts: { [loggedInUser.uid]: 0 }
+        }, { merge: true });
+      } catch (e) {
+        console.error("Error marking read:", e);
+      }
+    }
+  };
+
   const signIn = async (email, password) => {
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
-      const soccerDocRef = doc(db, "users", user.uid, "sportsDetails", "soccer");
-      const soccerDoc = await getDoc(soccerDocRef);
-
-      if (soccerDoc.exists()) {
-        setSoccerDetails(soccerDoc.data());
-      } else {
-        setSoccerDetails(null);
-      }
-
-      if (userDoc.exists()) {
-        setLoggedInUser(userDoc.data());
-      } else {
-        alert("Authentication successful, but no profile was found.");
-        setLoggedInUser(null);
-      }
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       console.error("Error signing in:", error);
       alert("Error: " + error.message);
@@ -95,6 +130,7 @@ export const AuthProvider = ({ children }) => {
     }
     
     let userCredential;
+
     try {
       userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
@@ -121,7 +157,6 @@ export const AuthProvider = ({ children }) => {
       if (userCredential && userCredential.user) {
         try {
           await deleteUser(userCredential.user);
-          console.log("Cleaned up orphaned auth user.");
         } catch (cleanupError) {
           console.error("Failed to cleanup user:", cleanupError);
         }
@@ -209,6 +244,30 @@ export const AuthProvider = ({ children }) => {
         ...prevUser,
         ...dataToUpdate
       }));
+
+      const chatsRef = collection(db, "chats");
+      const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
+      const querySnapshot = await getDocs(q);
+
+      const batchPromises = querySnapshot.docs.map(async (chatDoc) => {
+        const chatData = chatDoc.data();
+        if (chatData.participantDetails) {
+          const updatedDetails = chatData.participantDetails.map(p => {
+            if (p.uid === loggedInUser.uid) {
+              return { 
+                ...p, 
+                name: profileData.playerName, 
+                email: profileData.email,
+                photoURL: photoURL || "" 
+              };
+            }
+            return p;
+          });
+          await updateDoc(chatDoc.ref, { participantDetails: updatedDetails });
+        }
+      });
+      
+      await Promise.all(batchPromises);
       
       alert("Profile successfully updated!");
       return true; 
@@ -296,6 +355,7 @@ export const AuthProvider = ({ children }) => {
           email: loggedInUser.email,
           photoURL: loggedInUser.photoURL || ""
         }],
+        unreadCounts: { [loggedInUser.uid]: 0 }, 
         createdAt: serverTimestamp(),
         lastMessage: "Team chat created",
         lastMessageTime: serverTimestamp()
@@ -366,11 +426,12 @@ export const AuthProvider = ({ children }) => {
 
       if (!chatSnapshot.empty) {
         const chatDoc = chatSnapshot.docs[0];
-        await updateDoc(chatDoc.ref, {
+        await setDoc(chatDoc.ref, {
           participants: arrayUnion(playerDoc.id),
           visibleTo: arrayUnion(playerDoc.id),
-          participantDetails: arrayUnion(playerSummary)
-        });
+          participantDetails: arrayUnion(playerSummary),
+          unreadCounts: { [playerDoc.id]: 0 } 
+        }, { merge: true });
       }
       return true;
 
@@ -561,12 +622,17 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
+      // Initialize unread counts
+      const initialUnread = {};
+      participantIds.forEach(uid => initialUnread[uid] = 0);
+
       const docRef = await addDoc(collection(db, "chats"), {
         type: participantIds.length > 2 ? 'group' : 'dm',
         name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
         participants: participantIds,
         visibleTo: participantIds,
         participantDetails: participants,
+        unreadCounts: initialUnread,
         createdAt: serverTimestamp(),
         lastMessage: "Chat created",
         lastMessageTime: new Date() 
@@ -599,11 +665,22 @@ export const AuthProvider = ({ children }) => {
 
       const visibleToUpdate = currentParticipants || [loggedInUser.uid];
 
-      await updateDoc(chatRef, {
+      const updatePayload = {
         lastMessage: summary,
-        lastMessageTime: new Date(), 
+        lastMessageTime: new Date(),
         visibleTo: visibleToUpdate
-      });
+      };
+
+      const unreadUpdates = {};
+      if (currentParticipants) {
+        currentParticipants.forEach(uid => {
+          if (uid !== loggedInUser.uid) {
+            unreadUpdates[`unreadCounts.${uid}`] = increment(1);
+          }
+        });
+      }
+
+      await updateDoc(chatRef, { ...updatePayload, ...unreadUpdates });
 
       return true;
     } catch (error) {
@@ -646,6 +723,18 @@ export const AuthProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error("Error hiding chat:", error);
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  const renameChat = async (chatId, newName) => {
+    try {
+      const chatRef = doc(db, "chats", chatId);
+      await updateDoc(chatRef, { name: newName });
+      return true;
+    } catch (error) {
+      console.error("Error renaming chat:", error);
       alert("Error: " + error.message);
       return false;
     }
@@ -845,6 +934,7 @@ export const AuthProvider = ({ children }) => {
     sendMessage,
     fetchUserChats,
     hideChat,
+    renameChat,
     uploadImage,
     createGroup,
     fetchUserGroups,
@@ -852,7 +942,9 @@ export const AuthProvider = ({ children }) => {
     addGroupMembers,
     updateGroupMemberRole,
     transferGroupOwnership,
-    removeGroupMember
+    removeGroupMember,
+    myChats, 
+    markChatAsRead
   };
 
   return (

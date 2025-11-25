@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom'; 
 import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, limit, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
-import { SquarePen, Send } from 'lucide-react'; // UPDATED: Added Send icon
+import { SquarePen, Send, Paperclip, MoreVertical } from 'lucide-react'; 
 
 function TeamChat() {
-  const { sendMessage, createChat, hideChat, uploadImage, loggedInUser } = useAuth();
+  const { sendMessage, createChat, hideChat, renameChat, uploadImage, loggedInUser, myChats, markChatAsRead } = useAuth();
   
-  const [myChats, setMyChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -16,78 +16,57 @@ function TeamChat() {
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null); 
   
-  // Inline Creation Mode State
   const [isCreatingChat, setIsCreatingChat] = useState(true);
-  
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newChatName, setNewChatName] = useState("");
 
   const [viewingImage, setViewingImage] = useState(null);
   const [activeChatMenu, setActiveChatMenu] = useState(null);
-  const messagesEndRef = useRef(null);
+  const [activeHeaderMenu, setActiveHeaderMenu] = useState(false);
 
-  // Responsive State: Collapsed mode for left column
+  const [userProfiles, setUserProfiles] = useState({});
+
+  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null); 
+  const lastChatIdRef = useRef(null);    
+
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 800);
 
-  // --- FIX: Circular Dependency ---
   const selectedChatRef = useRef(selectedChat);
   useEffect(() => {
     selectedChatRef.current = selectedChat;
   }, [selectedChat]);
 
-  // --- RESPONSIVE LISTENER ---
   useEffect(() => {
     const handleResize = () => {
       setIsCollapsed(window.innerWidth < 800);
     };
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 1. REAL-TIME LISTENER FOR CHAT LIST
+  // FETCH LIVE USER PROFILES
   useEffect(() => {
-    if (!loggedInUser) return;
-
-    const chatsRef = collection(db, "chats");
-    const q = query(
-      chatsRef, 
-      where("visibleTo", "array-contains", loggedInUser.uid), 
-      orderBy("lastMessageTime", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chats = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMyChats(chats);
-      
-      // --- FIX: Sync Selected Chat ---
-      const currentSelected = selectedChatRef.current;
-      
-      if (currentSelected) {
-        const updatedSelected = chats.find(c => c.id === currentSelected.id);
-        if (updatedSelected) {
-            if (JSON.stringify(updatedSelected) !== JSON.stringify(currentSelected)) {
-                setSelectedChat(updatedSelected);
-            }
-        }
-      }
-
-    }, (error) => {
-      console.error("Error listening to chat list:", error);
+    const usersRef = collection(db, "users");
+    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
+      const profiles = {};
+      snapshot.docs.forEach(doc => {
+        profiles[doc.id] = doc.data();
+      });
+      setUserProfiles(profiles);
     });
-
     return () => unsubscribe();
-  }, [loggedInUser]);
+  }, []);
 
-  // 2. LISTEN for messages
+  // LISTEN for messages & Mark Read
   useEffect(() => {
     if (!selectedChat || isCreatingChat) {
         setMessages([]); 
         return;
     }
+
+    // Mark read on initial load of chat
+    markChatAsRead(selectedChat.id);
 
     const messagesRef = collection(db, "chats", selectedChat.id, "messages");
     const q = query(messagesRef, orderBy("createdAt", "asc"), limit(50));
@@ -98,16 +77,39 @@ function TeamChat() {
         ...doc.data()
       }));
       setMessages(msgs);
-      scrollToBottom();
+      
+      // FIX: Mark as read immediately when a new message arrives while viewing
+      markChatAsRead(selectedChat.id);
     });
 
     return () => unsubscribe();
   }, [selectedChat, isCreatingChat]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
+  // INSTANT SCROLL
+  useLayoutEffect(() => {
+    if (selectedChat && chatContainerRef.current) {
+      const isNewChat = lastChatIdRef.current !== selectedChat.id;
+      
+      if (isNewChat) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      } else if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+
+      if (messages.length > 0) {
+        lastChatIdRef.current = selectedChat.id;
+      }
+    }
+  }, [messages, selectedChat]);
+
+  const handleImageLoad = () => {
+    if (chatContainerRef.current) {
+       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+       const isNearBottom = scrollHeight - scrollTop - clientHeight < 500;
+       if (isNearBottom) {
+         chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+       }
+    }
   };
 
   const handleFileChange = (e) => {
@@ -126,6 +128,15 @@ function TeamChat() {
       setSelectedEmails([]);
       setNewMessage("");
       setSelectedFile(null);
+  };
+
+  const handleRenameGroup = async () => {
+    if (!selectedChat) return;
+    const newName = window.prompt("Enter new group name:", selectedChat.name);
+    if (newName && newName.trim() !== "") {
+      await renameChat(selectedChat.id, newName.trim());
+    }
+    setActiveHeaderMenu(false);
   };
 
   const handleSend = async (e) => {
@@ -181,7 +192,6 @@ function TeamChat() {
 
              setSelectedChat(optimisticChat);
              setMessages([optimisticMessage]); 
-             
              setIsCreatingChat(false);
              setNewChatName("");
              setSelectedEmails([]);
@@ -214,6 +224,7 @@ function TeamChat() {
     if (chat.type === 'roster') {
       alert("Team Roster chats cannot be deleted.");
       setActiveChatMenu(null); 
+      setActiveHeaderMenu(false); 
       return;
     }
     
@@ -224,6 +235,7 @@ function TeamChat() {
         }
     }
     setActiveChatMenu(null); 
+    setActiveHeaderMenu(false);
   };
 
   const canSendNewChat = isCreatingChat 
@@ -238,8 +250,8 @@ function TeamChat() {
       maxWidth: '1000px', 
       margin: '0 auto', 
       backgroundColor: '#282c34', 
-      border: '1px solid #444', 
-      borderRadius: '8px', 
+      border: isCollapsed ? 'none' : '1px solid #444', 
+      borderRadius: isCollapsed ? '0' : '8px', 
       overflow: 'hidden',
       boxSizing: 'border-box'
     }}>
@@ -279,12 +291,24 @@ function TeamChat() {
               } else if (isDM) {
                   const otherUser = chat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
                   if (otherUser) {
-                      displayTitle = otherUser.name;
-                      iconImage = otherUser.photoURL; 
+                      const freshUser = userProfiles[otherUser.uid];
+                      if (freshUser) {
+                          displayTitle = freshUser.playerName || otherUser.name;
+                          iconImage = freshUser.photoURL;
+                      } else {
+                          displayTitle = otherUser.name;
+                          iconImage = otherUser.photoURL; 
+                      }
                   }
               }
               
               const firstLetter = displayTitle.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || "?";
+              
+              // --- UNREAD LOGIC ---
+              const unreadCount = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
+              
+              // FIX: Only show if count > 0 AND we are NOT currently viewing this chat
+              const hasUnread = unreadCount > 0 && chat.id !== selectedChat?.id;
 
               return (
                 <div 
@@ -303,7 +327,6 @@ function TeamChat() {
                   }}
                   title={isCollapsed ? displayTitle : ""}
                 >
-                  {/* --- CIRCULAR ICON --- */}
                   <div style={{ 
                        width: '45px', height: '45px', 
                        borderRadius: '50%', 
@@ -311,24 +334,39 @@ function TeamChat() {
                        flexShrink: 0, 
                        backgroundColor: '#444',
                        display: 'flex', justifyContent: 'center', alignItems: 'center',
-                       overflow: 'hidden',
                        border: '1px solid #555',
-                       color: '#eee', fontWeight: 'bold', fontSize: '18px'
+                       color: '#eee', fontWeight: 'bold', fontSize: '18px',
+                       position: 'relative'
                   }}>
                        {iconImage ? (
-                           <img src={iconImage} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                           <img src={iconImage} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                        ) : (
                            <span>{firstLetter}</span>
+                       )}
+                       
+                       {/* --- UNREAD BADGE --- */}
+                       {hasUnread && (
+                         <div style={{
+                           position: 'absolute',
+                           top: '0',
+                           right: '0',
+                           width: '10px',
+                           height: '10px',
+                           borderRadius: '50%',
+                           backgroundColor: '#61dafb',
+                           border: '1px solid #282c34',
+                           zIndex: 10
+                         }} />
                        )}
                   </div>
 
                   {!isCollapsed && (
                     <>
                       <div style={{ overflow: 'hidden', flex: 1, marginRight: '10px' }}>
-                        <div style={{ fontWeight: 'bold', color: 'white' }}>
+                        <div style={{ fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {displayTitle}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: '12px', color: hasUnread ? '#eee' : '#aaa', fontWeight: hasUnread ? 'bold' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {chat.lastMessage}
                         </div>
                       </div>
@@ -382,55 +420,45 @@ function TeamChat() {
           boxSizing: 'border-box'
       }}>
         
-        {/* CASE 1: Creating New Chat */}
         {isCreatingChat && (
             <>
                 <div style={{ padding: '20px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box' }}>
                     <h3 style={{ margin: '0 0 15px 0', color: 'white' }}>New Message</h3>
-                    
-                    <div style={{ marginBottom: '15px' }}>
-                         <label style={{ display: 'block', marginBottom: '5px', color: '#aaa', fontSize: '12px' }}>TO:</label>
+                    <div style={{ marginBottom: '5px' }}>
                          <UserSearch onSelectionChange={setSelectedEmails} />
                     </div>
-
-                    <div>
-                         <label style={{ display: 'block', marginBottom: '5px', color: '#aaa', fontSize: '12px' }}>GROUP NAME (OPTIONAL):</label>
-                         <input 
-                            type="text" 
-                            value={newChatName} 
-                            onChange={(e) => setNewChatName(e.target.value)}
-                            placeholder="e.g. Weekend Warriors"
-                            style={{ width: '100%', padding: '10px', backgroundColor: '#3a3f4a', border: 'none', color: 'white', borderRadius: '4px', boxSizing: 'border-box' }}
-                         />
-                    </div>
                 </div>
-                
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontStyle: 'italic' }}>
                     Select people to start a new conversation.
                 </div>
             </>
         )}
 
-        {/* CASE 2: Viewing Existing Chat */}
         {!isCreatingChat && selectedChat && (
           <>
-            <div style={{ padding: '15px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box' }}>
+            <div style={{ padding: '15px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              
+              <div style={{ flex: 1, textAlign: 'center' }}>
               {(() => {
                  const isDM = selectedChat.type === 'dm' || (selectedChat.participants && selectedChat.participants.length === 2);
                  let displayTitle = selectedChat.name;
                  if (isDM) {
                      const otherUser = selectedChat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
-                     if (otherUser) displayTitle = otherUser.name;
+                     if (otherUser) {
+                         const freshUser = userProfiles[otherUser.uid];
+                         displayTitle = freshUser ? (freshUser.playerName || otherUser.name) : otherUser.name;
+                     }
                  }
-
                  let displaySubtext = null;
                  if (!isDM) {
                      const others = selectedChat.participantDetails?.filter(p => p.uid !== loggedInUser.uid);
                      if (others && others.length > 0) {
-                         displaySubtext = others.map(p => p.name).join(', ');
+                         displaySubtext = others.map(p => {
+                             const fresh = userProfiles[p.uid];
+                             return fresh ? (fresh.playerName || p.name) : p.name;
+                         }).join(', ');
                      }
                  }
-
                  return (
                     <>
                         <h3 style={{ margin: 0 }}>{displayTitle}</h3>
@@ -442,9 +470,48 @@ function TeamChat() {
                     </>
                  );
               })()}
+              </div>
+
+              <div style={{ position: 'relative', marginLeft: '10px' }}>
+                <button 
+                  onClick={() => setActiveHeaderMenu(!activeHeaderMenu)}
+                  style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <MoreVertical size={24} />
+                </button>
+                
+                {activeHeaderMenu && (
+                  <div style={{ 
+                    position: 'absolute', right: '0', top: '35px', 
+                    backgroundColor: '#222', border: '1px solid #555', borderRadius: '5px', 
+                    zIndex: 100, minWidth: '150px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                  }}>
+                    {(selectedChat.type === 'group' || (selectedChat.participants && selectedChat.participants.length > 2)) && (
+                        <button 
+                          onClick={handleRenameGroup}
+                          style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: 'white', cursor: 'pointer', borderBottom: '1px solid #333' }}
+                        >
+                          Rename Group
+                        </button>
+                    )}
+                    <button 
+                      onClick={() => handleDeleteChat(selectedChat)}
+                      style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}
+                    >
+                      Delete Chat
+                    </button>
+                    <button 
+                      onClick={() => setActiveHeaderMenu(false)}
+                      style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', boxSizing: 'border-box' }}>
+            <div ref={chatContainerRef} style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', boxSizing: 'border-box' }}>
               {messages.map(msg => {
                 const isMe = msg.senderId === loggedInUser.uid;
                 return (
@@ -467,6 +534,7 @@ function TeamChat() {
                         <img 
                           src={msg.imageUrl} 
                           alt="Attachment" 
+                          onLoad={handleImageLoad} 
                           onClick={() => setViewingImage(msg.imageUrl)}
                           style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', marginBottom: msg.text ? '10px' : '0', cursor: 'pointer' }}
                         />
@@ -481,14 +549,12 @@ function TeamChat() {
           </>
         )}
 
-        {/* CASE 3: No Selection */}
         {!isCreatingChat && !selectedChat && (
              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
                 Select a conversation or start a new one.
              </div>
         )}
 
-        {/* INPUT AREA */}
         {(isCreatingChat || selectedChat) && (
             <form onSubmit={handleSend} style={{ 
                 padding: '15px', 
@@ -500,14 +566,12 @@ function TeamChat() {
                 width: '100%', 
                 boxSizing: 'border-box'
             }}>
-              
               {selectedFile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'white', fontSize: '12px', paddingLeft: '10px' }}>
                   <span>📎 {selectedFile.name}</span>
                   <button type="button" onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}>✕</button>
                 </div>
               )}
-
               <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                 <input 
                   type="file" 
@@ -516,19 +580,18 @@ function TeamChat() {
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                 />
-                
                 <button 
                   type="button"
                   onClick={() => fileInputRef.current.click()}
                   style={{ 
                     padding: '0 15px', borderRadius: '20px', border: '1px solid #555', 
                     backgroundColor: '#3a3f4a', color: 'white', fontSize: '20px', cursor: 'pointer',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}
                 >
-                  📎
+                  <Paperclip size={20} />
                 </button>
-
                 <input 
                   type="text" 
                   placeholder={isCreatingChat ? "Type your first message..." : "Type a message..."}
@@ -548,7 +611,6 @@ function TeamChat() {
                     type="submit" 
                     disabled={!canSendNewChat}
                     style={{ 
-                        // UPDATED: Adjust padding/content based on isCollapsed
                         padding: isCollapsed ? '10px' : '10px 20px', 
                         borderRadius: '20px', 
                         border: 'none', 
@@ -567,29 +629,54 @@ function TeamChat() {
         )}
       </div>
 
-      {/* --- IMAGE VIEWER MODAL --- */}
-      {viewingImage && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000,
-          flexDirection: 'column'
-        }}>
+      {viewingImage && createPortal(
+        <div 
+          onClick={() => setViewingImage(null)} 
+          style={{
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.95)', 
+            display: 'flex', justifyContent: 'center', alignItems: 'center', 
+            zIndex: 9999, 
+            flexDirection: 'column'
+          }}
+        >
           <button 
-            onClick={() => setViewingImage(null)}
+            onClick={(e) => {
+              e.stopPropagation(); 
+              setViewingImage(null);
+            }}
             style={{
-              position: 'absolute', top: '20px', right: '20px',
-              background: 'none', border: 'none', color: 'white', fontSize: '30px', cursor: 'pointer'
+              position: 'absolute', 
+              top: '40px', 
+              right: '20px',
+              width: '50px', 
+              height: '50px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(50, 50, 50, 0.8)', 
+              border: '2px solid white', 
+              color: 'white', 
+              fontSize: '24px', 
+              cursor: 'pointer',
+              zIndex: 10000, 
+              display: 'flex', justifyContent: 'center', alignItems: 'center'
             }}
           >
             ✕
           </button>
+          
           <img 
             src={viewingImage} 
             alt="Full size" 
-            style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }}
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '100%', 
+              maxHeight: '85%', 
+              objectFit: 'contain',
+              boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+            }}
           />
-        </div>
+        </div>,
+        document.body 
       )}
 
     </div>

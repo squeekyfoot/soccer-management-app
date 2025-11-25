@@ -41,7 +41,6 @@ function UserSearch({ onSelectionChange }) {
     );
 
     // 2. Check for direct email entry
-    // If the search term has an '@' and isn't exactly matched by an existing user
     const exactMatch = filtered.find(u => u.email.toLowerCase() === lowerTerm);
     
     let finalSuggestions = filtered.slice(0, 5);
@@ -49,9 +48,9 @@ function UserSearch({ onSelectionChange }) {
     if (!exactMatch && lowerTerm.includes('@')) {
       // Add a "Manual Entry" option
       finalSuggestions.unshift({
-        uid: 'manual-' + lowerTerm, // Temporary ID
+        uid: 'manual-' + lowerTerm, 
         playerName: 'Invitee',
-        email: searchTerm, // Use the raw text as email
+        email: searchTerm, 
         isManual: true
       });
     }
@@ -75,9 +74,6 @@ function UserSearch({ onSelectionChange }) {
 
   return (
     <div style={{ marginBottom: '15px' }}>
-      <label style={{ display: 'block', marginBottom: '5px', color: 'white' }}>
-        Add People:
-      </label>
       
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '5px' }}>
         {selectedUsers.map(user => (
@@ -101,7 +97,15 @@ function UserSearch({ onSelectionChange }) {
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         placeholder="Search name or type email..."
-        style={{ width: '100%', padding: '8px', backgroundColor: '#3a3f4a', border: 'none', color: 'white' }}
+        style={{ 
+            width: '100%', 
+            padding: '8px', 
+            backgroundColor: '#3a3f4a', 
+            border: 'none', 
+            color: 'white',
+            borderRadius: '4px', 
+            boxSizing: 'border-box' // FIX: Ensures padding is included in width calculation
+        }}
       />
 
       {suggestions.length > 0 && (
