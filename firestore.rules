@@ -55,7 +55,7 @@ service cloud.firestore {
     // 3. Chats Collection
     match /chats/{chatId} {
       allow read: if request.auth != null && (
-        request.auth.uid inZS resource.data.visibleTo || 
+        request.auth.uid in resource.data.visibleTo || 
         request.auth.uid in resource.data.participants ||
         isManager()
       );
