@@ -11,3 +11,10 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* --- FIX: Prevent Mobile Auto-Zoom --- */
+/* iOS Safari zooms in if inputs are less than 16px. 
+   Setting this globally prevents the zoom from triggering. */
+input, select, textarea, button {
+  font-size: 16px;
+}
