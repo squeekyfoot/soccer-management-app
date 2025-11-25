@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, limit, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
-import { SquarePen } from 'lucide-react';
+import { SquarePen, Send } from 'lucide-react'; // UPDATED: Added Send icon
 
 function TeamChat() {
   const { sendMessage, createChat, hideChat, uploadImage, loggedInUser } = useAuth();
@@ -26,11 +26,24 @@ function TeamChat() {
   const [activeChatMenu, setActiveChatMenu] = useState(null);
   const messagesEndRef = useRef(null);
 
+  // Responsive State: Collapsed mode for left column
+  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 800);
+
   // --- FIX: Circular Dependency ---
   const selectedChatRef = useRef(selectedChat);
   useEffect(() => {
     selectedChatRef.current = selectedChat;
   }, [selectedChat]);
+
+  // --- RESPONSIVE LISTENER ---
+  useEffect(() => {
+    const handleResize = () => {
+      setIsCollapsed(window.innerWidth < 800);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // 1. REAL-TIME LISTENER FOR CHAT LIST
   useEffect(() => {
@@ -101,13 +114,9 @@ function TeamChat() {
     if (e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
-    // --- FIX START: Reset Input Value ---
-    // We clear the input value immediately so that if the user tries 
-    // to select the same file again (e.g., after sending), the onChange event fires.
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-    // --- FIX END ---
   };
 
   const startNewChat = () => {
@@ -122,7 +131,6 @@ function TeamChat() {
   const handleSend = async (e) => {
     e.preventDefault();
 
-    // --- CASE 1: Creating New Chat ---
     if (isCreatingChat) {
         if (selectedEmails.length === 0) {
             alert("Please add at least one person to the chat.");
@@ -133,7 +141,6 @@ function TeamChat() {
             return;
         }
 
-        // 1. Create the chat (or find existing)
         const chatResult = await createChat(selectedEmails, newChatName);
         
         if (chatResult && chatResult.id) {
@@ -142,24 +149,18 @@ function TeamChat() {
              const text = newMessage;
              const fileToUpload = selectedFile;
 
-             // Use existing name if returned (consolidated chat), otherwise use new name
              const resolvedChatName = chatResult.name || newChatName || "New Chat";
 
-             // Clear inputs
              setNewMessage(""); 
              setSelectedFile(null); 
              
-             // 2. Upload Image if needed
              let imageUrl = null;
              if (fileToUpload) {
                  imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
              }
              
-             // 3. Send the Message
              await sendMessage(newChatId, text, participants, imageUrl);
 
-             // 4. Update UI Selection
-             // We construct the chat object to select immediately
              const optimisticChat = {
                  id: newChatId,
                  name: resolvedChatName,
@@ -178,18 +179,15 @@ function TeamChat() {
                  createdAt: { toDate: () => new Date() }
              };
 
-             // Select the chat immediately
              setSelectedChat(optimisticChat);
              setMessages([optimisticMessage]); 
              
-             // Switch view
              setIsCreatingChat(false);
              setNewChatName("");
              setSelectedEmails([]);
         }
 
     } else {
-        // --- CASE 2: Existing Chat ---
         if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
 
         const text = newMessage;
@@ -247,8 +245,17 @@ function TeamChat() {
     }}>
       
       {/* --- LEFT SIDE: Chat List --- */}
-      <div style={{ width: '30%', minWidth: '250px', backgroundColor: '#282c34', borderRight: '1px solid #444', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '15px', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      <div style={{ 
+        width: isCollapsed ? '80px' : '30%', 
+        minWidth: isCollapsed ? '80px' : '250px', 
+        transition: 'width 0.2s ease, min-width 0.2s ease',
+        backgroundColor: '#282c34', 
+        borderRight: '1px solid #444', 
+        display: 'flex', 
+        flexDirection: 'column',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{ padding: '15px', borderBottom: '1px solid #444', display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', alignItems: 'center', boxSizing: 'border-box' }}>
           <button 
             onClick={startNewChat}
             style={{ background: 'none', border: 'none', color: isCreatingChat ? 'white' : '#61dafb', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
@@ -260,73 +267,125 @@ function TeamChat() {
         
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {myChats.length === 0 && !isCreatingChat ? (
-            <p style={{ padding: '20px', color: '#888', fontSize: '14px', textAlign: 'center' }}>No conversations yet.</p>
+            <p style={{ padding: '20px', color: '#888', fontSize: '14px', textAlign: 'center' }}>{isCollapsed ? "..." : "No conversations yet."}</p>
           ) : (
-            myChats.map(chat => (
-              <div 
-                key={chat.id} 
-                onClick={() => { setSelectedChat(chat); setIsCreatingChat(false); }}
-                style={{ 
-                  padding: '15px', 
-                  cursor: 'pointer', 
-                  backgroundColor: (selectedChat?.id === chat.id && !isCreatingChat) ? '#3a3f4a' : 'transparent',
-                  borderBottom: '1px solid #333',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  position: 'relative' 
-                }}
-              >
-                <div style={{ overflow: 'hidden', flex: 1, marginRight: '10px' }}>
-                  <div style={{ fontWeight: 'bold', color: 'white' }}>
-                    {chat.type === 'roster' ? `⚽ ${chat.name}` : chat.name || "Chat"}
+            myChats.map(chat => {
+              const isDM = chat.type === 'dm' || (chat.participants && chat.participants.length === 2 && chat.type !== 'roster');
+              let displayTitle = chat.name || "Chat";
+              let iconImage = null;
+              
+              if (chat.type === 'roster') {
+                  displayTitle = `⚽ ${chat.name}`;
+              } else if (isDM) {
+                  const otherUser = chat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
+                  if (otherUser) {
+                      displayTitle = otherUser.name;
+                      iconImage = otherUser.photoURL; 
+                  }
+              }
+              
+              const firstLetter = displayTitle.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || "?";
+
+              return (
+                <div 
+                  key={chat.id} 
+                  onClick={() => { setSelectedChat(chat); setIsCreatingChat(false); }}
+                  style={{ 
+                    padding: '15px', 
+                    cursor: 'pointer', 
+                    backgroundColor: (selectedChat?.id === chat.id && !isCreatingChat) ? '#3a3f4a' : 'transparent',
+                    borderBottom: '1px solid #333',
+                    display: 'flex', 
+                    justifyContent: isCollapsed ? 'center' : 'space-between',
+                    alignItems: 'center',
+                    position: 'relative',
+                    boxSizing: 'border-box'
+                  }}
+                  title={isCollapsed ? displayTitle : ""}
+                >
+                  {/* --- CIRCULAR ICON --- */}
+                  <div style={{ 
+                       width: '45px', height: '45px', 
+                       borderRadius: '50%', 
+                       marginRight: isCollapsed ? '0' : '15px', 
+                       flexShrink: 0, 
+                       backgroundColor: '#444',
+                       display: 'flex', justifyContent: 'center', alignItems: 'center',
+                       overflow: 'hidden',
+                       border: '1px solid #555',
+                       color: '#eee', fontWeight: 'bold', fontSize: '18px'
+                  }}>
+                       {iconImage ? (
+                           <img src={iconImage} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                       ) : (
+                           <span>{firstLetter}</span>
+                       )}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {chat.lastMessage}
-                  </div>
-                </div>
-                
-                {chat.type !== 'roster' && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      onClick={() => setActiveChatMenu(activeChatMenu === chat.id ? null : chat.id)}
-                      style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '20px', padding: '0 5px' }}
-                    >
-                      ⋮
-                    </button>
-                    {activeChatMenu === chat.id && (
-                      <div style={{ 
-                        position: 'absolute', right: '10px', top: '40px', 
-                        backgroundColor: '#222', border: '1px solid #555', borderRadius: '5px', 
-                        zIndex: 100, minWidth: '120px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
-                      }}>
-                        <button 
-                          onClick={() => handleDeleteChat(chat)}
-                          style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}
-                        >
-                          Delete Chat
-                        </button>
-                        <button 
-                          onClick={() => setActiveChatMenu(null)}
-                          style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
+
+                  {!isCollapsed && (
+                    <>
+                      <div style={{ overflow: 'hidden', flex: 1, marginRight: '10px' }}>
+                        <div style={{ fontWeight: 'bold', color: 'white' }}>
+                          {displayTitle}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {chat.lastMessage}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))
+                      
+                      {chat.type !== 'roster' && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => setActiveChatMenu(activeChatMenu === chat.id ? null : chat.id)}
+                            style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '20px', padding: '0 5px' }}
+                          >
+                            ⋮
+                          </button>
+                          {activeChatMenu === chat.id && (
+                            <div style={{ 
+                              position: 'absolute', right: '10px', top: '40px', 
+                              backgroundColor: '#222', border: '1px solid #555', borderRadius: '5px', 
+                              zIndex: 100, minWidth: '120px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                            }}>
+                              <button 
+                                onClick={() => handleDeleteChat(chat)}
+                                style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}
+                              >
+                                Delete Chat
+                              </button>
+                              <button 
+                                onClick={() => setActiveChatMenu(null)}
+                                style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
 
       {/* --- RIGHT SIDE: Chat Window OR New Chat Form --- */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#1c1e22' }}>
+      <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          backgroundColor: '#1c1e22',
+          minWidth: 0, 
+          boxSizing: 'border-box'
+      }}>
         
         {/* CASE 1: Creating New Chat */}
         {isCreatingChat && (
             <>
-                <div style={{ padding: '20px', borderBottom: '1px solid #444', backgroundColor: '#282c34' }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box' }}>
                     <h3 style={{ margin: '0 0 15px 0', color: 'white' }}>New Message</h3>
                     
                     <div style={{ marginBottom: '15px' }}>
@@ -341,7 +400,7 @@ function TeamChat() {
                             value={newChatName} 
                             onChange={(e) => setNewChatName(e.target.value)}
                             placeholder="e.g. Weekend Warriors"
-                            style={{ width: '100%', padding: '10px', backgroundColor: '#3a3f4a', border: 'none', color: 'white', borderRadius: '4px' }}
+                            style={{ width: '100%', padding: '10px', backgroundColor: '#3a3f4a', border: 'none', color: 'white', borderRadius: '4px', boxSizing: 'border-box' }}
                          />
                     </div>
                 </div>
@@ -355,14 +414,37 @@ function TeamChat() {
         {/* CASE 2: Viewing Existing Chat */}
         {!isCreatingChat && selectedChat && (
           <>
-            <div style={{ padding: '15px', borderBottom: '1px solid #444', backgroundColor: '#282c34' }}>
-              <h3 style={{ margin: 0 }}>{selectedChat.name}</h3>
-              <span style={{ fontSize: '12px', color: '#888' }}>
-                {selectedChat.participantDetails?.map(p => p.name).join(', ')}
-              </span>
+            <div style={{ padding: '15px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box' }}>
+              {(() => {
+                 const isDM = selectedChat.type === 'dm' || (selectedChat.participants && selectedChat.participants.length === 2);
+                 let displayTitle = selectedChat.name;
+                 if (isDM) {
+                     const otherUser = selectedChat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
+                     if (otherUser) displayTitle = otherUser.name;
+                 }
+
+                 let displaySubtext = null;
+                 if (!isDM) {
+                     const others = selectedChat.participantDetails?.filter(p => p.uid !== loggedInUser.uid);
+                     if (others && others.length > 0) {
+                         displaySubtext = others.map(p => p.name).join(', ');
+                     }
+                 }
+
+                 return (
+                    <>
+                        <h3 style={{ margin: 0 }}>{displayTitle}</h3>
+                        {displaySubtext && (
+                            <span style={{ fontSize: '12px', color: '#888' }}>
+                                {displaySubtext}
+                            </span>
+                        )}
+                    </>
+                 );
+              })()}
             </div>
 
-            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', boxSizing: 'border-box' }}>
               {messages.map(msg => {
                 const isMe = msg.senderId === loggedInUser.uid;
                 return (
@@ -406,9 +488,18 @@ function TeamChat() {
              </div>
         )}
 
-        {/* INPUT AREA (Visible for both Create and View) */}
+        {/* INPUT AREA */}
         {(isCreatingChat || selectedChat) && (
-            <form onSubmit={handleSend} style={{ padding: '15px', backgroundColor: '#282c34', borderTop: '1px solid #444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <form onSubmit={handleSend} style={{ 
+                padding: '15px', 
+                backgroundColor: '#282c34', 
+                borderTop: '1px solid #444', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '10px',
+                width: '100%', 
+                boxSizing: 'border-box'
+            }}>
               
               {selectedFile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'white', fontSize: '12px', paddingLeft: '10px' }}>
@@ -417,7 +508,7 @@ function TeamChat() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                 <input 
                   type="file" 
                   accept="image/*"
@@ -431,7 +522,8 @@ function TeamChat() {
                   onClick={() => fileInputRef.current.click()}
                   style={{ 
                     padding: '0 15px', borderRadius: '20px', border: '1px solid #555', 
-                    backgroundColor: '#3a3f4a', color: 'white', fontSize: '20px', cursor: 'pointer'
+                    backgroundColor: '#3a3f4a', color: 'white', fontSize: '20px', cursor: 'pointer',
+                    flexShrink: 0
                   }}
                 >
                   📎
@@ -442,19 +534,33 @@ function TeamChat() {
                   placeholder={isCreatingChat ? "Type your first message..." : "Type a message..."}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }}
+                  style={{ 
+                      flex: 1, 
+                      padding: '12px', 
+                      borderRadius: '20px', 
+                      border: 'none', 
+                      backgroundColor: '#3a3f4a', 
+                      color: 'white',
+                      minWidth: 0 
+                  }}
                 />
                 <button 
                     type="submit" 
                     disabled={!canSendNewChat}
                     style={{ 
-                        padding: '10px 20px', borderRadius: '20px', border: 'none', 
+                        // UPDATED: Adjust padding/content based on isCollapsed
+                        padding: isCollapsed ? '10px' : '10px 20px', 
+                        borderRadius: '20px', 
+                        border: 'none', 
                         backgroundColor: canSendNewChat ? '#61dafb' : '#444', 
                         color: canSendNewChat ? '#000' : '#888', 
-                        fontWeight: 'bold', cursor: canSendNewChat ? 'pointer' : 'not-allowed'
+                        fontWeight: 'bold', 
+                        cursor: canSendNewChat ? 'pointer' : 'not-allowed',
+                        flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}
                 >
-                  Send
+                  {isCollapsed ? <Send size={20} /> : "Send"}
                 </button>
               </div>
             </form>

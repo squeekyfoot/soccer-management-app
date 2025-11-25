@@ -78,7 +78,6 @@ export const AuthProvider = ({ children }) => {
       if (userDoc.exists()) {
         setLoggedInUser(userDoc.data());
       } else {
-        // User exists in Auth but not DB. This is a rare edge case for established users.
         alert("Authentication successful, but no profile was found.");
         setLoggedInUser(null);
       }
@@ -97,7 +96,6 @@ export const AuthProvider = ({ children }) => {
     
     let userCredential;
     try {
-      // 1. Create user in Firebase Auth
       userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
       
@@ -109,11 +107,10 @@ export const AuthProvider = ({ children }) => {
         address: formData.address,
         notificationPreference: formData.notificationPreference,
         comments: formData.comments,
-        role: 'player', // Hardcoded to player to match Security Rules
+        role: 'player', 
         photoURL: ""
       };
       
-      // 2. Create document in Firestore
       await setDoc(doc(db, "users", user.uid), userProfileData);
       setLoggedInUser(userProfileData);
 
@@ -121,7 +118,6 @@ export const AuthProvider = ({ children }) => {
       console.error("Error signing up:", error);
       alert("Error: " + error.message);
 
-      // 3. Cleanup: If Firestore write failed, delete the Auth user so they can try again.
       if (userCredential && userCredential.user) {
         try {
           await deleteUser(userCredential.user);
@@ -297,7 +293,8 @@ export const AuthProvider = ({ children }) => {
         participantDetails: [{
           uid: loggedInUser.uid,
           name: loggedInUser.playerName,
-          email: loggedInUser.email
+          email: loggedInUser.email,
+          photoURL: loggedInUser.photoURL || ""
         }],
         createdAt: serverTimestamp(),
         lastMessage: "Team chat created",
@@ -353,7 +350,8 @@ export const AuthProvider = ({ children }) => {
       const playerSummary = {
         uid: playerDoc.id,
         playerName: playerData.playerName || "Unknown",
-        email: playerData.email
+        email: playerData.email,
+        photoURL: playerData.photoURL || ""
       };
 
       const rosterRef = doc(db, "rosters", rosterId);
@@ -509,7 +507,8 @@ export const AuthProvider = ({ children }) => {
       participants.push({
         uid: loggedInUser.uid,
         name: loggedInUser.playerName,
-        email: loggedInUser.email
+        email: loggedInUser.email,
+        photoURL: loggedInUser.photoURL || "" // UPDATED: Add my photo
       });
 
       for (const email of participantEmails) {
@@ -523,7 +522,8 @@ export const AuthProvider = ({ children }) => {
           participants.push({
             uid: userDoc.id,
             name: userData.playerName || "Unknown",
-            email: userData.email
+            email: userData.email,
+            photoURL: userData.photoURL || "" // UPDATED: Add their photo
           });
         }
       }
@@ -572,7 +572,7 @@ export const AuthProvider = ({ children }) => {
         lastMessageTime: new Date() 
       });
       
-      return { id: docRef.id, participants: participantIds }; 
+      return { id: docRef.id, participants: participantIds, participantDetails: participants }; 
 
     } catch (error) {
       console.error("Error creating chat:", error);
