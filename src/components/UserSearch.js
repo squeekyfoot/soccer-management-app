@@ -73,7 +73,7 @@ function UserSearch({ onSelectionChange }) {
   };
 
   return (
-    <div style={{ marginBottom: '15px' }}>
+    <div style={{ marginBottom: '15px', position: 'relative' }}>
       
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '5px' }}>
         {selectedUsers.map(user => (
@@ -104,14 +104,22 @@ function UserSearch({ onSelectionChange }) {
             border: 'none', 
             color: 'white',
             borderRadius: '4px', 
-            boxSizing: 'border-box' // FIX: Ensures padding is included in width calculation
+            boxSizing: 'border-box' 
         }}
       />
 
       {suggestions.length > 0 && (
         <div style={{
-          backgroundColor: '#222', border: '1px solid #444', borderRadius: '4px',
-          position: 'absolute', width: '80%', zIndex: 10, maxHeight: '150px', overflowY: 'auto'
+          backgroundColor: '#222', 
+          border: '1px solid #444', 
+          borderRadius: '4px',
+          position: 'absolute', 
+          width: '100%', // Match input width
+          left: 0,       // Align to left edge
+          zIndex: 10, 
+          maxHeight: '150px', 
+          overflowY: 'auto',
+          boxSizing: 'border-box' // Prevent border/padding overflow
         }}>
           {suggestions.map(user => (
             <div 
