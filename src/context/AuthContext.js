@@ -508,7 +508,7 @@ export const AuthProvider = ({ children }) => {
         uid: loggedInUser.uid,
         name: loggedInUser.playerName,
         email: loggedInUser.email,
-        photoURL: loggedInUser.photoURL || "" // UPDATED: Add my photo
+        photoURL: loggedInUser.photoURL || "" 
       });
 
       for (const email of participantEmails) {
@@ -523,7 +523,7 @@ export const AuthProvider = ({ children }) => {
             uid: userDoc.id,
             name: userData.playerName || "Unknown",
             email: userData.email,
-            photoURL: userData.photoURL || "" // UPDATED: Add their photo
+            photoURL: userData.photoURL || "" 
           });
         }
       }
