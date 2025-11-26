@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext'; // NEW
 import { collection, query, orderBy, onSnapshot, limit, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
@@ -13,7 +14,8 @@ import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 
 function TeamChat() {
-  const { sendMessage, createChat, hideChat, renameChat, uploadImage, loggedInUser, myChats, markChatAsRead } = useAuth();
+  const { uploadImage, loggedInUser } = useAuth();
+  const { sendMessage, createChat, hideChat, renameChat, myChats, markChatAsRead } = useChat();
   
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);

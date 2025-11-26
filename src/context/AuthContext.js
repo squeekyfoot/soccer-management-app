@@ -12,7 +12,7 @@ import {
 } from "firebase/auth";
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
-  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, increment, onSnapshot 
+  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, increment 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "../firebase"; 
@@ -28,9 +28,6 @@ export const AuthProvider = ({ children }) => {
   const [soccerDetails, setSoccerDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
-  
-  // Global Chat State
-  const [myChats, setMyChats] = useState([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -54,63 +51,12 @@ export const AuthProvider = ({ children }) => {
       } else {
         setLoggedInUser(null);
         setSoccerDetails(null);
-        setMyChats([]); 
       }
       setIsLoading(false);
     });
 
     return () => unsubscribe();
   }, []); 
-
-  // Global Listener for Chats
-  useEffect(() => {
-    if (!loggedInUser) {
-      setMyChats([]);
-      return;
-    }
-
-    const chatsRef = collection(db, "chats");
-    const q = query(
-      chatsRef, 
-      where("visibleTo", "array-contains", loggedInUser.uid), 
-      orderBy("lastMessageTime", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chats = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMyChats(chats);
-    }, (error) => {
-      console.error("Error listening to chat list:", error);
-    });
-
-    return () => unsubscribe();
-  }, [loggedInUser]);
-
-  // --- Mark Chat as Read ---
-  const markChatAsRead = async (chatId) => {
-    if (!loggedInUser) return;
-    
-    // FIX: Define chatRef here so it's visible to both try AND catch blocks
-    const chatRef = doc(db, "chats", chatId);
-
-    try {
-      await updateDoc(chatRef, {
-        [`unreadCounts.${loggedInUser.uid}`]: 0
-      });
-    } catch (error) {
-      // Fallback if nested field doesn't exist yet
-      try {
-        await setDoc(chatRef, {
-          unreadCounts: { [loggedInUser.uid]: 0 }
-        }, { merge: true });
-      } catch (e) {
-        console.error("Error marking read:", e);
-      }
-    }
-  };
 
   const signIn = async (email, password) => {
     setIsLoading(true);
@@ -130,7 +76,6 @@ export const AuthProvider = ({ children }) => {
     }
     
     let userCredential;
-
     try {
       userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
@@ -183,6 +128,21 @@ export const AuthProvider = ({ children }) => {
       return await getDownloadURL(storageRef);
     } catch (error) {
       console.error("Error uploading profile image:", error);
+      throw error;
+    }
+  };
+
+  // --- RESTORED: Generic Upload Image Function ---
+  // This is needed by TeamChat for sending message attachments.
+  const uploadImage = async (file, path) => {
+    if (!file) return null;
+    try {
+      const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return downloadURL;
+    } catch (error) {
+      console.error("Error uploading image:", error);
       throw error;
     }
   };
@@ -245,6 +205,7 @@ export const AuthProvider = ({ children }) => {
         ...dataToUpdate
       }));
 
+      // Propagate Updates to Chats
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);
@@ -546,200 +507,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const uploadImage = async (file, path) => {
-    if (!file) return null;
-    try {
-      const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      return downloadURL;
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      throw error;
-    }
-  };
-
-  const createChat = async (participantEmails, chatName = "") => {
-    try {
-      const usersRef = collection(db, "users");
-      const participants = [];
-      const participantIds = [loggedInUser.uid];
-
-      participants.push({
-        uid: loggedInUser.uid,
-        name: loggedInUser.playerName,
-        email: loggedInUser.email,
-        photoURL: loggedInUser.photoURL || "" 
-      });
-
-      for (const email of participantEmails) {
-        if (email === loggedInUser.email) continue; 
-        const q = query(usersRef, where("email", "==", email));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const userDoc = snapshot.docs[0];
-          const userData = userDoc.data();
-          participantIds.push(userDoc.id);
-          participants.push({
-            uid: userDoc.id,
-            name: userData.playerName || "Unknown",
-            email: userData.email,
-            photoURL: userData.photoURL || "" 
-          });
-        }
-      }
-
-      if (participantIds.length < 2) {
-        alert("Could not find any valid users to chat with.");
-        return false;
-      }
-
-      const chatsRef = collection(db, "chats");
-      const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
-      const chatSnapshot = await getDocs(q);
-
-      const existingChat = chatSnapshot.docs.find(doc => {
-        const data = doc.data();
-        if (data.participants.length !== participantIds.length) return false;
-        return participantIds.every(id => data.participants.includes(id));
-      });
-
-      if (existingChat) {
-        const existingData = existingChat.data();
-        const chatRef = doc(db, "chats", existingChat.id);
-
-        if (!existingData.visibleTo.includes(loggedInUser.uid)) {
-           await updateDoc(chatRef, {
-             visibleTo: arrayUnion(loggedInUser.uid)
-           });
-        }
-
-        return { 
-          id: existingChat.id, 
-          participants: existingData.participants,
-          name: existingData.name, 
-          ...existingData
-        };
-      }
-
-      // Initialize unread counts
-      const initialUnread = {};
-      participantIds.forEach(uid => initialUnread[uid] = 0);
-
-      const docRef = await addDoc(collection(db, "chats"), {
-        type: participantIds.length > 2 ? 'group' : 'dm',
-        name: chatName || (participants.length === 2 ? participants[1].name : "Group Chat"),
-        participants: participantIds,
-        visibleTo: participantIds,
-        participantDetails: participants,
-        unreadCounts: initialUnread,
-        createdAt: serverTimestamp(),
-        lastMessage: "Chat created",
-        lastMessageTime: new Date() 
-      });
-      
-      return { id: docRef.id, participants: participantIds, participantDetails: participants }; 
-
-    } catch (error) {
-      console.error("Error creating chat:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const sendMessage = async (chatId, text, currentParticipants, imageUrl = null) => {
-    try {
-      await addDoc(collection(db, "chats", chatId, "messages"), {
-        text: text,
-        imageUrl: imageUrl,
-        senderId: loggedInUser.uid,
-        senderName: loggedInUser.playerName,
-        createdAt: serverTimestamp()
-      });
-
-      const chatRef = doc(db, "chats", chatId);
-      let summary = text;
-      if (imageUrl) {
-        summary = text ? `📷 ${text}` : "📷 Sent an image";
-      }
-
-      const visibleToUpdate = currentParticipants || [loggedInUser.uid];
-
-      const updatePayload = {
-        lastMessage: summary,
-        lastMessageTime: new Date(),
-        visibleTo: visibleToUpdate
-      };
-
-      const unreadUpdates = {};
-      if (currentParticipants) {
-        currentParticipants.forEach(uid => {
-          if (uid !== loggedInUser.uid) {
-            unreadUpdates[`unreadCounts.${uid}`] = increment(1);
-          }
-        });
-      }
-
-      await updateDoc(chatRef, { ...updatePayload, ...unreadUpdates });
-
-      return true;
-    } catch (error) {
-      console.error("Error sending message:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchUserChats = async (uid) => {
-    try {
-      const chatsRef = collection(db, "chats");
-      const q = query(chatsRef, where("visibleTo", "array-contains", uid), orderBy("lastMessageTime", "desc"));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-    } catch (error) {
-      console.error("Error fetching chats:", error);
-      return [];
-    }
-  };
-
-  const hideChat = async (chatId, currentVisibleTo, chatType) => {
-    if (chatType === 'roster') {
-      alert("Team Roster chats cannot be deleted.");
-      return false;
-    }
-    try {
-      const newVisibleTo = currentVisibleTo.filter(uid => uid !== loggedInUser.uid);
-      if (newVisibleTo.length === 0) {
-        await deleteDoc(doc(db, "chats", chatId));
-      } else {
-        const chatRef = doc(db, "chats", chatId);
-        await updateDoc(chatRef, {
-          visibleTo: newVisibleTo
-        });
-      }
-      return true;
-    } catch (error) {
-      console.error("Error hiding chat:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const renameChat = async (chatId, newName) => {
-    try {
-      const chatRef = doc(db, "chats", chatId);
-      await updateDoc(chatRef, { name: newName });
-      return true;
-    } catch (error) {
-      console.error("Error renaming chat:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
+  // Group Functions (Keep here for now)
   const createGroup = async (groupData) => {
      try {
       await addDoc(collection(db, "groups"), {
@@ -930,21 +698,14 @@ export const AuthProvider = ({ children }) => {
     fetchEvents,
     deleteEvent,
     fetchAllUserEvents,
-    createChat,
-    sendMessage,
-    fetchUserChats,
-    hideChat,
-    renameChat,
-    uploadImage,
+    uploadImage, // ADDED BACK: Needed for chat image uploads
     createGroup,
     fetchUserGroups,
     createGroupPost,
     addGroupMembers,
     updateGroupMemberRole,
     transferGroupOwnership,
-    removeGroupMember,
-    myChats, 
-    markChatAsRead
+    removeGroupMember
   };
 
   return (

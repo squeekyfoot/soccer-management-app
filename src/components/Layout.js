@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext'; 
+import { useChat } from '../context/ChatContext'; // NEW
 import Home from './Home';
 import MyProfile from './MyProfile'; 
 import ManagerDashboard from './ManagerDashboard'; 
@@ -11,7 +12,8 @@ import { House, Users, MessageSquare, User, Settings, LogOut } from 'lucide-reac
 import { MOBILE_BREAKPOINT, COLORS } from '../constants';
 
 function Layout() {
-  const { isManager, signOutUser, myChats, loggedInUser } = useAuth();
+  const { isManager, signOutUser, loggedInUser } = useAuth();
+  const { myChats } = useChat(); // NEW: Get chat state from ChatContext
   const [activeView, setActiveView] = useState('home');
   
   // USE CONSTANT
