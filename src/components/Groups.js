@@ -158,7 +158,8 @@ function Groups() {
     return (
       <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
         <button onClick={() => setSelectedGroup(null)} style={{ background: 'none', border: 'none', color: '#61dafb', cursor: 'pointer', marginBottom: '15px' }}>
-          ← Back to Groups
+          {/* RENAMED: Back to Community */}
+          ← Back to Community
         </button>
         
         <div style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
@@ -259,10 +260,6 @@ function Groups() {
                         </div>
 
                         {/* Logic for showing ellipsis button */}
-                        {/* I can manage if: 
-                            1. I am Owner (can manage everyone except myself)
-                            2. I am Admin (can manage Members only)
-                        */}
                         { (myRole === 'owner' && m.uid !== loggedInUser.uid) || 
                           (myRole === 'admin' && m.role !== 'owner' && m.role !== 'admin' && m.uid !== loggedInUser.uid) ? (
                           <div style={{ position: 'relative' }}>
@@ -288,13 +285,10 @@ function Groups() {
                                   <button onClick={() => handleTransferOwnership(m.uid)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}>Transfer Ownership</button>
                                 )}
                                 
-                                {/* Remove Button logic */}
-                                {/* Owner can remove anyone. Admin can remove only Members. */}
                                 {(myRole === 'owner' || (myRole === 'admin' && m.role !== 'admin' && m.role !== 'owner')) && (
                                   <button onClick={() => handleRemoveMember(m.uid)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}>Remove from Group</button>
                                 )}
 
-                                {/* Cancel Button */}
                                 <button onClick={() => setActiveMemberMenu(null)} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>Cancel</button>
                               </div>
                             )}
@@ -315,7 +309,8 @@ function Groups() {
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h2>My Groups</h2>
+        {/* RENAMED: My Communities */}
+        <h2>My Communities</h2>
         <button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: '10px 15px', backgroundColor: '#61dafb', border: 'none', cursor: 'pointer', fontWeight: 'bold', borderRadius: '5px' }}>{showCreateForm ? "Cancel" : "+ Create Group"}</button>
       </div>
       {showCreateForm && (

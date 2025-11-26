@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SportsInfo from './SportsInfo';
+import { LogOut } from 'lucide-react'; 
 
 function MyProfile() {
   const { loggedInUser, updateProfile, signOutUser } = useAuth();
@@ -42,12 +43,17 @@ function MyProfile() {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    // Pass the form data, the file, and the remove flag
     const success = await updateProfile(profileFormData, selectedFile, isRemovingImage);
     if (success) {
       setIsEditingProfile(false);
       setSelectedFile(null);
       setIsRemovingImage(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    if (window.confirm("Are you sure you want to sign out?")) {
+      signOutUser();
     }
   };
 
@@ -183,6 +189,8 @@ function MyProfile() {
     <div style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto' }}>
       
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #444', paddingBottom: '20px', gap: '20px' }}>
+        
+        {/* 1. Avatar */}
         <div style={{ 
           width: '100px', height: '100px', borderRadius: '50%', overflow: 'hidden', 
           backgroundColor: '#444', display: 'flex', justifyContent: 'center', alignItems: 'center',
@@ -197,6 +205,7 @@ function MyProfile() {
           )}
         </div>
 
+        {/* 2. Details */}
         <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0 }}>{loggedInUser.playerName}</h2>
           <p style={{ color: '#aaa', margin: '5px 0' }}>{loggedInUser.email}</p>
@@ -211,9 +220,25 @@ function MyProfile() {
               padding: '8px 15px', backgroundColor: '#333', border: '1px solid #555',
               color: 'white', cursor: 'pointer', borderRadius: '5px', marginTop: '10px'
             }}>
-            {loggedInUser.photoURL ? "Edit Profile" : "Add Profile Picture"}
+            Edit Profile
           </button>
         </div>
+
+        {/* 3. Sign Out Button (Top Right, Text Under Icon) */}
+        <div>
+          <button 
+            onClick={handleSignOut}
+            style={{ 
+              background: 'none', border: 'none', color: '#ff6b6b', 
+              cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+              fontSize: '10px', fontWeight: 'bold'
+            }}
+          >
+            <LogOut size={24} />
+            Sign Out
+          </button>
+        </div>
+
       </div>
 
       <section style={{ marginBottom: '40px' }}>
@@ -229,18 +254,6 @@ function MyProfile() {
 
       <section style={{ marginBottom: '40px' }}>
         <SportsInfo />
-      </section>
-
-      <section style={{ textAlign: 'center' }}>
-        <button 
-          onClick={signOutUser} 
-          style={{ 
-            width: '100%', padding: '12px', backgroundColor: '#ff6b6b', color: 'white',
-            border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
-          }}
-        >
-          Sign Out
-        </button>
       </section>
 
     </div>

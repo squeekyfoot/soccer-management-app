@@ -1,27 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext'; 
-import { useChat } from '../context/ChatContext'; // NEW
+import { useChat } from '../context/ChatContext'; 
 import Home from './Home';
 import MyProfile from './MyProfile'; 
 import ManagerDashboard from './ManagerDashboard'; 
 import TeamChat from './TeamChat';
 import Groups from './Groups';
-import { House, Users, MessageSquare, User, Settings, LogOut } from 'lucide-react';
+import MyTeams from './MyTeams'; // NEW
+import Feedback from './Feedback'; // NEW
+import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; // Removed LogOut
 
-// NEW: Import Constants
 import { MOBILE_BREAKPOINT, COLORS } from '../constants';
 
 function Layout() {
-  const { isManager, signOutUser, loggedInUser } = useAuth();
-  const { myChats } = useChat(); // NEW: Get chat state from ChatContext
+  const { isManager, loggedInUser } = useAuth();
+  const { myChats } = useChat(); 
   const [activeView, setActiveView] = useState('home');
   
-  // USE CONSTANT
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   useEffect(() => {
     const handleResize = () => {
-      // USE CONSTANT
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     };
     window.addEventListener('resize', handleResize);
@@ -40,8 +39,10 @@ function Layout() {
     switch (activeView) {
       case 'home': return <Home />;
       case 'groups': return <Groups />;
+      case 'myteams': return <MyTeams />; 
       case 'messaging': return <TeamChat />;
       case 'profile': return <MyProfile />; 
+      case 'feedback': return <Feedback />; 
       case 'manager': return <ManagerDashboard />;
       default: return <Home />;
     }
@@ -64,7 +65,7 @@ function Layout() {
             width: '8px',
             height: '8px',
             borderRadius: '50%',
-            backgroundColor: COLORS.primary // USE CONSTANT
+            backgroundColor: COLORS.primary 
           }} />
         )}
       </div>
@@ -79,7 +80,7 @@ function Layout() {
           width: '8px',
           height: '8px',
           borderRadius: '50%',
-          backgroundColor: COLORS.primary // USE CONSTANT
+          backgroundColor: COLORS.primary 
         }} />
       )}
     </button>
@@ -91,7 +92,7 @@ function Layout() {
     <div
       style={{
         display: 'flex', width: '100vw', height: '100vh',
-        backgroundColor: COLORS.background, // USE CONSTANT
+        backgroundColor: COLORS.background, 
         flexDirection: isMobile ? 'column' : 'row'
       }}
     >
@@ -105,18 +106,17 @@ function Layout() {
         {!isMobile && <h3 style={{ marginTop: 0, marginBottom: '20px', paddingLeft: '10px' }}>Team App</h3>}
         
         <NavButton view="home" label="Home" icon={House} />
-        <NavButton view="groups" label="Groups" icon={Users} />
+        <NavButton view="groups" label="Community" icon={Users} />
+        <NavButton view="myteams" label="My Teams" icon={Dribbble} />
+        
         <NavButton view="messaging" label="Messaging" icon={MessageSquare} showBadge={true} />
+        
         <NavButton view="profile" label="Profile" icon={User} />
+        <NavButton view="feedback" label="Feedback" icon={Lightbulb} />
         
         {isManager() && (
           <NavButton view="manager" label="Manager" icon={Settings} />
         )}
-        
-        <button onClick={signOutUser} className="nav-btn sign-out-btn">
-          <LogOut size={20} />
-          <span>Sign Out</span>
-        </button>
       </nav>
 
       <main className={`main-content ${isMobile ? 'mobile' : ''} ${isFixedView ? 'fixed-height' : 'scrollable'}`}>
