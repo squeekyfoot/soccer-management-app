@@ -1,36 +1,73 @@
-import React, { useState } from 'react';
-import { SquarePen } from 'lucide-react'; 
+import React, { useState, useEffect, useRef } from 'react';
+import { SquarePen, MoreVertical } from 'lucide-react'; 
 import { COLORS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 
 const ChatList = ({ 
   myChats, 
   selectedChat, 
-  isCreatingChat, 
   onSelectChat, 
   onStartNewChat, 
   onDeleteChat,
-  isCollapsed,
-  userProfiles // Passed down from parent
+  userProfiles,
+  isMobile
 }) => {
   const { loggedInUser } = useAuth();
   const [activeChatMenu, setActiveChatMenu] = useState(null);
+  const menuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setActiveChatMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else {
+      return date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+    }
+  };
 
   return (
     <div style={{ 
-      width: isCollapsed ? '80px' : '30%', 
-      minWidth: isCollapsed ? '80px' : '250px', 
-      transition: 'width 0.2s ease, min-width 0.2s ease',
+      width: isMobile ? '100%' : '30%', 
+      minWidth: isMobile ? '100%' : '300px',
       backgroundColor: COLORS.background, 
-      borderRight: `1px solid ${COLORS.border}`, 
+      borderRight: isMobile ? 'none' : `1px solid ${COLORS.border}`, 
       display: 'flex', 
       flexDirection: 'column',
-      boxSizing: 'border-box'
+      height: '100%',
+      position: 'relative',
+      zIndex: 1
     }}>
-      <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', alignItems: 'center', boxSizing: 'border-box' }}>
+      {/* Header */}
+      <div style={{ 
+        padding: '15px', 
+        borderBottom: `1px solid ${COLORS.border}`, 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        height: '60px',
+        boxSizing: 'border-box',
+        backgroundColor: COLORS.background,
+        zIndex: 10
+      }}>
+        <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 'bold' }}>Chats</h2>
         <button 
           onClick={onStartNewChat}
-          style={{ background: 'none', border: 'none', color: isCreatingChat ? 'white' : COLORS.primary, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', color: COLORS.primary, cursor: 'pointer' }}
           title="Start New Chat"
         >
           <SquarePen size={24} />
@@ -38,10 +75,11 @@ const ChatList = ({
       </div>
       
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {myChats.length === 0 && !isCreatingChat ? (
-          <p style={{ padding: '20px', color: '#888', fontSize: '14px', textAlign: 'center' }}>{isCollapsed ? "..." : "No conversations yet."}</p>
+        {myChats.length === 0 ? (
+          <p style={{ padding: '20px', color: '#888', textAlign: 'center' }}>No conversations yet.</p>
         ) : (
           myChats.map(chat => {
+            // --- Data Prep ---
             const isDM = chat.type === 'dm' || (chat.participants && chat.participants.length === 2 && chat.type !== 'roster');
             let displayTitle = chat.name || "Chat";
             let iconImage = null;
@@ -52,105 +90,215 @@ const ChatList = ({
                 const otherUser = chat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
                 if (otherUser) {
                     const freshUser = userProfiles[otherUser.uid];
-                    if (freshUser) {
-                        displayTitle = freshUser.playerName || otherUser.name;
-                        iconImage = freshUser.photoURL;
-                    } else {
-                        displayTitle = otherUser.name;
-                        iconImage = otherUser.photoURL; 
-                    }
+                    displayTitle = freshUser ? (freshUser.playerName || otherUser.name) : otherUser.name;
+                    iconImage = freshUser ? freshUser.photoURL : otherUser.photoURL;
                 }
             }
             
             const firstLetter = displayTitle.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || "?";
             const unreadCount = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
-            const hasUnread = unreadCount > 0 && chat.id !== selectedChat?.id;
+            const hasUnread = unreadCount > 0;
+            const timeDisplay = formatTime(chat.lastMessageTime);
 
             return (
               <div 
                 key={chat.id} 
                 onClick={() => onSelectChat(chat)}
                 style={{ 
-                  padding: '15px', 
+                  width: '100%',
+                  height: '90px', 
                   cursor: 'pointer', 
-                  backgroundColor: (selectedChat?.id === chat.id && !isCreatingChat) ? '#3a3f4a' : 'transparent',
+                  backgroundColor: (selectedChat?.id === chat.id) ? '#3a3f4a' : 'transparent',
                   borderBottom: `1px solid ${COLORS.border}`,
                   display: 'flex', 
-                  justifyContent: isCollapsed ? 'center' : 'space-between',
-                  alignItems: 'center',
-                  position: 'relative',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  position: 'relative'
                 }}
-                title={isCollapsed ? displayTitle : ""}
               >
+                
+                {/* --- COLUMN A (20%): Avatar --- */}
                 <div style={{ 
-                     width: '45px', height: '45px', 
-                     borderRadius: '50%', 
-                     marginRight: isCollapsed ? '0' : '15px', 
-                     flexShrink: 0, 
-                     backgroundColor: '#444',
-                     display: 'flex', justifyContent: 'center', alignItems: 'center',
-                     border: '1px solid #555',
-                     color: '#eee', fontWeight: 'bold', fontSize: '18px',
-                     position: 'relative'
+                  width: '20%', 
+                  height: '100%', 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center' 
                 }}>
-                     {iconImage ? (
-                         <img src={iconImage} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                     ) : (
-                         <span>{firstLetter}</span>
-                     )}
-                     
-                     {hasUnread && (
-                       <div style={{
-                         position: 'absolute', top: '0', right: '0', width: '10px', height: '10px',
-                         borderRadius: '50%', backgroundColor: COLORS.primary, border: `1px solid ${COLORS.background}`, zIndex: 10
-                       }} />
-                     )}
+                  <div style={{ 
+                       width: '50px', height: '50px', 
+                       borderRadius: '50%', 
+                       backgroundColor: '#444',
+                       display: 'flex', justifyContent: 'center', alignItems: 'center',
+                       border: '1px solid #555',
+                       color: '#eee', fontWeight: 'bold', fontSize: '20px',
+                       overflow: 'hidden'
+                  }}>
+                       {iconImage ? (
+                           <img src={iconImage} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                       ) : (
+                           <span>{firstLetter}</span>
+                       )}
+                  </div>
                 </div>
 
-                {!isCollapsed && (
-                  <>
-                    <div style={{ overflow: 'hidden', flex: 1, marginRight: '10px' }}>
-                      <div style={{ fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {displayTitle}
-                      </div>
-                      <div style={{ fontSize: '12px', color: hasUnread ? '#eee' : '#aaa', fontWeight: hasUnread ? 'bold' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {chat.lastMessage}
-                      </div>
+                {/* --- COLUMN B (60%): Name & Message --- */}
+                <div style={{ 
+                  width: '60%', 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column'
+                }}>
+                  {/* 1. Top Spacer (5% Height) */}
+                  <div style={{ height: '5%', width: '100%' }} />
+
+                  {/* 2. Row 1: Name + Badge (40% Height) */}
+                  <div style={{ 
+                    height: '40%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    position: 'relative',
+                    width: '100%'
+                  }}>
+                    <div style={{
+                      fontWeight: hasUnread ? 'bold' : '600', 
+                      color: 'white', 
+                      fontSize: '16px',
+                      whiteSpace: 'nowrap', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis',
+                      textAlign: 'center',
+                      maxWidth: hasUnread ? 'calc(100% - 40px)' : '100%'
+                    }}>
+                      {displayTitle}
                     </div>
-                    
-                    {chat.type !== 'roster' && (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <button 
-                          onClick={() => setActiveChatMenu(activeChatMenu === chat.id ? null : chat.id)}
-                          style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '20px', padding: '0 5px' }}
-                        >
-                          ⋮
-                        </button>
-                        {activeChatMenu === chat.id && (
-                          <div style={{ 
-                            position: 'absolute', right: '10px', top: '40px', 
-                            backgroundColor: '#222', border: '1px solid #555', borderRadius: '5px', 
-                            zIndex: 100, minWidth: '120px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
-                          }}>
-                            <button 
-                              onClick={() => { onDeleteChat(chat); setActiveChatMenu(null); }}
-                              style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: COLORS.danger, cursor: 'pointer', borderBottom: '1px solid #333' }}
-                            >
-                              Delete Chat
-                            </button>
-                            <button 
-                              onClick={() => setActiveChatMenu(null)}
-                              style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        )}
+
+                    {/* Badge: Absolute Right, Vertically Centered */}
+                    {hasUnread && (
+                      <div style={{ 
+                        position: 'absolute',
+                        right: '0',
+                        top: '50%',
+                        transform: 'translateY(-50%)', 
+                        backgroundColor: COLORS.primary, color: '#000', 
+                        borderRadius: '10px', padding: '2px 6px', 
+                        fontSize: '10px', fontWeight: 'bold',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
                       </div>
                     )}
-                  </>
+                  </div>
+
+                  {/* 3. Row 2: Preview (50% Height) */}
+                  <div style={{ 
+                    height: '50%',
+                    display: 'flex',
+                    alignItems: 'center', 
+                    justifyContent: 'center'
+                  }}>
+                    <div style={{
+                      fontSize: '13px', 
+                      color: hasUnread ? '#ddd' : '#aaa', 
+                      lineHeight: '1.2em',
+                      maxHeight: '2.4em', 
+                      overflow: 'hidden',
+                      textAlign: 'center',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      wordBreak: 'break-word'
+                    }}>
+                      {chat.lastMessage || "No messages yet"}
+                    </div>
+                  </div>
+
+                  {/* 4. Bottom Spacer (5% Height) */}
+                  <div style={{ height: '5%', width: '100%' }} />
+                </div>
+
+                {/* --- COLUMN C (20%): Date & Actions --- */}
+                <div style={{ 
+                  width: '20%', 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column'
+                }}>
+                  {/* 1. Top Spacer (5% Height) */}
+                  <div style={{ height: '5%', width: '100%' }} />
+
+                  {/* 2. Row 1: Date Only (40% Height) */}
+                  <div style={{ 
+                    height: '40%',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center'
+                  }}>
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: hasUnread ? COLORS.primary : '#888',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {timeDisplay}
+                    </span>
+                  </div>
+
+                  {/* 3. Row 2: Ellipsis (50% Height) */}
+                  <div style={{ 
+                    height: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center'
+                  }}>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveChatMenu(activeChatMenu === chat.id ? null : chat.id);
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '5px' }}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  </div>
+
+                  {/* 4. Bottom Spacer (5% Height) */}
+                  <div style={{ height: '5%', width: '100%' }} />
+                </div>
+
+                {/* --- Popup Menu --- */}
+                {activeChatMenu === chat.id && (
+                  <div 
+                    ref={menuRef}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ 
+                      position: 'absolute', 
+                      top: '60px', 
+                      right: '10px', 
+                      backgroundColor: '#222', 
+                      border: '1px solid #555', 
+                      borderRadius: '5px', 
+                      zIndex: 9999, 
+                      minWidth: '140px', 
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.8)'
+                    }}
+                  >
+                    {chat.type !== 'roster' && (
+                      <button 
+                        onClick={() => { onDeleteChat(chat); setActiveChatMenu(null); }}
+                        style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: COLORS.danger, cursor: 'pointer', borderBottom: '1px solid #333' }}
+                      >
+                        Delete Chat
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => setActiveChatMenu(null)}
+                      style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
+
               </div>
             );
           })

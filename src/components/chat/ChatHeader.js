@@ -1,101 +1,111 @@
 import React from 'react';
-import { MoreVertical } from 'lucide-react'; 
+import { ChevronLeft, ChevronRight } from 'lucide-react'; 
 import { COLORS } from '../../constants';
 
 const ChatHeader = ({ 
   selectedChat, 
   userProfiles, 
   loggedInUser, 
-  activeHeaderMenu, 
-  setActiveHeaderMenu, 
-  onRenameGroup, 
-  onDeleteChat 
+  onShowDetails, // New prop to trigger details modal
+  onBack,        // New prop for Mobile Back navigation
+  totalUnreadCount
 }) => {
   if (!selectedChat) return null;
 
-  // Logic to determine display title
+  // Logic to determine display title & image
   const isDM = selectedChat.type === 'dm' || (selectedChat.participants && selectedChat.participants.length === 2 && selectedChat.type !== 'roster');
   let displayTitle = selectedChat.name;
+  let iconImage = null;
   
   if (isDM) {
     const otherUser = selectedChat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
     if (otherUser) {
       const freshUser = userProfiles[otherUser.uid];
       displayTitle = freshUser ? (freshUser.playerName || otherUser.name) : otherUser.name;
+      iconImage = freshUser ? freshUser.photoURL : otherUser.photoURL;
     }
-  }
-
-  // Logic for subtext (participants)
-  let displaySubtext = null;
-  if (!isDM) {
-    const others = selectedChat.participantDetails?.filter(p => p.uid !== loggedInUser.uid);
-    if (others && others.length > 0) {
-      displaySubtext = others.map(p => {
-        const fresh = userProfiles[p.uid];
-        return fresh ? (fresh.playerName || p.name) : p.name;
-      }).join(', ');
-    }
+  } else if (selectedChat.type === 'roster') {
+      displayTitle = `⚽ ${selectedChat.name}`;
   }
 
   return (
     <div style={{ 
-      padding: '15px', 
+      padding: '10px', 
       borderBottom: `1px solid ${COLORS.border}`, 
       backgroundColor: COLORS.background, 
       boxSizing: 'border-box', 
       display: 'flex', 
       justifyContent: 'space-between', 
-      alignItems: 'center' 
+      alignItems: 'center',
+      height: '60px'
     }}>
       
-      <div style={{ flex: 1, textAlign: 'center' }}>
-        <h3 style={{ margin: 0 }}>{displayTitle}</h3>
-        {displaySubtext && (
-          <span style={{ fontSize: '12px', color: '#888' }}>
-            {displaySubtext}
-          </span>
+      {/* LEFT: Back Button (Mobile Only) */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: '60px' }}>
+        {onBack && (
+          <button 
+            onClick={onBack}
+            style={{ 
+              background: 'none', border: 'none', color: COLORS.primary, 
+              cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '16px', fontWeight: '500'
+            }}
+          >
+            <ChevronLeft size={28} />
+            {totalUnreadCount > 0 && (
+              <span style={{ 
+                backgroundColor: COLORS.primary, color: '#000', 
+                borderRadius: '50%', width: '20px', height: '20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: 'bold', marginLeft: '2px'
+              }}>
+                {totalUnreadCount}
+              </span>
+            )}
+          </button>
         )}
       </div>
 
-      <div style={{ position: 'relative', marginLeft: '10px' }}>
-        <button 
-          onClick={() => setActiveHeaderMenu(!activeHeaderMenu)}
-          style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-        >
-          <MoreVertical size={24} />
-        </button>
-        
-        {activeHeaderMenu && (
-          <div style={{ 
-            position: 'absolute', right: '0', top: '35px', 
-            backgroundColor: '#222', border: '1px solid #555', borderRadius: '5px', 
-            zIndex: 100, minWidth: '150px', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
-          }}>
-            {(selectedChat.type === 'group' || (selectedChat.participants && selectedChat.participants.length > 2)) && (
-                <button 
-                  onClick={onRenameGroup}
-                  style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: 'white', cursor: 'pointer', borderBottom: '1px solid #333' }}
-                >
-                  Rename Group
-                </button>
-            )}
-            
-            <button 
-              onClick={() => onDeleteChat(selectedChat)}
-              style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: COLORS.danger, cursor: 'pointer', borderBottom: '1px solid #333' }}
-            >
-              Delete Chat
-            </button>
-            
-            <button 
-              onClick={() => setActiveHeaderMenu(false)}
-              style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}
-            >
-              Cancel
-            </button>
-          </div>
+      {/* CENTER: Chat Info (Clickable) */}
+      <div 
+        onClick={onShowDetails}
+        style={{ 
+          flex: 2, 
+          display: 'flex', flexDirection: 'column', alignItems: 'center', 
+          cursor: 'pointer' 
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+           {/* Small Avatar in Header */}
+           <div style={{ 
+             width: '24px', height: '24px', borderRadius: '50%', 
+             backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+             fontSize: '10px', border: '1px solid #666'
+           }}>
+             {iconImage ? (
+               <img src={iconImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+             ) : (
+               <span>{displayTitle.charAt(0)}</span>
+             )}
+           </div>
+           <h3 style={{ margin: 0, fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
+             {displayTitle}
+           </h3>
+        </div>
+        {!isDM && (
+           <span style={{ fontSize: '10px', color: '#888' }}>
+             {selectedChat.participantDetails?.length || 0} members
+           </span>
         )}
       </div>
+
+      {/* RIGHT: Action Indicator */}
+      <div 
+        onClick={onShowDetails}
+        style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }}
+      >
+        <ChevronRight size={20} color="#666" />
+      </div>
+
     </div>
   );
 };

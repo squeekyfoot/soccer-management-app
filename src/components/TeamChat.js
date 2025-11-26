@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useChat } from '../context/ChatContext'; // NEW
-import { collection, query, orderBy, onSnapshot, limit, getDocs } from "firebase/firestore";
+import { useChat } from '../context/ChatContext'; 
+import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
@@ -12,6 +12,7 @@ import ImageViewer from './chat/ImageViewer';
 import ChatHeader from './chat/ChatHeader';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
+import ChatDetailsModal from './chat/ChatDetailsModal'; // NEW Component
 
 function TeamChat() {
   const { uploadImage, loggedInUser } = useAuth();
@@ -24,27 +25,31 @@ function TeamChat() {
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null); 
   
-  const [isCreatingChat, setIsCreatingChat] = useState(true);
+  const [isCreatingChat, setIsCreatingChat] = useState(false); // Default false now
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newChatName, setNewChatName] = useState("");
 
   const [viewingImage, setViewingImage] = useState(null);
-  const [activeHeaderMenu, setActiveHeaderMenu] = useState(false);
+  const [showChatDetails, setShowChatDetails] = useState(false); // New Modal State
+  
   const [userProfiles, setUserProfiles] = useState({});
-  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < MOBILE_BREAKPOINT);
-
-  const selectedChatRef = useRef(selectedChat);
-  useEffect(() => {
-    selectedChatRef.current = selectedChat;
-  }, [selectedChat]);
+  
+  // Mobile View State
+  const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   useEffect(() => {
     const handleResize = () => {
-      setIsCollapsed(window.innerWidth < MOBILE_BREAKPOINT);
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Total Unread Count for Back Button
+  const totalUnread = myChats.reduce((acc, chat) => {
+    const count = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
+    return acc + count;
+  }, 0);
 
   // Fetch Live Profiles
   useEffect(() => {
@@ -77,6 +82,7 @@ function TeamChat() {
         ...doc.data()
       }));
       setMessages(msgs);
+      // Mark read again if new message comes in while looking
       markChatAsRead(selectedChat.id);
     });
 
@@ -106,13 +112,18 @@ function TeamChat() {
     setIsCreatingChat(false);
   };
 
+  const handleBackToList = () => {
+    setSelectedChat(null);
+    setIsCreatingChat(false);
+  };
+
   const handleRenameGroup = async () => {
     if (!selectedChat) return;
     const newName = window.prompt("Enter new group name:", selectedChat.name);
     if (newName && newName.trim() !== "") {
       await renameChat(selectedChat.id, newName.trim());
     }
-    setActiveHeaderMenu(false);
+    setShowChatDetails(false);
   };
 
   const handleSend = async (e) => {
@@ -123,11 +134,6 @@ function TeamChat() {
             alert("Please add at least one person to the chat.");
             return;
         }
-        if (!newMessage.trim() && !selectedFile) {
-            alert("Please enter a message or attach a file.");
-            return;
-        }
-
         const chatResult = await createChat(selectedEmails, newChatName);
         
         if (chatResult && chatResult.id) {
@@ -135,8 +141,7 @@ function TeamChat() {
              const participants = chatResult.participants;
              const text = newMessage;
              const fileToUpload = selectedFile;
-             const resolvedChatName = chatResult.name || newChatName || "New Chat";
-
+             
              setNewMessage(""); 
              setSelectedFile(null); 
              
@@ -145,12 +150,14 @@ function TeamChat() {
                  imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
              }
              
-             await sendMessage(newChatId, text, participants, imageUrl);
+             if (text || imageUrl) {
+                await sendMessage(newChatId, text, participants, imageUrl);
+             }
 
-             // Optimistic selection
+             // Switch to the new chat view
              const optimisticChat = {
                  id: newChatId,
-                 name: resolvedChatName,
+                 name: chatResult.name || newChatName || "New Chat",
                  type: selectedEmails.length > 0 ? 'group' : 'dm',
                  participants: participants,
                  participantDetails: chatResult.participantDetails || [] 
@@ -186,98 +193,117 @@ function TeamChat() {
       alert("Team Roster chats cannot be deleted.");
       return;
     }
-    if (window.confirm("Are you sure you want to delete this chat? This action cannot be undone.")) {
+    if (window.confirm("Are you sure you want to delete this chat?")) {
         await hideChat(chat.id, chat.visibleTo, chat.type);
-        if (selectedChat && selectedChat.id === chat.id) {
-            setSelectedChat(null);
-        }
+        setSelectedChat(null);
+        setShowChatDetails(false);
     }
   };
 
   const canSend = isCreatingChat 
-    ? (selectedEmails.length > 0 && (newMessage.trim().length > 0 || selectedFile)) 
+    ? (selectedEmails.length > 0) 
     : true; 
+
+  // --- RENDER LOGIC ---
+  // If mobile: Show EITHER list OR chat. 
+  // If desktop: Show split view.
+  
+  const showList = !isMobile || (!selectedChat && !isCreatingChat);
+  const showChat = !isMobile || (selectedChat || isCreatingChat);
 
   return (
     <div style={{ 
       display: 'flex', height: '100%', width: '100%', maxWidth: '1000px', 
       margin: '0 auto', backgroundColor: COLORS.background, 
-      border: isCollapsed ? 'none' : `1px solid ${COLORS.border}`, 
-      borderRadius: isCollapsed ? '0' : '8px', overflow: 'hidden', boxSizing: 'border-box'
+      borderRadius: isMobile ? '0' : '8px', overflow: 'hidden', boxSizing: 'border-box',
+      border: isMobile ? 'none' : `1px solid ${COLORS.border}`
     }}>
       
       {/* LEFT: Chat List */}
-      <ChatList 
-        myChats={myChats}
-        selectedChat={selectedChat}
-        isCreatingChat={isCreatingChat}
-        onSelectChat={handleSelectChat}
-        onStartNewChat={startNewChat}
-        onDeleteChat={handleDeleteChat}
-        isCollapsed={isCollapsed}
-        userProfiles={userProfiles}
-      />
+      {showList && (
+        <ChatList 
+          myChats={myChats}
+          selectedChat={selectedChat}
+          onSelectChat={handleSelectChat}
+          onStartNewChat={startNewChat}
+          onDeleteChat={handleDeleteChat}
+          userProfiles={userProfiles}
+          isMobile={isMobile}
+        />
+      )}
 
-      {/* RIGHT: Chat Window & Input */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, boxSizing: 'border-box' }}>
-        
-        {isCreatingChat && (
+      {/* RIGHT: Chat Window */}
+      {showChat && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, height: '100%' }}>
+          
+          {isCreatingChat ? (
+              <>
+                  <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, display: 'flex', alignItems: 'center' }}>
+                      {isMobile && (
+                        <button onClick={handleBackToList} style={{ background: 'none', border: 'none', color: COLORS.primary, fontSize: '24px', marginRight: '10px', cursor: 'pointer' }}>
+                          ‹
+                        </button>
+                      )}
+                      <h3 style={{ margin: 0, color: 'white' }}>New Message</h3>
+                  </div>
+                  <div style={{ padding: '20px' }}>
+                       <UserSearch onSelectionChange={setSelectedEmails} />
+                  </div>
+                  <div style={{ flex: 1 }} />
+              </>
+          ) : selectedChat ? (
             <>
-                <div style={{ padding: '20px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, boxSizing: 'border-box' }}>
-                    <h3 style={{ margin: '0 0 15px 0', color: 'white' }}>New Message</h3>
-                    <div style={{ marginBottom: '5px' }}>
-                         <UserSearch onSelectionChange={setSelectedEmails} />
-                    </div>
-                </div>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontStyle: 'italic' }}>
-                    Select people to start a new conversation.
-                </div>
+              <ChatHeader 
+                selectedChat={selectedChat}
+                userProfiles={userProfiles}
+                loggedInUser={loggedInUser}
+                onShowDetails={() => setShowChatDetails(true)}
+                onBack={isMobile ? handleBackToList : null}
+                totalUnreadCount={totalUnread}
+              />
+
+              <MessageList 
+                messages={messages}
+                loggedInUser={loggedInUser}
+                onImageClick={setViewingImage}
+                selectedChatId={selectedChat.id}
+              />
             </>
-        )}
-
-        {!isCreatingChat && selectedChat && (
-          <>
-            <ChatHeader 
-              selectedChat={selectedChat}
-              userProfiles={userProfiles}
-              loggedInUser={loggedInUser}
-              activeHeaderMenu={activeHeaderMenu}
-              setActiveHeaderMenu={setActiveHeaderMenu}
-              onRenameGroup={handleRenameGroup}
-              onDeleteChat={handleDeleteChat}
-            />
-
-            <MessageList 
-              messages={messages}
-              loggedInUser={loggedInUser}
-              onImageClick={setViewingImage}
-              selectedChatId={selectedChat.id}
-            />
-          </>
-        )}
-
-        {!isCreatingChat && !selectedChat && (
+          ) : (
+             /* Desktop Placeholder */
              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
                 Select a conversation or start a new one.
              </div>
-        )}
+          )}
 
-        {(isCreatingChat || selectedChat) && (
-            <MessageInput 
-              messageText={newMessage}
-              onMessageChange={setNewMessage}
-              onSend={handleSend}
-              selectedFile={selectedFile}
-              onFileChange={handleFileChange}
-              onRemoveFile={() => setSelectedFile(null)}
-              fileInputRef={fileInputRef}
-              isCollapsed={isCollapsed}
-              canSend={canSend}
-            />
-        )}
-      </div>
+          {(isCreatingChat || selectedChat) && (
+              <MessageInput 
+                messageText={newMessage}
+                onMessageChange={setNewMessage}
+                onSend={handleSend}
+                selectedFile={selectedFile}
+                onFileChange={handleFileChange}
+                onRemoveFile={() => setSelectedFile(null)}
+                fileInputRef={fileInputRef}
+                canSend={canSend}
+              />
+          )}
+        </div>
+      )}
 
+      {/* Modals */}
       <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
+      
+      {showChatDetails && (
+        <ChatDetailsModal 
+          chat={selectedChat} 
+          onClose={() => setShowChatDetails(false)}
+          onRename={handleRenameGroup}
+          onDelete={handleDeleteChat}
+          userProfiles={userProfiles}
+          loggedInUser={loggedInUser}
+        />
+      )}
 
     </div>
   );
