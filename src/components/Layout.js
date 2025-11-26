@@ -5,23 +5,28 @@ import MyProfile from './MyProfile';
 import ManagerDashboard from './ManagerDashboard'; 
 import TeamChat from './TeamChat';
 import Groups from './Groups';
-
 import { House, Users, MessageSquare, User, Settings, LogOut } from 'lucide-react';
+
+// NEW: Import Constants
+import { MOBILE_BREAKPOINT, COLORS } from '../constants';
 
 function Layout() {
   const { isManager, signOutUser, myChats, loggedInUser } = useAuth();
   const [activeView, setActiveView] = useState('home');
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  
+  // USE CONSTANT
+  const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      // USE CONSTANT
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Calculate total unread
+  // Calculate total unread messages
   const unreadTotal = myChats.reduce((sum, chat) => {
     if (chat.unreadCounts && loggedInUser && chat.unreadCounts[loggedInUser.uid]) {
       return sum + chat.unreadCounts[loggedInUser.uid];
@@ -48,7 +53,7 @@ function Layout() {
     >
       <div style={{ position: 'relative' }}>
         <Icon size={20} />
-        {/* Mobile Badge: Overlap Icon Top Right */}
+        {/* Mobile Badge */}
         {isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
           <div style={{
             position: 'absolute',
@@ -57,20 +62,22 @@ function Layout() {
             width: '8px',
             height: '8px',
             borderRadius: '50%',
-            backgroundColor: '#61dafb'
+            backgroundColor: COLORS.primary // USE CONSTANT
           }} />
         )}
       </div>
       
       <span>{label}</span>
       
-      {/* Desktop Badge: Next to Text */}
+      {/* Desktop Badge */}
       {!isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
         <div style={{
+          marginLeft: 'auto',
+          marginRight: '10px',
           width: '8px',
           height: '8px',
           borderRadius: '50%',
-          backgroundColor: '#61dafb'
+          backgroundColor: COLORS.primary // USE CONSTANT
         }} />
       )}
     </button>
@@ -82,7 +89,7 @@ function Layout() {
     <div
       style={{
         display: 'flex', width: '100vw', height: '100vh',
-        backgroundColor: '#282c34',
+        backgroundColor: COLORS.background, // USE CONSTANT
         flexDirection: isMobile ? 'column' : 'row'
       }}
     >
@@ -97,10 +104,7 @@ function Layout() {
         
         <NavButton view="home" label="Home" icon={House} />
         <NavButton view="groups" label="Groups" icon={Users} />
-        
-        {/* Badge Enabled */}
         <NavButton view="messaging" label="Messaging" icon={MessageSquare} showBadge={true} />
-        
         <NavButton view="profile" label="Profile" icon={User} />
         
         {isManager() && (

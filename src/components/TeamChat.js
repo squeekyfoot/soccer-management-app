@@ -6,6 +6,9 @@ import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { SquarePen, Send, Paperclip, MoreVertical } from 'lucide-react'; 
 
+// NEW: Import Constants
+import { MOBILE_BREAKPOINT, COLORS } from '../constants';
+
 function TeamChat() {
   const { sendMessage, createChat, hideChat, renameChat, uploadImage, loggedInUser, myChats, markChatAsRead } = useAuth();
   
@@ -30,7 +33,8 @@ function TeamChat() {
   const chatContainerRef = useRef(null); 
   const lastChatIdRef = useRef(null);    
 
-  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 800);
+  // USE CONSTANT (Was 800, now synchronized to 768)
+  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   const selectedChatRef = useRef(selectedChat);
   useEffect(() => {
@@ -39,12 +43,14 @@ function TeamChat() {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsCollapsed(window.innerWidth < 800);
+      // USE CONSTANT
+      setIsCollapsed(window.innerWidth < MOBILE_BREAKPOINT);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // ... (Keep fetch user profiles, useEffects, and message logic the same) ...
   // FETCH LIVE USER PROFILES
   useEffect(() => {
     const usersRef = collection(db, "users");
@@ -58,44 +64,32 @@ function TeamChat() {
     return () => unsubscribe();
   }, []);
 
-  // LISTEN for messages & Mark Read
   useEffect(() => {
     if (!selectedChat || isCreatingChat) {
         setMessages([]); 
         return;
     }
-
-    // Mark read on initial load of chat
     markChatAsRead(selectedChat.id);
-
     const messagesRef = collection(db, "chats", selectedChat.id, "messages");
     const q = query(messagesRef, orderBy("createdAt", "asc"), limit(50));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setMessages(msgs);
-      
-      // FIX: Mark as read immediately when a new message arrives while viewing
-      markChatAsRead(selectedChat.id);
     });
-
     return () => unsubscribe();
   }, [selectedChat, isCreatingChat]);
 
-  // INSTANT SCROLL
   useLayoutEffect(() => {
     if (selectedChat && chatContainerRef.current) {
       const isNewChat = lastChatIdRef.current !== selectedChat.id;
-      
       if (isNewChat) {
         chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
       } else if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       }
-
       if (messages.length > 0) {
         lastChatIdRef.current = selectedChat.id;
       }
@@ -141,7 +135,6 @@ function TeamChat() {
 
   const handleSend = async (e) => {
     e.preventDefault();
-
     if (isCreatingChat) {
         if (selectedEmails.length === 0) {
             alert("Please add at least one person to the chat.");
@@ -151,27 +144,20 @@ function TeamChat() {
             alert("Please enter a message or attach a file.");
             return;
         }
-
         const chatResult = await createChat(selectedEmails, newChatName);
-        
         if (chatResult && chatResult.id) {
              const newChatId = chatResult.id;
              const participants = chatResult.participants;
              const text = newMessage;
              const fileToUpload = selectedFile;
-
              const resolvedChatName = chatResult.name || newChatName || "New Chat";
-
              setNewMessage(""); 
              setSelectedFile(null); 
-             
              let imageUrl = null;
              if (fileToUpload) {
                  imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
              }
-             
              await sendMessage(newChatId, text, participants, imageUrl);
-
              const optimisticChat = {
                  id: newChatId,
                  name: resolvedChatName,
@@ -180,7 +166,6 @@ function TeamChat() {
                  participants: participants,
                  participantDetails: chatResult.participantDetails || [] 
              };
-
              const optimisticMessage = {
                  id: 'temp-id-' + Date.now(),
                  text: text,
@@ -189,25 +174,19 @@ function TeamChat() {
                  senderName: loggedInUser.playerName,
                  createdAt: { toDate: () => new Date() }
              };
-
              setSelectedChat(optimisticChat);
              setMessages([optimisticMessage]); 
              setIsCreatingChat(false);
              setNewChatName("");
              setSelectedEmails([]);
         }
-
     } else {
         if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
-
         const text = newMessage;
         const fileToUpload = selectedFile;
-
         setNewMessage(""); 
         setSelectedFile(null); 
-        
         let imageUrl = null;
-
         try {
             if (fileToUpload) {
                 imageUrl = await uploadImage(fileToUpload, `chat_images/${selectedChat.id}`);
@@ -227,7 +206,6 @@ function TeamChat() {
       setActiveHeaderMenu(false); 
       return;
     }
-    
     if (window.confirm("Are you sure you want to delete this chat? This action cannot be undone.")) {
         await hideChat(chat.id, chat.visibleTo, chat.type);
         if (selectedChat && selectedChat.id === chat.id) {
@@ -249,8 +227,8 @@ function TeamChat() {
       width: '100%', 
       maxWidth: '1000px', 
       margin: '0 auto', 
-      backgroundColor: '#282c34', 
-      border: isCollapsed ? 'none' : '1px solid #444', 
+      backgroundColor: COLORS.background, // USE CONSTANT
+      border: isCollapsed ? 'none' : `1px solid ${COLORS.border}`, // USE CONSTANT
       borderRadius: isCollapsed ? '0' : '8px', 
       overflow: 'hidden',
       boxSizing: 'border-box'
@@ -261,16 +239,16 @@ function TeamChat() {
         width: isCollapsed ? '80px' : '30%', 
         minWidth: isCollapsed ? '80px' : '250px', 
         transition: 'width 0.2s ease, min-width 0.2s ease',
-        backgroundColor: '#282c34', 
-        borderRight: '1px solid #444', 
+        backgroundColor: COLORS.background, 
+        borderRight: `1px solid ${COLORS.border}`, 
         display: 'flex', 
         flexDirection: 'column',
         boxSizing: 'border-box'
       }}>
-        <div style={{ padding: '15px', borderBottom: '1px solid #444', display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', alignItems: 'center', boxSizing: 'border-box' }}>
+        <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', alignItems: 'center', boxSizing: 'border-box' }}>
           <button 
             onClick={startNewChat}
-            style={{ background: 'none', border: 'none', color: isCreatingChat ? 'white' : '#61dafb', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            style={{ background: 'none', border: 'none', color: isCreatingChat ? 'white' : COLORS.primary, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             title="Start New Chat"
           >
             <SquarePen size={24} />
@@ -285,7 +263,6 @@ function TeamChat() {
               const isDM = chat.type === 'dm' || (chat.participants && chat.participants.length === 2 && chat.type !== 'roster');
               let displayTitle = chat.name || "Chat";
               let iconImage = null;
-              
               if (chat.type === 'roster') {
                   displayTitle = `⚽ ${chat.name}`;
               } else if (isDM) {
@@ -301,13 +278,8 @@ function TeamChat() {
                       }
                   }
               }
-              
               const firstLetter = displayTitle.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || "?";
-              
-              // --- UNREAD LOGIC ---
               const unreadCount = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
-              
-              // FIX: Only show if count > 0 AND we are NOT currently viewing this chat
               const hasUnread = unreadCount > 0 && chat.id !== selectedChat?.id;
 
               return (
@@ -318,7 +290,7 @@ function TeamChat() {
                     padding: '15px', 
                     cursor: 'pointer', 
                     backgroundColor: (selectedChat?.id === chat.id && !isCreatingChat) ? '#3a3f4a' : 'transparent',
-                    borderBottom: '1px solid #333',
+                    borderBottom: `1px solid ${COLORS.border}`,
                     display: 'flex', 
                     justifyContent: isCollapsed ? 'center' : 'space-between',
                     alignItems: 'center',
@@ -343,19 +315,10 @@ function TeamChat() {
                        ) : (
                            <span>{firstLetter}</span>
                        )}
-                       
-                       {/* --- UNREAD BADGE --- */}
                        {hasUnread && (
                          <div style={{
-                           position: 'absolute',
-                           top: '0',
-                           right: '0',
-                           width: '10px',
-                           height: '10px',
-                           borderRadius: '50%',
-                           backgroundColor: '#61dafb',
-                           border: '1px solid #282c34',
-                           zIndex: 10
+                           position: 'absolute', top: '0', right: '0', width: '10px', height: '10px',
+                           borderRadius: '50%', backgroundColor: COLORS.primary, border: `1px solid ${COLORS.background}`, zIndex: 10
                          }} />
                        )}
                   </div>
@@ -387,7 +350,7 @@ function TeamChat() {
                             }}>
                               <button 
                                 onClick={() => handleDeleteChat(chat)}
-                                style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}
+                                style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'none', border: 'none', color: COLORS.danger, cursor: 'pointer', borderBottom: '1px solid #333' }}
                               >
                                 Delete Chat
                               </button>
@@ -410,19 +373,19 @@ function TeamChat() {
         </div>
       </div>
 
-      {/* --- RIGHT SIDE: Chat Window OR New Chat Form --- */}
+      {/* --- RIGHT SIDE: Chat Window --- */}
       <div style={{ 
           flex: 1, 
           display: 'flex', 
           flexDirection: 'column', 
-          backgroundColor: '#1c1e22',
+          backgroundColor: COLORS.sidebar, 
           minWidth: 0, 
           boxSizing: 'border-box'
       }}>
         
         {isCreatingChat && (
             <>
-                <div style={{ padding: '20px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box' }}>
+                <div style={{ padding: '20px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, boxSizing: 'border-box' }}>
                     <h3 style={{ margin: '0 0 15px 0', color: 'white' }}>New Message</h3>
                     <div style={{ marginBottom: '5px' }}>
                          <UserSearch onSelectionChange={setSelectedEmails} />
@@ -436,8 +399,7 @@ function TeamChat() {
 
         {!isCreatingChat && selectedChat && (
           <>
-            <div style={{ padding: '15px', borderBottom: '1px solid #444', backgroundColor: '#282c34', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              
+            <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
               {(() => {
                  const isDM = selectedChat.type === 'dm' || (selectedChat.participants && selectedChat.participants.length === 2);
@@ -496,7 +458,7 @@ function TeamChat() {
                     )}
                     <button 
                       onClick={() => handleDeleteChat(selectedChat)}
-                      style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', borderBottom: '1px solid #333' }}
+                      style={{ display: 'block', width: '100%', padding: '12px', textAlign: 'left', background: 'none', border: 'none', color: COLORS.danger, cursor: 'pointer', borderBottom: '1px solid #333' }}
                     >
                       Delete Chat
                     </button>
@@ -558,8 +520,8 @@ function TeamChat() {
         {(isCreatingChat || selectedChat) && (
             <form onSubmit={handleSend} style={{ 
                 padding: '15px', 
-                backgroundColor: '#282c34', 
-                borderTop: '1px solid #444', 
+                backgroundColor: COLORS.background, 
+                borderTop: `1px solid ${COLORS.border}`, 
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: '10px',
@@ -569,7 +531,7 @@ function TeamChat() {
               {selectedFile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'white', fontSize: '12px', paddingLeft: '10px' }}>
                   <span>📎 {selectedFile.name}</span>
-                  <button type="button" onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}>✕</button>
+                  <button type="button" onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: COLORS.danger, cursor: 'pointer' }}>✕</button>
                 </div>
               )}
               <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
@@ -614,7 +576,7 @@ function TeamChat() {
                         padding: isCollapsed ? '10px' : '10px 20px', 
                         borderRadius: '20px', 
                         border: 'none', 
-                        backgroundColor: canSendNewChat ? '#61dafb' : '#444', 
+                        backgroundColor: canSendNewChat ? COLORS.primary : '#444', 
                         color: canSendNewChat ? '#000' : '#888', 
                         fontWeight: 'bold', 
                         cursor: canSendNewChat ? 'pointer' : 'not-allowed',
@@ -629,6 +591,7 @@ function TeamChat() {
         )}
       </div>
 
+      {/* --- MODAL --- */}
       {viewingImage && createPortal(
         <div 
           onClick={() => setViewingImage(null)} 
