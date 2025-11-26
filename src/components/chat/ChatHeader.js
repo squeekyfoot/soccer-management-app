@@ -12,11 +12,11 @@ const ChatHeader = ({
 }) => {
   if (!selectedChat) return null;
 
-  // Logic to determine display title & image
   const isDM = selectedChat.type === 'dm' || (selectedChat.participants && selectedChat.participants.length === 2 && selectedChat.type !== 'roster');
   let displayTitle = selectedChat.name;
   let iconImage = null;
   
+  // LOGIC FIX:
   if (isDM) {
     const otherUser = selectedChat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
     if (otherUser) {
@@ -26,18 +26,15 @@ const ChatHeader = ({
     }
   } else if (selectedChat.type === 'roster') {
       displayTitle = `⚽ ${selectedChat.name}`;
+  } else {
+      // Group Chat
+      iconImage = selectedChat.photoURL;
   }
 
   return (
     <div style={{ 
-      padding: '10px', 
-      borderBottom: `1px solid ${COLORS.border}`, 
-      backgroundColor: COLORS.background, 
-      boxSizing: 'border-box', 
-      display: 'flex', 
-      justifyContent: 'space-between', 
-      alignItems: 'center',
-      minHeight: '100px' // Height to fit vertical stack
+      padding: '10px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, 
+      boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '100px'
     }}>
       
       {/* LEFT: Back Button (Mobile Only) */}
@@ -46,17 +43,15 @@ const ChatHeader = ({
           <button 
             onClick={onBack}
             style={{ 
-              background: 'none', border: 'none', color: COLORS.primary, 
-              cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '16px', fontWeight: '500'
+              background: 'none', border: 'none', color: COLORS.primary, cursor: 'pointer', 
+              display: 'flex', alignItems: 'center', fontSize: '16px', fontWeight: '500'
             }}
           >
             <ChevronLeft size={28} />
             {totalUnreadCount > 0 && (
               <span style={{ 
-                backgroundColor: COLORS.primary, color: '#000', 
-                borderRadius: '50%', width: '20px', height: '20px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '12px', fontWeight: 'bold', marginLeft: '2px'
+                backgroundColor: COLORS.primary, color: '#000', borderRadius: '50%', width: '20px', height: '20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', marginLeft: '2px'
               }}>
                 {totalUnreadCount}
               </span>
@@ -65,22 +60,14 @@ const ChatHeader = ({
         )}
       </div>
 
-      {/* CENTER: Chat Info (Clickable) - Vertical Stack */}
+      {/* CENTER: Chat Info (Clickable) */}
       <div 
         onClick={onShowDetails}
-        style={{ 
-          flex: 2, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center',    
-          justifyContent: 'center',
-          cursor: 'pointer' 
-        }}
+        style={{ flex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
       >
-         {/* 1. Avatar (Top) - Increased Size 50px */}
          <div style={{ 
-           width: '50px', height: '50px', borderRadius: '50%', 
-           backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+           width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#444', 
+           overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
            fontSize: '20px', border: '1px solid #666', marginBottom: '6px'
          }}>
            {iconImage ? (
@@ -90,20 +77,10 @@ const ChatHeader = ({
            )}
          </div>
 
-         {/* 2. Chat Name (Middle) */}
-         <h3 style={{ 
-             margin: 0, 
-             fontSize: '16px', 
-             whiteSpace: 'nowrap', 
-             overflow: 'hidden', 
-             textOverflow: 'ellipsis', 
-             maxWidth: '200px',
-             lineHeight: '1.2'
-         }}>
+         <h3 style={{ margin: 0, fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', lineHeight: '1.2' }}>
            {displayTitle}
          </h3>
 
-         {/* 3. Member Count (Bottom) */}
          {!isDM && (
            <span style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
              {selectedChat.participantDetails?.length || 0} members
@@ -111,7 +88,7 @@ const ChatHeader = ({
          )}
       </div>
 
-      {/* RIGHT: Action Indicator (Vertical Ellipsis) */}
+      {/* RIGHT: Action Indicator */}
       <div 
         onClick={onShowDetails}
         style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }}

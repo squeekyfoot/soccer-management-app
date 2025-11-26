@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext'; 
-import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, limitToLast, where } from "firebase/firestore"; // <--- Changed limit to limitToLast
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
+import { compressImage } from '../utils/imageUtils'; 
 
 // Components
 import ChatList from './chat/ChatList';
@@ -12,11 +13,14 @@ import ImageViewer from './chat/ImageViewer';
 import ChatHeader from './chat/ChatHeader';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
-import ChatDetailsModal from './chat/ChatDetailsModal'; // NEW Component
+import ChatDetailsModal from './chat/ChatDetailsModal'; 
 
 function TeamChat() {
   const { uploadImage, loggedInUser } = useAuth();
-  const { sendMessage, createChat, hideChat, renameChat, myChats, markChatAsRead } = useChat();
+  const { 
+    sendMessage, createChat, hideChat, leaveChat, renameChat, 
+    updateGroupPhoto, addParticipant, myChats, markChatAsRead 
+  } = useChat();
   
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -25,16 +29,14 @@ function TeamChat() {
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null); 
   
-  const [isCreatingChat, setIsCreatingChat] = useState(false); // Default false now
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newChatName, setNewChatName] = useState("");
 
   const [viewingImage, setViewingImage] = useState(null);
-  const [showChatDetails, setShowChatDetails] = useState(false); // New Modal State
+  const [showChatDetails, setShowChatDetails] = useState(false); 
   
   const [userProfiles, setUserProfiles] = useState({});
-  
-  // Mobile View State
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   useEffect(() => {
@@ -45,13 +47,23 @@ function TeamChat() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Total Unread Count for Back Button
+  // Sync selected chat with DB updates
+  useEffect(() => {
+    if (selectedChat) {
+      const freshChatData = myChats.find(c => c.id === selectedChat.id);
+      if (freshChatData) {
+        if (JSON.stringify(freshChatData) !== JSON.stringify(selectedChat)) {
+          setSelectedChat(freshChatData);
+        }
+      }
+    }
+  }, [myChats, selectedChat]);
+
   const totalUnread = myChats.reduce((acc, chat) => {
     const count = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
     return acc + count;
   }, 0);
 
-  // Fetch Live Profiles
   useEffect(() => {
     const usersRef = collection(db, "users");
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
@@ -64,17 +76,27 @@ function TeamChat() {
     return () => unsubscribe();
   }, []);
 
-  // Listen for Messages
   useEffect(() => {
     if (!selectedChat || isCreatingChat) {
-        setMessages([]); 
+        if(messages.length > 0) setMessages([]); 
         return;
     }
-
+    
     markChatAsRead(selectedChat.id);
 
     const messagesRef = collection(db, "chats", selectedChat.id, "messages");
-    const q = query(messagesRef, orderBy("createdAt", "asc"), limit(50));
+    
+    // --- QUERY CONSTRUCTION ---
+    // Use limitToLast to get the RECENT messages, not the oldest ones
+    let qConstraints = [orderBy("createdAt", "asc"), limitToLast(50)];
+
+    // Check if I have restricted history in this chat
+    if (selectedChat.hiddenHistory && selectedChat.hiddenHistory[loggedInUser.uid]) {
+         const cutoffTimestamp = selectedChat.hiddenHistory[loggedInUser.uid];
+         qConstraints.push(where("createdAt", ">=", cutoffTimestamp));
+    }
+
+    const q = query(messagesRef, ...qConstraints);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({
@@ -82,12 +104,10 @@ function TeamChat() {
         ...doc.data()
       }));
       setMessages(msgs);
-      // Mark read again if new message comes in while looking
       markChatAsRead(selectedChat.id);
     });
-
     return () => unsubscribe();
-  }, [selectedChat, isCreatingChat]);
+  }, [selectedChat, isCreatingChat, loggedInUser.uid]);
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -98,19 +118,21 @@ function TeamChat() {
     }
   };
 
-  const startNewChat = () => {
+  const startNewChat = useCallback(() => {
       setIsCreatingChat(true);
       setSelectedChat(null);
+      setMessages([]); 
       setNewChatName("");
       setSelectedEmails([]);
       setNewMessage("");
       setSelectedFile(null);
-  };
+  }, []);
 
-  const handleSelectChat = (chat) => {
+  const handleSelectChat = useCallback((chat) => {
+    setMessages([]); 
     setSelectedChat(chat);
     setIsCreatingChat(false);
-  };
+  }, []);
 
   const handleBackToList = () => {
     setSelectedChat(null);
@@ -123,24 +145,67 @@ function TeamChat() {
     if (newName && newName.trim() !== "") {
       await renameChat(selectedChat.id, newName.trim());
     }
-    setShowChatDetails(false);
   };
+
+  const handleAddMember = async (email, includeHistory) => {
+      if(!selectedChat) return;
+      await addParticipant(selectedChat.id, email, includeHistory);
+  };
+
+  const handleGroupPhotoChange = async (file) => {
+    if (!selectedChat || !file) return;
+    const isGroup = selectedChat.type === 'group' || (selectedChat.participants.length > 2 && selectedChat.type !== 'roster');
+    
+    if (isGroup) {
+       try {
+           const compressedFile = await compressImage(file, 300, 0.8);
+           const imageUrl = await uploadImage(compressedFile, `chat_avatars/${selectedChat.id}/${Date.now()}`);
+           if (imageUrl) {
+               await updateGroupPhoto(selectedChat.id, imageUrl);
+           }
+       } catch (error) {
+           console.error("Failed to compress or upload group photo", error);
+           alert("Failed to update photo. Please try again.");
+       }
+    }
+  };
+
+  const handleDeleteChat = useCallback(async (chat) => {
+    if (chat.type === 'roster') {
+      alert("Team Roster chats cannot be deleted.");
+      return;
+    }
+
+    const isGroup = chat.type === 'group' || (chat.participants.length > 2 && chat.type !== 'roster');
+
+    if (isGroup) {
+       if (window.confirm("Are you sure you want to leave this group? You will no longer receive messages.")) {
+          await leaveChat(chat.id);
+          setSelectedChat(null);
+          setShowChatDetails(false);
+       }
+    } else {
+       if (window.confirm("Are you sure you want to delete this chat history?")) {
+           await hideChat(chat.id, chat.visibleTo);
+           setSelectedChat(null);
+           setShowChatDetails(false);
+       }
+    }
+  }, [leaveChat, hideChat]);
 
   const handleSend = async (e) => {
     e.preventDefault();
-
     if (isCreatingChat) {
         if (selectedEmails.length === 0) {
             alert("Please add at least one person to the chat.");
             return;
         }
         const chatResult = await createChat(selectedEmails, newChatName);
-        
         if (chatResult && chatResult.id) {
              const newChatId = chatResult.id;
              const participants = chatResult.participants;
              const text = newMessage;
-             const fileToUpload = selectedFile;
+             let fileToUpload = selectedFile;
              
              setNewMessage(""); 
              setSelectedFile(null); 
@@ -149,12 +214,10 @@ function TeamChat() {
              if (fileToUpload) {
                  imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
              }
-             
              if (text || imageUrl) {
                 await sendMessage(newChatId, text, participants, imageUrl);
              }
 
-             // Switch to the new chat view
              const optimisticChat = {
                  id: newChatId,
                  name: chatResult.name || newChatName || "New Chat",
@@ -162,17 +225,16 @@ function TeamChat() {
                  participants: participants,
                  participantDetails: chatResult.participantDetails || [] 
              };
-
              setSelectedChat(optimisticChat);
              setIsCreatingChat(false);
              setNewChatName("");
              setSelectedEmails([]);
         }
-
     } else {
         if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
         const text = newMessage;
-        const fileToUpload = selectedFile;
+        let fileToUpload = selectedFile;
+
         setNewMessage(""); 
         setSelectedFile(null); 
         let imageUrl = null;
@@ -188,26 +250,7 @@ function TeamChat() {
     }
   };
 
-  const handleDeleteChat = async (chat) => {
-    if (chat.type === 'roster') {
-      alert("Team Roster chats cannot be deleted.");
-      return;
-    }
-    if (window.confirm("Are you sure you want to delete this chat?")) {
-        await hideChat(chat.id, chat.visibleTo, chat.type);
-        setSelectedChat(null);
-        setShowChatDetails(false);
-    }
-  };
-
-  const canSend = isCreatingChat 
-    ? (selectedEmails.length > 0) 
-    : true; 
-
-  // --- RENDER LOGIC ---
-  // If mobile: Show EITHER list OR chat. 
-  // If desktop: Show split view.
-  
+  const canSend = isCreatingChat ? (selectedEmails.length > 0) : true; 
   const showList = !isMobile || (!selectedChat && !isCreatingChat);
   const showChat = !isMobile || (selectedChat || isCreatingChat);
 
@@ -219,7 +262,6 @@ function TeamChat() {
       border: isMobile ? 'none' : `1px solid ${COLORS.border}`
     }}>
       
-      {/* LEFT: Chat List */}
       {showList && (
         <ChatList 
           myChats={myChats}
@@ -232,7 +274,6 @@ function TeamChat() {
         />
       )}
 
-      {/* RIGHT: Chat Window */}
       {showChat && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, height: '100%' }}>
           
@@ -270,7 +311,6 @@ function TeamChat() {
               />
             </>
           ) : (
-             /* Desktop Placeholder */
              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
                 Select a conversation or start a new one.
              </div>
@@ -291,7 +331,6 @@ function TeamChat() {
         </div>
       )}
 
-      {/* Modals */}
       <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
       
       {showChatDetails && (
@@ -300,6 +339,8 @@ function TeamChat() {
           onClose={() => setShowChatDetails(false)}
           onRename={handleRenameGroup}
           onDelete={handleDeleteChat}
+          onUpdatePhoto={handleGroupPhotoChange}
+          onAddMember={handleAddMember}
           userProfiles={userProfiles}
           loggedInUser={loggedInUser}
         />

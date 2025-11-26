@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { COLORS } from '../../constants';
 
 const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) => {
@@ -7,21 +7,20 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
   const lastChatIdRef = useRef(null);
 
   // --- INSTANT SCROLL LOGIC ---
-  // We moved this from TeamChat.js to here. 
-  // It now reacts specifically to changes in the 'messages' prop.
-  useLayoutEffect(() => {
+  // Switched to useEffect to run AFTER paint. 
+  // This eliminates the "Forced reflow" violation.
+  useEffect(() => {
     if (containerRef.current) {
       const isNewChat = lastChatIdRef.current !== selectedChatId;
       
       if (isNewChat) {
-        // Instant jump for new chat
+        // Jump to bottom immediately for new chat
         containerRef.current.scrollTop = containerRef.current.scrollHeight;
       } else if (messagesEndRef.current) {
-        // Smooth scroll for new message in same chat
+        // Smooth scroll for new messages
         messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       }
 
-      // Update ref tracking
       if (messages.length > 0) {
         lastChatIdRef.current = selectedChatId;
       }
@@ -30,8 +29,10 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
 
   const handleImageLoad = () => {
     if (containerRef.current) {
+       // Check if user is near bottom before auto-scrolling
        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
        const isNearBottom = scrollHeight - scrollTop - clientHeight < 500;
+       
        if (isNearBottom) {
          containerRef.current.scrollTop = containerRef.current.scrollHeight;
        }
@@ -52,6 +53,25 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
       }}
     >
       {messages.map(msg => {
+        // --- SYSTEM MESSAGES ---
+        if (msg.type === 'system') {
+          return (
+            <div key={msg.id} style={{
+              alignSelf: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '10px',
+              padding: '5px 12px',
+              margin: '10px 0',
+              maxWidth: '80%'
+            }}>
+              <span style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic' }}>
+                {msg.text}
+              </span>
+            </div>
+          );
+        }
+
+        // --- REGULAR MESSAGES ---
         const isMe = msg.senderId === loggedInUser.uid;
         return (
           <div key={msg.id} style={{

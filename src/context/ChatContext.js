@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   collection, addDoc, setDoc, updateDoc, deleteDoc, doc, 
-  query, where, orderBy, onSnapshot, serverTimestamp, increment 
-} from "firebase/firestore";
+  query, where, orderBy, onSnapshot, serverTimestamp, increment, 
+  arrayRemove, getDocs, getDoc, arrayUnion, deleteField // <--- IMPORT deleteField
+} from "firebase/firestore"; 
 import { db } from "../firebase"; 
 import { useAuth } from './AuthContext';
 
@@ -16,7 +17,7 @@ export const ChatProvider = ({ children }) => {
   const { loggedInUser } = useAuth();
   const [myChats, setMyChats] = useState([]);
 
-  // 1. GLOBAL LISTENER: Fetch chats for the logged-in user
+  // 1. GLOBAL LISTENER
   useEffect(() => {
     if (!loggedInUser) {
       setMyChats([]);
@@ -52,15 +53,7 @@ export const ChatProvider = ({ children }) => {
         [`unreadCounts.${loggedInUser.uid}`]: 0
       });
     } catch (error) {
-      // Fallback for older documents without the field
-      try {
-        const chatRef = doc(db, "chats", chatId);
-        await setDoc(chatRef, {
-          unreadCounts: { [loggedInUser.uid]: 0 }
-        }, { merge: true });
-      } catch (e) {
-        console.error("Error marking read:", e);
-      }
+      console.error("Error marking read:", error);
     }
   };
 
@@ -79,11 +72,11 @@ export const ChatProvider = ({ children }) => {
         photoURL: loggedInUser.photoURL || "" 
       });
 
-      // Resolve other emails to Users
+      // Resolve other emails
       for (const email of participantEmails) {
         if (email === loggedInUser.email) continue; 
         const q = query(usersRef, where("email", "==", email));
-        const querySnapshot = await import("firebase/firestore").then(mod => mod.getDocs(q));
+        const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const userDoc = querySnapshot.docs[0];
@@ -103,8 +96,7 @@ export const ChatProvider = ({ children }) => {
         return false;
       }
 
-      // Check for existing 1:1 or exact group match
-      // (Note: We are doing a client-side check on the 'myChats' we already loaded)
+      // Check for existing
       const existingChat = myChats.find(c => {
         if (c.participants.length !== participantIds.length) return false;
         return participantIds.every(id => c.participants.includes(id));
@@ -158,7 +150,8 @@ export const ChatProvider = ({ children }) => {
         imageUrl: imageUrl,
         senderId: loggedInUser.uid,
         senderName: loggedInUser.playerName,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        type: 'text'
       });
 
       const chatRef = doc(db, "chats", chatId);
@@ -192,16 +185,110 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  // 5. ADMIN / UTILS
-  const hideChat = async (chatId, currentVisibleTo, chatType) => {
-    if (chatType === 'roster') {
-      alert("Team Roster chats cannot be deleted.");
+  // 5. UPDATE GROUP PHOTO
+  const updateGroupPhoto = async (chatId, photoURL) => {
+    try {
+      const chatRef = doc(db, "chats", chatId);
+      await updateDoc(chatRef, { photoURL: photoURL });
+
+      const systemMsgText = `${loggedInUser.playerName} changed the group photo.`;
+      
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        text: systemMsgText,
+        type: 'system',
+        createdAt: serverTimestamp()
+      });
+
+      await updateDoc(chatRef, {
+        lastMessage: systemMsgText,
+        lastMessageTime: new Date()
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error updating group photo:", error);
       return false;
     }
+  };
+
+  // 6. ADD PARTICIPANT (UPDATED)
+  const addParticipant = async (chatId, newEmail, includeHistory) => {
+    try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", newEmail));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            alert("User not found.");
+            return false;
+        }
+
+        const userDoc = querySnapshot.docs[0];
+        const newUser = {
+            uid: userDoc.id,
+            name: userDoc.data().playerName || "Unknown",
+            email: userDoc.data().email,
+            photoURL: userDoc.data().photoURL || ""
+        };
+
+        const chatRef = doc(db, "chats", chatId);
+        const chatSnap = await getDoc(chatRef);
+        const chatData = chatSnap.data();
+
+        if (chatData.participants.includes(newUser.uid)) {
+            alert("User is already in the group.");
+            return false;
+        }
+
+        // Basic Update
+        let updateData = {
+            participants: arrayUnion(newUser.uid),
+            visibleTo: arrayUnion(newUser.uid),
+            participantDetails: arrayUnion(newUser),
+            [`unreadCounts.${newUser.uid}`]: 0
+        };
+
+        // FIXED LOGIC HERE:
+        if (!includeHistory) {
+             // Hide history -> Set timestamp
+             updateData[`hiddenHistory.${newUser.uid}`] = serverTimestamp();
+        } else {
+             // Show history -> EXPLICITLY DELETE any old restriction
+             updateData[`hiddenHistory.${newUser.uid}`] = deleteField();
+        }
+
+        // 1. Update Chat Doc
+        await updateDoc(chatRef, updateData);
+
+        // 2. Add System Message
+        const systemMsgText = `${loggedInUser.playerName} added ${newUser.name} to the group.`;
+        await addDoc(collection(db, "chats", chatId, "messages"), {
+            text: systemMsgText,
+            type: 'system',
+            createdAt: serverTimestamp()
+        });
+
+        // 3. Update Last Message
+        await updateDoc(chatRef, {
+            lastMessage: systemMsgText,
+            lastMessageTime: new Date()
+        });
+
+        return true;
+    } catch (error) {
+        console.error("Error adding participant:", error);
+        alert("Error adding user: " + error.message);
+        return false;
+    }
+  };
+
+  // 7. LEAVE/HIDE CHAT
+  const hideChat = async (chatId, currentVisibleTo) => {
     try {
       const newVisibleTo = currentVisibleTo.filter(uid => uid !== loggedInUser.uid);
       if (newVisibleTo.length === 0) {
-        await deleteDoc(doc(db, "chats", chatId));
+        const chatRef = doc(db, "chats", chatId);
+        await updateDoc(chatRef, { visibleTo: [] });
       } else {
         const chatRef = doc(db, "chats", chatId);
         await updateDoc(chatRef, { visibleTo: newVisibleTo });
@@ -209,6 +296,43 @@ export const ChatProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error("Error hiding chat:", error);
+      return false;
+    }
+  };
+
+  const leaveChat = async (chatId) => {
+    try {
+      const chatRef = doc(db, "chats", chatId);
+      const chatSnap = await getDoc(chatRef);
+      if (!chatSnap.exists()) return false;
+
+      const chatData = chatSnap.data();
+      
+      const updatedParticipants = chatData.participants.filter(uid => uid !== loggedInUser.uid);
+      const updatedVisibleTo = chatData.visibleTo.filter(uid => uid !== loggedInUser.uid);
+      const updatedDetails = chatData.participantDetails.filter(p => p.uid !== loggedInUser.uid);
+
+      await updateDoc(chatRef, {
+        participants: updatedParticipants,
+        visibleTo: updatedVisibleTo,
+        participantDetails: updatedDetails
+      });
+
+      const systemMsgText = `${loggedInUser.playerName} left the group.`;
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        text: systemMsgText,
+        type: 'system',
+        createdAt: serverTimestamp()
+      });
+      
+      await updateDoc(chatRef, {
+        lastMessage: systemMsgText,
+        lastMessageTime: new Date()
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error leaving chat:", error);
       return false;
     }
   };
@@ -224,13 +348,13 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  // Need this for arrayUnion in createChat
-  const { arrayUnion } = require("firebase/firestore"); 
-
   const value = {
     myChats,
     createChat,
     sendMessage,
+    updateGroupPhoto,
+    addParticipant,
+    leaveChat,
     hideChat,
     renameChat,
     markChatAsRead
