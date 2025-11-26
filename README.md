@@ -64,7 +64,9 @@ Located in **`src/components/common/`**. These are reusable "dumb" components th
 
 * **`src/components/Home.js`**: The dashboard. Combines `CalendarView` and `MyTeams`.
 * **`src/components/Groups.js`**: Community groups for posts/feeds.
+* **`src/components/MyTeams.js`**: Teams that the user is apart of and actions needed to be taken.
 * **`src/components/MyProfile.js`**: User settings and profile picture management.
+* **`src/components/Feedback.js`**: A page dedicated to providing feedback and issues on the app being developed - only intended for use during development.
 * **`src/components/ManagerDashboard.js`**: Admin tools for creating rosters and inviting players.
 
 ### **5. Messaging System (TeamChat)**
