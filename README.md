@@ -37,8 +37,13 @@ The UI is built using a "Container/Presentation" pattern where parent components
   * Fetches Rosters, Events, and User Profiles.
 * **`src/context/ChatContext.js`**: Manages **Communication**.
   * Listens for real-time chat updates (`myChats`).
-  * Handles `sendMessage`, `createChat`, and `markChatAsRead`.
-  * Calculates unread badge counts.
+  * Handles message lifecycle: `sendMessage`, `markChatAsRead`.
+  * Handles group management: `createChat`, `addParticipant`, `leaveChat`, `updateGroupPhoto`.
+  * Manages history visibility logic (`hiddenHistory`) for new members.
+
+### **Utility Functions**
+
+* **`src/utils/imageUtils.js`**: Handles client-side image compression. Used to resize avatar and attachment images before uploading to Firebase Storage to improve performance and reduce bandwidth.
 
 ### **2. Common UI (The Design System)**
 
@@ -67,10 +72,11 @@ Located in **`src/components/common/`**. These are reusable "dumb" components th
 The chat system is split into specialized sub-components in **`src/components/chat/`**:
 
 * **`TeamChat.js` (Controller):** The parent container. It connects to the Contexts, manages local state (selected chat), and orchestrates the sub-components.
-* **`ChatList.js`:** The left-hand list of conversations. Displays user avatars and unread badges.
-* **`ChatHeader.js`:** The top bar showing the active chat name and action menu (Rename/Delete).
+* **`ChatList.js`:** The left-hand list of conversations. Displays user avatars and unread badges using a 3-column grid layout.
+* **`ChatHeader.js`:** The top bar showing the active chat name, avatar, and action menu.
 * **`MessageList.js`:** The scrolling history area. Handles "Auto-Scroll" logic and layout stability.
 * **`MessageInput.js`:** The bottom form for typing and attaching images.
+* **`ChatDetailsModal.js`**: A modal interface for managing chat settings. Handles renaming groups, updating group photos, adding members, and leaving groups.
 * **`ImageViewer.js`:** A portal-based modal for viewing full-screen images.
 
 ---
@@ -90,6 +96,10 @@ To keep the codebase clean and efficient, follow these principles when adding ne
 4.  **Mobile First:**
     * Always test layout changes against `MOBILE_BREAKPOINT`.
     * Remember that mobile browsers behave differently (e.g., address bars, keyboard zooming).
+5.  **Performance Optimization:**
+    * Use `React.memo` for list items (like `ChatListItem`) to prevent "render storms" in large lists.
+    * Use `requestAnimationFrame` for scroll adjustments to avoid forced reflows.
+    * Compress images client-side (`imageUtils.js`) before uploading.
 
 ---
 
