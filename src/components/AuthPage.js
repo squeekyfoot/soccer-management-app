@@ -1,22 +1,16 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // Import the "brain"
+import { useAuth } from '../context/AuthContext';
+import Button from './common/Button'; // NEW
+import Input from './common/Input';   // NEW
+import { COLORS } from '../constants'; // NEW
 
-/**
- * This component manages its own LOCAL state for the forms.
- * It calls functions from the AuthContext to do the work.
- */
 function AuthPage() {
-  // This state switches between Sign In and Sign Up
   const [authView, setAuthView] = useState('signIn');
-
-  // Get the signIn and signUp functions from our "brain"
   const { signIn, signUp } = useAuth();
 
-  // --- Sign In State ---
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // --- Sign Up State ---
   const [signUpForm, setSignUpForm] = useState({
     playerName: "",
     email: "",
@@ -27,184 +21,90 @@ function AuthPage() {
     comments: "",
   });
 
-  // --- Form Handlers ---
   const handleSignInSubmit = (e) => {
     e.preventDefault();
-    signIn(email, password); // Call the function from the context
+    signIn(email, password);
   };
 
   const handleSignUpSubmit = (e) => {
     e.preventDefault();
-    signUp(signUpForm); // Call the function from the context
+    signUp(signUpForm);
   };
 
-  // This one handler manages all the sign-up form inputs
   const handleSignUpChange = (e) => {
     const { name, value } = e.target;
-    setSignUpForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setSignUpForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Container style for the card
+  const cardStyle = {
+    display: 'flex', flexDirection: 'column', gap: '10px',
+    backgroundColor: COLORS.sidebar, padding: '30px',
+    borderRadius: '12px', width: '100%', maxWidth: '400px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    boxSizing: 'border-box'
   };
 
   return (
     <header className="App-header">
       {authView === 'signUp' ? (
-        /* --- SIGN-UP FORM --- */
-        <form onSubmit={handleSignUpSubmit} style={{
-          display: 'flex', flexDirection: 'column', gap: '15px',
-          backgroundColor: '#282c34', padding: '20px',
-          borderRadius: '8px', width: '350px'
-        }}>
-          <h2 style={{ margin: 0, marginBottom: '10px' }}>Create Your Account</h2>
+        <form onSubmit={handleSignUpSubmit} style={cardStyle}>
+          <h2 style={{ margin: '0 0 20px 0' }}>Create Account</h2>
           
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Player Name:
-            <input
-              type="text"
-              name="playerName" // 'name' prop is important
-              value={signUpForm.playerName}
-              onChange={handleSignUpChange}
-              required
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Email:
-            <input
-              type="email"
-              name="email"
-              value={signUpForm.email}
-              onChange={handleSignUpChange}
-              required
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Password (min 6 characters):
-            <input
-              type="password"
-              name="password"
-              value={signUpForm.password}
-              onChange={handleSignUpChange}
-              required
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Phone:
-            <input
-              type="tel"
-              name="phone"
-              value={signUpForm.phone}
-              onChange={handleSignUpChange}
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Address:
-            <input
-              type="text"
-              name="address"
-              value={signUpForm.address}
-              onChange={handleSignUpChange}
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Notification Preference:
+          <Input label="Player Name" name="playerName" value={signUpForm.playerName} onChange={handleSignUpChange} required />
+          <Input label="Email" type="email" name="email" value={signUpForm.email} onChange={handleSignUpChange} required />
+          <Input label="Password" type="password" name="password" value={signUpForm.password} onChange={handleSignUpChange} required />
+          <Input label="Phone" type="tel" name="phone" value={signUpForm.phone} onChange={handleSignUpChange} />
+          <Input label="Address" name="address" value={signUpForm.address} onChange={handleSignUpChange} />
+          
+          {/* Select is slightly different, keeping manual for now or could create Select component later */}
+          <div style={{ marginBottom: '15px', textAlign: 'left' }}>
+            <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Notification Preference</label>
             <select
               name="notificationPreference"
               value={signUpForm.notificationPreference}
               onChange={handleSignUpChange}
-              style={{ padding: '8px' }}
+              style={{ 
+                width: '100%', padding: '10px', backgroundColor: '#3a3f4a', 
+                border: `1px solid ${COLORS.border}`, borderRadius: '4px', color: 'white', fontSize: '16px' 
+              }}
             >
               <option value="Email">Email</option>
               <option value="Text Message">Text Message</option>
             </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Comments:
-            <textarea
-              name="comments"
-              value={signUpForm.comments}
-              onChange={handleSignUpChange}
-              placeholder="Feel free to contact me anytime."
-              style={{ padding: '8px', minHeight: '60px' }}
-            />
-          </label>
+          </div>
+
+          <Button type="submit" variant="primary">Sign Up</Button>
           
-          <button type="submit" style={{
-            padding: '10px', backgroundColor: '#61dafb', border: 'none',
-            cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
-          }}>
-            Sign Up
-          </button>
-          
-          <p style={{ fontSize: '14px', marginTop: '15px', marginBottom: '0' }}>
+          <div style={{ marginTop: '10px', fontSize: '14px' }}>
             Already have an account?{' '}
-            <button
-              type="button"
+            <span 
               onClick={() => setAuthView('signIn')}
-              style={{
-                background: 'none', border: 'none', color: '#61dafb',
-                cursor: 'pointer', padding: 0, fontSize: '14px'
-              }}
+              style={{ color: COLORS.primary, cursor: 'pointer', fontWeight: 'bold' }}
             >
               Sign In
-            </button>
-          </p>
+            </span>
+          </div>
         </form>
 
       ) : (
-        /* --- SIGN-IN FORM --- */
-        <form onSubmit={handleSignInSubmit} style={{
-          display: 'flex', flexDirection: 'column', gap: '15px',
-          backgroundColor: '#282c34', padding: '20px',
-          borderRadius: '8px', width: '350px'
-        }}>
-          <h2 style={{ margin: 0, marginBottom: '10px' }}>Welcome Back!</h2>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Email:
-            <input
-              type="email"
-              placeholder="you@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', gap: '5px' }}>
-            Password:
-            <input
-              type="password"
-              placeholder="Your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ padding: '8px' }}
-            />
-          </label>
-          <button type="submit" style={{
-            padding: '10px', backgroundColor: '#61dafb', border: 'none',
-            cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
-          }}>
-            Sign In
-          </button>
-          <p style={{ fontSize: '14px', marginTop: '15px', marginBottom: '0' }}>
+        <form onSubmit={handleSignInSubmit} style={cardStyle}>
+          <h2 style={{ margin: '0 0 20px 0' }}>Welcome Back!</h2>
+          
+          <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          
+          <Button type="submit" variant="primary">Sign In</Button>
+          
+          <div style={{ marginTop: '10px', fontSize: '14px' }}>
             Don't have an account?{' '}
-            <button
-              type="button"
+            <span 
               onClick={() => setAuthView('signUp')}
-              style={{
-                background: 'none', border: 'none', color: '#61dafb',
-                cursor: 'pointer', padding: 0, fontSize: '14px'
-              }}
+              style={{ color: COLORS.primary, cursor: 'pointer', fontWeight: 'bold' }}
             >
               Sign Up
-            </button>
-          </p>
+            </span>
+          </div>
         </form>
       )}
     </header>
