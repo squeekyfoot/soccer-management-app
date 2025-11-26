@@ -11,13 +11,22 @@
         {
           "fieldPath": "lastMessageTime",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "chats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibleTo",
+          "arrayConfig": "CONTAINS"
         },
         {
-          "fieldPath": "__name__",
+          "fieldPath": "lastMessageTime",
           "order": "DESCENDING"
         }
-      ],
-      "density": "SPARSE_ALL"
+      ]
     }
   ],
   "fieldOverrides": []
