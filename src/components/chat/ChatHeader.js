@@ -1,13 +1,13 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react'; 
+import { ChevronLeft, MoreVertical } from 'lucide-react'; 
 import { COLORS } from '../../constants';
 
 const ChatHeader = ({ 
   selectedChat, 
   userProfiles, 
   loggedInUser, 
-  onShowDetails, // New prop to trigger details modal
-  onBack,        // New prop for Mobile Back navigation
+  onShowDetails, 
+  onBack,
   totalUnreadCount
 }) => {
   if (!selectedChat) return null;
@@ -37,7 +37,7 @@ const ChatHeader = ({
       display: 'flex', 
       justifyContent: 'space-between', 
       alignItems: 'center',
-      height: '60px'
+      minHeight: '100px' // Height to fit vertical stack
     }}>
       
       {/* LEFT: Back Button (Mobile Only) */}
@@ -65,45 +65,58 @@ const ChatHeader = ({
         )}
       </div>
 
-      {/* CENTER: Chat Info (Clickable) */}
+      {/* CENTER: Chat Info (Clickable) - Vertical Stack */}
       <div 
         onClick={onShowDetails}
         style={{ 
           flex: 2, 
-          display: 'flex', flexDirection: 'column', alignItems: 'center', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center',    
+          justifyContent: 'center',
           cursor: 'pointer' 
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-           {/* Small Avatar in Header */}
-           <div style={{ 
-             width: '24px', height: '24px', borderRadius: '50%', 
-             backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-             fontSize: '10px', border: '1px solid #666'
-           }}>
-             {iconImage ? (
-               <img src={iconImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-             ) : (
-               <span>{displayTitle.charAt(0)}</span>
-             )}
-           </div>
-           <h3 style={{ margin: 0, fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
-             {displayTitle}
-           </h3>
-        </div>
-        {!isDM && (
-           <span style={{ fontSize: '10px', color: '#888' }}>
+         {/* 1. Avatar (Top) - Increased Size 50px */}
+         <div style={{ 
+           width: '50px', height: '50px', borderRadius: '50%', 
+           backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+           fontSize: '20px', border: '1px solid #666', marginBottom: '6px'
+         }}>
+           {iconImage ? (
+             <img src={iconImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+           ) : (
+             <span>{displayTitle.charAt(0)}</span>
+           )}
+         </div>
+
+         {/* 2. Chat Name (Middle) */}
+         <h3 style={{ 
+             margin: 0, 
+             fontSize: '16px', 
+             whiteSpace: 'nowrap', 
+             overflow: 'hidden', 
+             textOverflow: 'ellipsis', 
+             maxWidth: '200px',
+             lineHeight: '1.2'
+         }}>
+           {displayTitle}
+         </h3>
+
+         {/* 3. Member Count (Bottom) */}
+         {!isDM && (
+           <span style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
              {selectedChat.participantDetails?.length || 0} members
            </span>
-        )}
+         )}
       </div>
 
-      {/* RIGHT: Action Indicator */}
+      {/* RIGHT: Action Indicator (Vertical Ellipsis) */}
       <div 
         onClick={onShowDetails}
         style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }}
       >
-        <ChevronRight size={20} color="#666" />
+        <MoreVertical size={24} color="#666" />
       </div>
 
     </div>
