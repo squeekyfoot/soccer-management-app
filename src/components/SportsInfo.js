@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext'; 
-import Button from './common/Button'; // NEW
-import Input from './common/Input';   // NEW
-import { COLORS } from '../constants'; // NEW
+import Button from './common/Button'; 
+import Input from './common/Input';   
+import { COLORS } from '../constants'; 
 
 function SportsInfo() {
   const { soccerDetails, updateSoccerDetails } = useAuth();
@@ -157,21 +157,7 @@ function SportsInfo() {
   return (
     <div style={{ textAlign: 'left' }}>
       <h2>Sports Information</h2>
-      <p>You haven't added any sports information yet.</p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
-        <select style={{ padding: '10px', borderRadius: '8px', border: 'none' }}>
-          <option value="soccer">Soccer</option>
-        </select>
-        <Button onClick={() => {
-            setSoccerFormData({
-              favoredPosition: "", jerseySize: "Large", playerNumber: 0,
-              comments: "", currentRosters: "", rosterJerseysOwned: ""
-            });
-            setIsEditingSoccer(true);
-        }}>
-          Enter Info
-        </Button>
-      </div>
+      <p style={{ color: '#ccc', fontStyle: 'italic' }}>You haven't added any sports information yet.</p>
     </div>
   );
 }

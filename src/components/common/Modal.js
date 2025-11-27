@@ -20,12 +20,12 @@ const Modal = ({ title, children, onClose, actions }) => {
       <div 
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking content
         style={{
-          backgroundColor: '#2c3e50', 
+          backgroundColor: COLORS.sidebar, // Match AuthPage
           padding: '30px', 
-          borderRadius: '10px', 
-          maxWidth: '500px', 
+          borderRadius: '12px',            // Match AuthPage
+          maxWidth: '400px',               // Match AuthPage width
           width: '100%',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', // Match AuthPage shadow
           border: `1px solid ${COLORS.border}`,
           maxHeight: '90vh',
           overflowY: 'auto'

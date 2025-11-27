@@ -13,7 +13,7 @@ import {
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
   query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, 
-  deleteField, onSnapshot 
+  deleteField, onSnapshot, increment 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "../firebase"; 
@@ -59,10 +59,6 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []); 
 
-  // ... (signIn, signUp, signOutUser, uploadProfileImage, uploadImage, deleteProfileImage, updateProfile, reauthenticate, updateSoccerDetails, isManager, createRoster, fetchRosters, deleteRoster, addPlayerToRoster, removePlayerFromRoster, fetchUserRosters, createEvent, fetchEvents, deleteEvent, fetchAllUserEvents, createGroup, fetchUserGroups, createGroupPost, addGroupMembers, updateGroupMemberRole, transferGroupOwnership, removeGroupMember, subscribeToIncomingRequests, subscribeToUserRequests, subscribeToDiscoverableRosters, submitJoinRequest, fetchIncomingRequests, fetchUserRequests, fetchDiscoverableRosters, fetchPlayerDetails - ALL UNCHANGED)
-  // To save space in this output, I am keeping the previous implementations of these functions as they were.
-  // I will only explicitly write out the modified respondToRequest and necessary context providing below.
-
   const signIn = async (email, password) => {
     setIsLoading(true);
     try {
@@ -74,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(false);
   };
 
+  // --- UPDATED SIGN UP ---
   const signUp = async (formData) => {
     if (formData.password.length < 6) {
       alert("Password must be at least 6 characters long.");
@@ -85,14 +82,25 @@ export const AuthProvider = ({ children }) => {
       userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
       
+      // Concatenate First + Last for display name compatibility
+      const displayName = `${formData.firstName} ${formData.lastName}`;
+      
       const userProfileData = {
         uid: user.uid,
-        playerName: formData.playerName,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        preferredName: formData.preferredName,
+        playerName: displayName, // Kept for display/compatibility
         email: formData.email,
         phone: formData.phone,
-        address: formData.address,
         notificationPreference: formData.notificationPreference,
-        comments: formData.comments,
+        // Emergency Contact Object
+        emergencyContact: {
+            firstName: formData.emergencyContactFirstName,
+            lastName: formData.emergencyContactLastName,
+            phone: formData.emergencyContactPhone,
+            relationship: formData.emergencyContactRelationship
+        },
         role: 'player', 
         photoURL: ""
       };
@@ -159,6 +167,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // --- UPDATED UPDATE PROFILE ---
   const updateProfile = async (profileData, newImageFile = null, removeImage = false) => {
     if (!loggedInUser) return;
 
@@ -185,12 +194,22 @@ export const AuthProvider = ({ children }) => {
         photoURL = await uploadProfileImage(newImageFile, loggedInUser.uid);
       }
 
+      // Concatenate for display
+      const displayName = `${profileData.firstName} ${profileData.lastName}`;
+
       const dataToUpdate = {
-        playerName: profileData.playerName,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        preferredName: profileData.preferredName,
+        playerName: displayName,
         phone: profileData.phone,
-        address: profileData.address,
         notificationPreference: profileData.notificationPreference,
-        comments: profileData.comments,
+        emergencyContact: {
+            firstName: profileData.emergencyContactFirstName,
+            lastName: profileData.emergencyContactLastName,
+            phone: profileData.emergencyContactPhone,
+            relationship: profileData.emergencyContactRelationship
+        },
         email: profileData.email,
         photoURL: photoURL || ""
       };
@@ -199,7 +218,7 @@ export const AuthProvider = ({ children }) => {
       await updateDoc(userDocRef, dataToUpdate);
       
       await firebaseUpdateProfile(auth.currentUser, {
-        displayName: profileData.playerName,
+        displayName: displayName,
         photoURL: photoURL
       });
       
@@ -208,6 +227,7 @@ export const AuthProvider = ({ children }) => {
         ...dataToUpdate
       }));
 
+      // Update denormalized data in chats
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);
@@ -219,7 +239,7 @@ export const AuthProvider = ({ children }) => {
             if (p.uid === loggedInUser.uid) {
               return { 
                 ...p, 
-                name: profileData.playerName, 
+                name: displayName, 
                 email: profileData.email,
                 photoURL: photoURL || "" 
               };
@@ -850,7 +870,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- UPDATED respondToRequest: Accept explicit targetGroupId ---
   const respondToRequest = async (request, action, targetGroupId = null) => {
       if (!isManager()) return false;
       
@@ -924,6 +943,66 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
+  // --- NEW FEEDBACK FUNCTIONS ---
+
+  const createFeedback = async (data) => {
+    try {
+      await addDoc(collection(db, "feedback"), {
+        ...data,
+        authorId: loggedInUser.uid,
+        authorName: loggedInUser.playerName,
+        status: 'Proposed', // Default status
+        developerNotes: '',
+        votes: 0,
+        voters: [], // Array to track who voted
+        createdAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating feedback:", error);
+      alert("Error submitting feedback: " + error.message);
+      return false;
+    }
+  };
+
+  const subscribeToFeedback = (callback) => {
+    // Order by votes descending (highest votes first)
+    const feedbackRef = collection(db, "feedback");
+    const q = query(feedbackRef, orderBy("votes", "desc"));
+    
+    return onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(items);
+    });
+  };
+
+  const voteForFeedback = async (feedbackId) => {
+    if (!loggedInUser) return;
+    try {
+      const feedbackRef = doc(db, "feedback", feedbackId);
+      const feedbackSnap = await getDoc(feedbackRef);
+      
+      if (feedbackSnap.exists()) {
+        const data = feedbackSnap.data();
+        // Check if user already voted
+        if (data.voters && data.voters.includes(loggedInUser.uid)) {
+          alert("You have already voted for this item.");
+          return false;
+        }
+
+        await updateDoc(feedbackRef, {
+          votes: increment(1),
+          voters: arrayUnion(loggedInUser.uid)
+        });
+        return true;
+      }
+    } catch (error) {
+      console.error("Error voting:", error);
+      return false;
+    }
+  };
+
+  // --- VALUE OBJECT ---
   const value = {
     loggedInUser,
     soccerDetails,
@@ -963,7 +1042,10 @@ export const AuthProvider = ({ children }) => {
     subscribeToIncomingRequests,
     subscribeToUserRequests,
     subscribeToDiscoverableRosters,
-    fetchPlayerDetails
+    fetchPlayerDetails,
+    createFeedback,
+    subscribeToFeedback,
+    voteForFeedback
   };
 
   return (

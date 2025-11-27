@@ -66,7 +66,7 @@ Located in **`src/components/common/`**. These are reusable "dumb" components th
 * **`src/components/Groups.js`**: Community groups for posts/feeds.
 * **`src/components/MyTeams.js`**: Teams that the user is apart of and actions needed to be taken.
 * **`src/components/MyProfile.js`**: User settings and profile picture management.
-* **`src/components/Feedback.js`**: A page dedicated to providing feedback and issues on the app being developed - only intended for use during development.
+* **`src/components/Feedback.js`**: A page dedicated to crowd-sourcing feature prioritization. Users can submit new ideas, vote on existing ones, and track the status (`Proposed`, `Accepted`, `In Progress`, `Completed`).
 * **`src/components/ManagerDashboard.js`**: Admin tools for creating rosters and inviting players.
 
 ### **5. Messaging System (TeamChat)**
@@ -105,9 +105,20 @@ To keep the codebase clean and efficient, follow these principles when adding ne
 
 ---
 
-## **Security Rules (Firestore)**
+## **Database Maintenance & Security**
 
-The app uses a strict "Owner/Manager" security model enforced by Firestore Rules (`firestore.rules`).
+The app utilizes a strict "Owner/Manager" security model enforced by Firestore Rules (`firestore.rules`).
+
+### **Core Security Principle: The CRUD-to-Rule Rule** 🛡️
+Whenever you implement a new **C**reate, **R**ead, **U**pdate, or **D**elete operation (CRUD) in your application, you must immediately check and update the security rules for the relevant collection.
+
+| New Feature | Collection | CRUD Operation | Required Rule |
+| :--- | :--- | :--- | :--- |
+| **Submit Feedback** | `/feedback` | `create` | Allow authenticated user, but restrict initial `votes` and `voters` fields. |
+| **View Feedback List** | `/feedback` | `read` | Allow all authenticated users. |
+| **Vote on Feedback** | `/feedback` | `update` | Allow authenticated users to modify `votes` and `voters`. |
+
+### **Existing Rules Summary**
 
 * **Users:** Only the owner can edit their profile. Everyone can read profiles (for search).
 * **Rosters:** Only Managers can create/edit rosters. Everyone can read.

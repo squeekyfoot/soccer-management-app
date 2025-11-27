@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import Button from './common/Button'; // NEW
-import Input from './common/Input';   // NEW
-import { COLORS } from '../constants'; // NEW
+import Button from './common/Button'; 
+import Input from './common/Input';   
+import { COLORS } from '../constants'; 
 
 function AuthPage() {
   const [authView, setAuthView] = useState('signIn');
@@ -12,13 +12,17 @@ function AuthPage() {
   const [password, setPassword] = useState("");
 
   const [signUpForm, setSignUpForm] = useState({
-    playerName: "",
+    firstName: "",
+    lastName: "",
+    preferredName: "",
     email: "",
     password: "",
     phone: "",
-    address: "",
     notificationPreference: "Email",
-    comments: "",
+    emergencyContactFirstName: "",
+    emergencyContactLastName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelationship: ""
   });
 
   const handleSignInSubmit = (e) => {
@@ -36,30 +40,57 @@ function AuthPage() {
     setSignUpForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // Container style for the card
+  // 1. Main Page Container: Full viewport, scrollable, centered horizontally
+  const pageStyle = {
+    minHeight: '100vh',
+    width: '100vw',
+    backgroundColor: COLORS.background, 
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',       
+    justifyContent: 'flex-start', 
+    paddingTop: '60px',         
+    paddingBottom: '60px',      
+    paddingLeft: '20px',
+    paddingRight: '20px',
+    boxSizing: 'border-box',
+    overflowY: 'auto'           
+  };
+
+  // 2. Card Container
   const cardStyle = {
-    display: 'flex', flexDirection: 'column', gap: '10px',
-    backgroundColor: COLORS.sidebar, padding: '30px',
-    borderRadius: '12px', width: '100%', maxWidth: '400px',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    display: 'flex', 
+    flexDirection: 'column', 
+    gap: '10px',
+    backgroundColor: COLORS.sidebar, 
+    padding: '30px',
+    borderRadius: '12px', 
+    width: '100%', 
+    maxWidth: '400px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
     boxSizing: 'border-box'
   };
 
   return (
-    <header className="App-header">
+    <div style={pageStyle}>
+      <h1 style={{ color: COLORS.primary, marginBottom: '30px', marginTop: 0 }}>Soccer Manager</h1>
+      
       {authView === 'signUp' ? (
         <form onSubmit={handleSignUpSubmit} style={cardStyle}>
-          <h2 style={{ margin: '0 0 20px 0' }}>Create Account</h2>
+          <h2 style={{ margin: '0 0 20px 0', color: 'white' }}>Create Account</h2>
           
-          <Input label="Player Name" name="playerName" value={signUpForm.playerName} onChange={handleSignUpChange} required />
+          <div style={{ display: 'flex', gap: '10px' }}>
+             <div style={{ flex: 1 }}><Input label="First Name" name="firstName" value={signUpForm.firstName} onChange={handleSignUpChange} required /></div>
+             <div style={{ flex: 1 }}><Input label="Last Name" name="lastName" value={signUpForm.lastName} onChange={handleSignUpChange} required /></div>
+          </div>
+          <Input label="Preferred Name" name="preferredName" value={signUpForm.preferredName} onChange={handleSignUpChange} />
+          
           <Input label="Email" type="email" name="email" value={signUpForm.email} onChange={handleSignUpChange} required />
           <Input label="Password" type="password" name="password" value={signUpForm.password} onChange={handleSignUpChange} required />
           <Input label="Phone" type="tel" name="phone" value={signUpForm.phone} onChange={handleSignUpChange} />
-          <Input label="Address" name="address" value={signUpForm.address} onChange={handleSignUpChange} />
           
-          {/* Select is slightly different, keeping manual for now or could create Select component later */}
           <div style={{ marginBottom: '15px', textAlign: 'left' }}>
-            <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Notification Preference</label>
+            <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>System Notification Preference</label>
             <select
               name="notificationPreference"
               value={signUpForm.notificationPreference}
@@ -74,9 +105,19 @@ function AuthPage() {
             </select>
           </div>
 
-          <Button type="submit" variant="primary">Sign Up</Button>
+          <h4 style={{ margin: '15px 0 5px 0', color: COLORS.primary, textAlign: 'left', borderBottom: '1px solid #444', paddingBottom: '5px' }}>Emergency Contact</h4>
+          <div style={{ display: 'flex', gap: '10px' }}>
+             <div style={{ flex: 1 }}><Input label="First Name" name="emergencyContactFirstName" value={signUpForm.emergencyContactFirstName} onChange={handleSignUpChange} /></div>
+             <div style={{ flex: 1 }}><Input label="Last Name" name="emergencyContactLastName" value={signUpForm.emergencyContactLastName} onChange={handleSignUpChange} /></div>
+          </div>
+          <Input label="Phone Number" type="tel" name="emergencyContactPhone" value={signUpForm.emergencyContactPhone} onChange={handleSignUpChange} />
+          <Input label="Relationship" name="emergencyContactRelationship" value={signUpForm.emergencyContactRelationship} onChange={handleSignUpChange} />
+
+          <div style={{ marginTop: '20px' }}>
+            <Button type="submit" variant="primary" style={{ width: '100%' }}>Sign Up</Button>
+          </div>
           
-          <div style={{ marginTop: '10px', fontSize: '14px' }}>
+          <div style={{ marginTop: '15px', fontSize: '14px', color: '#ccc' }}>
             Already have an account?{' '}
             <span 
               onClick={() => setAuthView('signIn')}
@@ -89,14 +130,16 @@ function AuthPage() {
 
       ) : (
         <form onSubmit={handleSignInSubmit} style={cardStyle}>
-          <h2 style={{ margin: '0 0 20px 0' }}>Welcome Back!</h2>
+          <h2 style={{ margin: '0 0 20px 0', color: 'white' }}>Welcome Back!</h2>
           
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           
-          <Button type="submit" variant="primary">Sign In</Button>
+          <div style={{ marginTop: '20px' }}>
+            <Button type="submit" variant="primary" style={{ width: '100%' }}>Sign In</Button>
+          </div>
           
-          <div style={{ marginTop: '10px', fontSize: '14px' }}>
+          <div style={{ marginTop: '15px', fontSize: '14px', color: '#ccc' }}>
             Don't have an account?{' '}
             <span 
               onClick={() => setAuthView('signUp')}
@@ -107,7 +150,7 @@ function AuthPage() {
           </div>
         </form>
       )}
-    </header>
+    </div>
   );
 }
 
