@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext'; 
-import { collection, query, orderBy, onSnapshot, limitToLast, where } from "firebase/firestore"; // <--- Changed limit to limitToLast
+import { collection, query, orderBy, onSnapshot, limitToLast, where } from "firebase/firestore"; 
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
 import { compressImage } from '../utils/imageUtils'; 
 
-// Components
 import ChatList from './chat/ChatList';
 import ImageViewer from './chat/ImageViewer';
 import ChatHeader from './chat/ChatHeader';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 import ChatDetailsModal from './chat/ChatDetailsModal'; 
+import Header from './common/Header'; // NEW
 
 function TeamChat() {
   const { uploadImage, loggedInUser } = useAuth();
@@ -47,7 +47,6 @@ function TeamChat() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Sync selected chat with DB updates
   useEffect(() => {
     if (selectedChat) {
       const freshChatData = myChats.find(c => c.id === selectedChat.id);
@@ -86,11 +85,8 @@ function TeamChat() {
 
     const messagesRef = collection(db, "chats", selectedChat.id, "messages");
     
-    // --- QUERY CONSTRUCTION ---
-    // Use limitToLast to get the RECENT messages, not the oldest ones
     let qConstraints = [orderBy("createdAt", "asc"), limitToLast(50)];
 
-    // Check if I have restricted history in this chat
     if (selectedChat.hiddenHistory && selectedChat.hiddenHistory[loggedInUser.uid]) {
          const cutoffTimestamp = selectedChat.hiddenHistory[loggedInUser.uid];
          qConstraints.push(where("createdAt", ">=", cutoffTimestamp));
@@ -107,7 +103,7 @@ function TeamChat() {
       markChatAsRead(selectedChat.id);
     });
     return () => unsubscribe();
-  }, [selectedChat, isCreatingChat, loggedInUser.uid]);
+  }, [selectedChat, isCreatingChat, loggedInUser.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -255,97 +251,102 @@ function TeamChat() {
   const showChat = !isMobile || (selectedChat || isCreatingChat);
 
   return (
-    <div style={{ 
-      display: 'flex', height: '100%', width: '100%', maxWidth: '1000px', 
-      margin: '0 auto', backgroundColor: COLORS.background, 
-      borderRadius: isMobile ? '0' : '8px', overflow: 'hidden', boxSizing: 'border-box',
-      border: isMobile ? 'none' : `1px solid ${COLORS.border}`
-    }}>
-      
-      {showList && (
-        <ChatList 
-          myChats={myChats}
-          selectedChat={selectedChat}
-          onSelectChat={handleSelectChat}
-          onStartNewChat={startNewChat}
-          onDeleteChat={handleDeleteChat}
-          userProfiles={userProfiles}
-          isMobile={isMobile}
-        />
-      )}
-
-      {showChat && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, height: '100%' }}>
+    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+        {!isMobile && <Header title="Messaging" style={{ maxWidth: '1000px', margin: '0 auto 20px' }} />}
+        
+        <div style={{ 
+          display: 'flex', flex: 1, width: '100%', maxWidth: '1000px', 
+          margin: '0 auto', backgroundColor: COLORS.background, 
+          borderRadius: isMobile ? '0' : '8px', overflow: 'hidden', boxSizing: 'border-box',
+          border: isMobile ? 'none' : `1px solid ${COLORS.border}`,
+          height: isMobile ? '100%' : 'calc(100% - 80px)' // Subtract header height on desktop
+        }}>
           
-          {isCreatingChat ? (
-              <>
-                  <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, display: 'flex', alignItems: 'center' }}>
-                      {isMobile && (
-                        <button onClick={handleBackToList} style={{ background: 'none', border: 'none', color: COLORS.primary, fontSize: '24px', marginRight: '10px', cursor: 'pointer' }}>
-                          ‹
-                        </button>
-                      )}
-                      <h3 style={{ margin: 0, color: 'white' }}>New Message</h3>
-                  </div>
-                  <div style={{ padding: '20px' }}>
-                       <UserSearch onSelectionChange={setSelectedEmails} />
-                  </div>
-                  <div style={{ flex: 1 }} />
-              </>
-          ) : selectedChat ? (
-            <>
-              <ChatHeader 
-                selectedChat={selectedChat}
-                userProfiles={userProfiles}
-                loggedInUser={loggedInUser}
-                onShowDetails={() => setShowChatDetails(true)}
-                onBack={isMobile ? handleBackToList : null}
-                totalUnreadCount={totalUnread}
-              />
-
-              <MessageList 
-                messages={messages}
-                loggedInUser={loggedInUser}
-                onImageClick={setViewingImage}
-                selectedChatId={selectedChat.id}
-              />
-            </>
-          ) : (
-             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
-                Select a conversation or start a new one.
-             </div>
+          {showList && (
+            <ChatList 
+              myChats={myChats}
+              selectedChat={selectedChat}
+              onSelectChat={handleSelectChat}
+              onStartNewChat={startNewChat}
+              onDeleteChat={handleDeleteChat}
+              userProfiles={userProfiles}
+              isMobile={isMobile}
+            />
           )}
 
-          {(isCreatingChat || selectedChat) && (
-              <MessageInput 
-                messageText={newMessage}
-                onMessageChange={setNewMessage}
-                onSend={handleSend}
-                selectedFile={selectedFile}
-                onFileChange={handleFileChange}
-                onRemoveFile={() => setSelectedFile(null)}
-                fileInputRef={fileInputRef}
-                canSend={canSend}
-              />
+          {showChat && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, height: '100%' }}>
+              
+              {isCreatingChat ? (
+                  <>
+                      <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, display: 'flex', alignItems: 'center' }}>
+                          {isMobile && (
+                            <button onClick={handleBackToList} style={{ background: 'none', border: 'none', color: COLORS.primary, fontSize: '24px', marginRight: '10px', cursor: 'pointer' }}>
+                              ‹
+                            </button>
+                          )}
+                          <h3 style={{ margin: 0, color: 'white' }}>New Message</h3>
+                      </div>
+                      <div style={{ padding: '20px' }}>
+                          <UserSearch onSelectionChange={setSelectedEmails} />
+                      </div>
+                      <div style={{ flex: 1 }} />
+                  </>
+              ) : selectedChat ? (
+                <>
+                  <ChatHeader 
+                    selectedChat={selectedChat}
+                    userProfiles={userProfiles}
+                    loggedInUser={loggedInUser}
+                    onShowDetails={() => setShowChatDetails(true)}
+                    onBack={isMobile ? handleBackToList : null}
+                    totalUnreadCount={totalUnread}
+                  />
+
+                  <MessageList 
+                    messages={messages}
+                    loggedInUser={loggedInUser}
+                    onImageClick={setViewingImage}
+                    selectedChatId={selectedChat.id}
+                  />
+                </>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
+                    Select a conversation or start a new one.
+                </div>
+              )}
+
+              {(isCreatingChat || selectedChat) && (
+                  <MessageInput 
+                    messageText={newMessage}
+                    onMessageChange={setNewMessage}
+                    onSend={handleSend}
+                    selectedFile={selectedFile}
+                    onFileChange={handleFileChange}
+                    onRemoveFile={() => setSelectedFile(null)}
+                    fileInputRef={fileInputRef}
+                    canSend={canSend}
+                  />
+              )}
+            </div>
           )}
+
+          <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
+          
+          {showChatDetails && (
+            <ChatDetailsModal 
+              chat={selectedChat} 
+              onClose={() => setShowChatDetails(false)}
+              onRename={handleRenameGroup}
+              onDelete={handleDeleteChat}
+              onUpdatePhoto={handleGroupPhotoChange}
+              onAddMember={handleAddMember}
+              userProfiles={userProfiles}
+              loggedInUser={loggedInUser}
+            />
+          )}
+
         </div>
-      )}
-
-      <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
-      
-      {showChatDetails && (
-        <ChatDetailsModal 
-          chat={selectedChat} 
-          onClose={() => setShowChatDetails(false)}
-          onRename={handleRenameGroup}
-          onDelete={handleDeleteChat}
-          onUpdatePhoto={handleGroupPhotoChange}
-          onAddMember={handleAddMember}
-          userProfiles={userProfiles}
-          loggedInUser={loggedInUser}
-        />
-      )}
-
     </div>
   );
 }

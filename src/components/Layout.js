@@ -6,9 +6,9 @@ import MyProfile from './MyProfile';
 import ManagerDashboard from './ManagerDashboard'; 
 import TeamChat from './TeamChat';
 import Groups from './Groups';
-import MyTeams from './MyTeams'; // NEW
-import Feedback from './Feedback'; // NEW
-import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; // Removed LogOut
+import MyTeams from './MyTeams'; 
+import Feedback from './Feedback'; 
+import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; 
 
 import { MOBILE_BREAKPOINT, COLORS } from '../constants';
 
@@ -96,10 +96,9 @@ function Layout() {
         flexDirection: isMobile ? 'column' : 'row'
       }}
     >
+      {/* Mobile Header Removed - Title is now inside views */}
       {isMobile && (
-        <header className="mobile-header">
-          <h1>Team App</h1>
-        </header>
+         <div style={{ height: '10px', backgroundColor: COLORS.background }} /> // Tiny spacer for mobile top
       )}
 
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>

@@ -5,6 +5,8 @@ import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
 import { Users, Search, UserPlus, Globe } from 'lucide-react';
+import Header from './common/Header'; // NEW
+import Button from './common/Button'; // Ensure Button is imported if used in header actions
 
 function Groups() {
   const { 
@@ -48,7 +50,6 @@ function Groups() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Updated: wrapped in useCallback
   const loadGroups = useCallback(async () => {
     if (!loggedInUser) return;
     setIsLoading(true);
@@ -57,7 +58,6 @@ function Groups() {
     setIsLoading(false);
   }, [loggedInUser, fetchUserGroups]);
 
-  // Updated: Added loadGroups to dependency array
   useEffect(() => {
     if (loggedInUser) loadGroups();
   }, [loggedInUser, loadGroups]);
@@ -74,7 +74,6 @@ function Groups() {
     return () => unsubscribe();
   }, [selectedGroup]);
 
-  // Updated: Added dependency array
   useEffect(() => {
       if (currentView === 'findTeams') {
           setIsLoading(true);
@@ -211,17 +210,17 @@ function Groups() {
     </button>
   );
 
-  // ... (Views for Hub, MyGroups, FindTeams, Detail remain unchanged from previous step, just ensure they use the new variables)
-  
   if (currentView === 'hub') {
     return (
       <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <h2 style={{ marginBottom: '15px', flexShrink: 0 }}>Community</h2>
+        <Header title="Community" />
+        
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
           gridTemplateRows: isMobile ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', 
-          gap: '15px', flex: 1, minHeight: 0 
+          gap: '15px', flex: 1, minHeight: 0,
+          overflowY: 'auto' 
         }}>
           <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} />
           <HubButton title="Find Teams" desc="Search for local teams to join" icon={Search} onClick={() => setCurrentView('findTeams')} />
@@ -234,84 +233,96 @@ function Groups() {
 
   if (currentView === 'myGroups') {
     return (
-      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
-        <button onClick={() => setCurrentView('hub')} style={{ background: 'none', border: 'none', color: COLORS.primary, cursor: 'pointer', marginBottom: '15px', fontSize: '16px' }}>← Back to Hub</button>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <h2>My Groups</h2>
-          <button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: '10px 15px', backgroundColor: COLORS.primary, border: 'none', cursor: 'pointer', fontWeight: 'bold', borderRadius: '5px' }}>
-            {showCreateForm ? "Cancel" : "+ Create Group"}
-          </button>
+      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Header 
+          title="My Groups" 
+          actions={
+            <>
+              <Button onClick={() => setCurrentView('hub')} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button>
+              <Button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: '5px 10px', fontSize: '14px' }}>
+                {showCreateForm ? "Cancel" : "+ Create"}
+              </Button>
+            </>
+          }
+        />
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {showCreateForm && (
+            <form onSubmit={handleCreateGroup} style={{ backgroundColor: '#3a3f4a', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
+              <h3 style={{ marginTop: 0 }}>New Group</h3>
+              <input type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', boxSizing: 'border-box' }} />
+              <textarea placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', minHeight: '60px', boxSizing: 'border-box' }} />
+              <button type="submit" style={{ padding: '10px 20px', backgroundColor: COLORS.primary, border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Create</button>
+            </form>
+          )}
+
+          {isLoading ? <p>Loading...</p> : myGroups.length === 0 ? (
+            <p style={{ color: '#888', fontStyle: 'italic' }}>You haven't joined any groups yet.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
+              {myGroups.map(group => (
+                <div key={group.id} onClick={() => setSelectedGroup(group)} style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, cursor: 'pointer', transition: 'transform 0.2s' }}>
+                  <h3 style={{ margin: '0 0 10px 0', color: COLORS.primary }}>{group.name}</h3>
+                  <p style={{ margin: 0, color: '#ccc', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.description}</p>
+                  <div style={{ marginTop: '15px', fontSize: '12px', color: '#888' }}>{group.memberDetails?.length || 0} Members</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {showCreateForm && (
-          <form onSubmit={handleCreateGroup} style={{ backgroundColor: '#3a3f4a', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
-            <h3 style={{ marginTop: 0 }}>New Group</h3>
-            <input type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', boxSizing: 'border-box' }} />
-            <textarea placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', minHeight: '60px', boxSizing: 'border-box' }} />
-            <button type="submit" style={{ padding: '10px 20px', backgroundColor: COLORS.primary, border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Create</button>
-          </form>
-        )}
-        {isLoading ? <p>Loading...</p> : myGroups.length === 0 ? (
-          <p style={{ color: '#888', fontStyle: 'italic' }}>You haven't joined any groups yet.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
-            {myGroups.map(group => (
-              <div key={group.id} onClick={() => setSelectedGroup(group)} style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, cursor: 'pointer', transition: 'transform 0.2s' }}>
-                <h3 style={{ margin: '0 0 10px 0', color: COLORS.primary }}>{group.name}</h3>
-                <p style={{ margin: 0, color: '#ccc', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.description}</p>
-                <div style={{ marginTop: '15px', fontSize: '12px', color: '#888' }}>{group.memberDetails?.length || 0} Members</div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
 
   if (currentView === 'findTeams') {
       return (
-        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
-            <button onClick={() => setCurrentView('hub')} style={{ background: 'none', border: 'none', color: COLORS.primary, cursor: 'pointer', marginBottom: '15px', fontSize: '16px' }}>← Back to Hub</button>
-            <h2 style={{ marginBottom: '20px' }}>Find Teams</h2>
+        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Header 
+              title="Find Teams" 
+              actions={
+                <Button onClick={() => setCurrentView('hub')} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button>
+              }
+            />
             
-            {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams found.</p> : (
-                <div style={{ display: 'grid', gap: '15px' }}>
-                    {discoverableTeams.map(team => {
-                        const status = getRequestStatus(team.id);
-                        const alreadyJoined = team.playerIDs?.includes(loggedInUser.uid);
-                        return (
-                            <div key={team.id} style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <h3 style={{ margin: '0 0 5px 0', color: 'white' }}>{team.name}</h3>
-                                    <p style={{ margin: 0, color: '#aaa', fontSize: '14px' }}>
-                                        {team.season} • {team.players?.length || 0}/{team.maxCapacity} Players
-                                    </p>
-                                </div>
-                                <div>
-                                    {alreadyJoined ? (
-                                        <span style={{ color: '#28a745', fontSize: '14px', fontWeight: 'bold' }}>Joined</span>
-                                    ) : status === 'pending' ? (
-                                        <span style={{ color: '#ffc107', fontSize: '14px', fontWeight: 'bold' }}>Pending</span>
-                                    ) : (
-                                        <button 
-                                            onClick={() => handleJoinRequest(team)}
-                                            style={{ padding: '8px 15px', backgroundColor: COLORS.primary, border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-                                        >
-                                            Request to Join
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams found.</p> : (
+                  <div style={{ display: 'grid', gap: '15px' }}>
+                      {discoverableTeams.map(team => {
+                          const status = getRequestStatus(team.id);
+                          const alreadyJoined = team.playerIDs?.includes(loggedInUser.uid);
+                          return (
+                              <div key={team.id} style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div>
+                                      <h3 style={{ margin: '0 0 5px 0', color: 'white' }}>{team.name}</h3>
+                                      <p style={{ margin: 0, color: '#aaa', fontSize: '14px' }}>
+                                          {team.season} • {team.players?.length || 0}/{team.maxCapacity} Players
+                                      </p>
+                                  </div>
+                                  <div>
+                                      {alreadyJoined ? (
+                                          <span style={{ color: '#28a745', fontSize: '14px', fontWeight: 'bold' }}>Joined</span>
+                                      ) : status === 'pending' ? (
+                                          <span style={{ color: '#ffc107', fontSize: '14px', fontWeight: 'bold' }}>Pending</span>
+                                      ) : (
+                                          <button 
+                                              onClick={() => handleJoinRequest(team)}
+                                              style={{ padding: '8px 15px', backgroundColor: COLORS.primary, border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                                          >
+                                              Request to Join
+                                          </button>
+                                      )}
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              )}
+            </div>
         </div>
       );
   }
 
   if (currentView === 'detail' && selectedGroup) {
-      // (Rendering logic for detail view is identical to before, omitted for brevity but assumed included)
-      // Copy the detail view logic from previous responses if needed.
        const myRole = getMyGroupRole();
        const renderMembers = () => {
             const owners = []; const admins = []; const members = [];
@@ -361,63 +372,69 @@ function Groups() {
         };
 
       return (
-      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
-        <button onClick={() => { setSelectedGroup(null); setCurrentView('myGroups'); }} style={{ background: 'none', border: 'none', color: COLORS.primary, cursor: 'pointer', marginBottom: '15px', fontSize: '16px' }}>← Back to My Groups</button>
-        <div style={{ backgroundColor: '#282c34', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0 }}>{selectedGroup.name}</h2>
+      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Header 
+          title={selectedGroup.name}
+          actions={
+             <Button onClick={() => { setSelectedGroup(null); setCurrentView('myGroups'); }} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button>
+          }
+        />
+        
+        <div style={{ padding: '0 20px', flex: 1, overflowY: 'auto' }}>
           <p style={{ color: '#ccc', marginTop: '5px' }}>{selectedGroup.description}</p>
-        </div>
-        <div style={{ display: 'flex', borderBottom: '1px solid #444', marginBottom: '20px' }}>
-          {['posts', 'about', 'members'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer', color: activeTab === tab ? COLORS.primary : '#888', borderBottom: activeTab === tab ? `2px solid ${COLORS.primary}` : 'none', fontWeight: activeTab === tab ? 'bold' : 'normal' }}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
-          ))}
-        </div>
-        {activeTab === 'posts' && (
-          <div>
-            <form onSubmit={handlePostSubmit} style={{ marginBottom: '30px', display: 'flex', gap: '10px' }}>
-              <input type="text" placeholder="Share something..." value={newPostText} onChange={(e) => setNewPostText(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }} />
-              <button type="submit" style={{ padding: '10px 20px', borderRadius: '20px', border: 'none', backgroundColor: COLORS.primary, color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>Post</button>
-            </form>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {groupPosts.map(post => (
-                <div key={post.id} style={{ backgroundColor: '#222', padding: '15px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
-                  <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                       {post.authorPhoto ? <img src={post.authorPhoto} alt={post.authorName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#ccc' }}>{post.authorName?.charAt(0).toUpperCase()}</span>}
+
+          <div style={{ display: 'flex', borderBottom: '1px solid #444', marginBottom: '20px' }}>
+            {['posts', 'about', 'members'].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer', color: activeTab === tab ? COLORS.primary : '#888', borderBottom: activeTab === tab ? `2px solid ${COLORS.primary}` : 'none', fontWeight: activeTab === tab ? 'bold' : 'normal' }}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+            ))}
+          </div>
+          {activeTab === 'posts' && (
+            <div>
+              <form onSubmit={handlePostSubmit} style={{ marginBottom: '30px', display: 'flex', gap: '10px' }}>
+                <input type="text" placeholder="Share something..." value={newPostText} onChange={(e) => setNewPostText(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '20px', border: 'none', backgroundColor: '#3a3f4a', color: 'white' }} />
+                <button type="submit" style={{ padding: '10px 20px', borderRadius: '20px', border: 'none', backgroundColor: COLORS.primary, color: '#000', fontWeight: 'bold', cursor: 'pointer' }}>Post</button>
+              </form>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {groupPosts.map(post => (
+                  <div key={post.id} style={{ backgroundColor: '#222', padding: '15px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#444', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {post.authorPhoto ? <img src={post.authorPhoto} alt={post.authorName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '10px', color: '#ccc' }}>{post.authorName?.charAt(0).toUpperCase()}</span>}
+                      </div>
+                      <strong>{post.authorName}</strong> • {post.createdAt?.toDate().toLocaleString()}
                     </div>
-                    <strong>{post.authorName}</strong> • {post.createdAt?.toDate().toLocaleString()}
+                    <div style={{ fontSize: '15px', marginLeft: '32px' }}>{post.text}</div>
                   </div>
-                  <div style={{ fontSize: '15px', marginLeft: '32px' }}>{post.text}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {activeTab === 'about' && (
-          <div>
-            <h3>About this Group</h3>
-            <p>{selectedGroup.description || "No description."}</p>
-          </div>
-        )}
-        {activeTab === 'members' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3>Members ({selectedGroup.memberDetails?.length || 0})</h3>
-              {(myRole === 'owner' || myRole === 'admin') && <button onClick={() => setShowAddMember(true)} style={{ padding: '8px 15px', backgroundColor: COLORS.primary, border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>+ Add Member</button>}
-            </div>
-            {showAddMember && (
-              <div style={{ backgroundColor: '#3a3f4a', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: `1px solid ${COLORS.primary}` }}>
-                <h4 style={{ marginTop: 0 }}>Add Members to Group</h4>
-                <UserSearch onSelectionChange={setSelectedMemberEmails} />
-                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                  <button onClick={handleAddMembers} style={{ flex: 1, padding: '8px', backgroundColor: COLORS.primary, border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Add Selected</button>
-                  <button onClick={() => { setShowAddMember(false); setSelectedMemberEmails([]); }} style={{ flex: 1, padding: '8px', backgroundColor: '#555', border: 'none', cursor: 'pointer', color: 'white' }}>Cancel</button>
-                </div>
+                ))}
               </div>
-            )}
-            {renderMembers()}
-          </div>
-        )}
+            </div>
+          )}
+          {activeTab === 'about' && (
+            <div>
+              <h3>About this Group</h3>
+              <p>{selectedGroup.description || "No description."}</p>
+            </div>
+          )}
+          {activeTab === 'members' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3>Members ({selectedGroup.memberDetails?.length || 0})</h3>
+                {(myRole === 'owner' || myRole === 'admin') && <button onClick={() => setShowAddMember(true)} style={{ padding: '8px 15px', backgroundColor: COLORS.primary, border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>+ Add Member</button>}
+              </div>
+              {showAddMember && (
+                <div style={{ backgroundColor: '#3a3f4a', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: `1px solid ${COLORS.primary}` }}>
+                  <h4 style={{ marginTop: 0 }}>Add Members to Group</h4>
+                  <UserSearch onSelectionChange={setSelectedMemberEmails} />
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                    <button onClick={handleAddMembers} style={{ flex: 1, padding: '8px', backgroundColor: COLORS.primary, border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Add Selected</button>
+                    <button onClick={() => { setShowAddMember(false); setSelectedMemberEmails([]); }} style={{ flex: 1, padding: '8px', backgroundColor: '#555', border: 'none', cursor: 'pointer', color: 'white' }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              {renderMembers()}
+            </div>
+          )}
+        </div>
       </div>
       );
   }
