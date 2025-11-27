@@ -2,26 +2,20 @@
 .App {
   text-align: center;
   background-color: #282c34;
-  min-height: 100vh;
+  height: 100vh; /* Force full viewport height */
+  width: 100vw;
   color: white;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+  overflow: hidden; /* Prevent body scroll, let containers scroll */
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: white;
+  flex-direction: row; /* Default Desktop: Sidebar | Content */
 }
 
-/* --- DESKTOP LAYOUT (Default) --- */
+/* --- DESKTOP SIDEBAR --- */
 .sidebar {
   width: 240px;
   background-color: #1c1e22;
@@ -32,21 +26,43 @@
   gap: 5px;
   flex-shrink: 0; 
   border-right: 1px solid #333;
+  z-index: 20;
 }
 
-/* --- MAIN CONTENT LAYOUT --- */
+/* --- MAIN CONTENT SHELL --- */
+/* This container holds the View Component (Home, Chat, etc) */
 .main-content {
-  flex: 1; 
-  padding: 40px;
-  color: white;
-  /* Ensure this container is a flex column so children (like TeamChat) can fill height */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  /* Allow content to scroll by default */
-  overflow-y: auto;
-  /* Ensure padding is included in dimensions */
-  box-sizing: border-box;
   height: 100%;
+  min-width: 0; /* Flexbox fix for text truncation */
+  background-color: #282c34;
+  position: relative;
+}
+
+/* --- VIEW STRUCTURE (Standardizes all pages) --- */
+/* Every page component (Home, Groups, Chat) should use this class or style */
+.view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+/* The top part of the view */
+.view-header {
+  flex-shrink: 0; /* Never shrink */
+  background-color: #282c34; /* Match bg to cover scrolling content */
+  z-index: 10;
+  padding: 20px 40px 0 40px; /* Desktop Padding */
+}
+
+/* The scrolling part of the view */
+.view-content {
+  flex: 1;
+  overflow-y: auto; /* Internal Scroll */
+  padding: 20px 40px 40px 40px; /* Desktop Padding */
 }
 
 /* --- Navigation Buttons --- */
@@ -107,61 +123,15 @@
   word-break: break-word; 
 }
 
-/* --- Mobile Header --- */
-.mobile-header {
-  display: none;
-}
-
 /* --- MOBILE RESPONSIVE STYLES --- */
 @media (max-width: 768px) {
-  
-  .mobile-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed; 
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 50px; 
-    background-color: #1c1e22;
-    border-bottom: 1px solid #333;
-    z-index: 1000;
-  }
-  
-  .mobile-header h1 {
-    color: white;
-    font-size: 1.1rem;
-    margin: 0;
+  .App {
+    flex-direction: column; /* Top Content | Bottom Nav */
   }
 
-  .main-content.mobile {
-    padding-left: 20px; 
-    padding-right: 20px;
-    padding-top: 20px;
-    padding-bottom: 90px; /* Space for tab bar */
-  }
-
-  /* --- Info Table Mobile --- */
-  .info-table {
-    grid-template-columns: 1fr; 
-    row-gap: 5px; 
-  }
-  .info-label {
-    text-align: left;
-    font-size: 0.8rem; 
-    margin-top: 10px; 
-  }
-  .info-value {
-    padding-left: 10px; 
-  }
-  
-  /* --- Bottom Tab Bar --- */
+  /* Sidebar becomes Bottom Tab Bar */
   .tab-bar {
-    position: fixed; 
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    order: 2; /* Moves to bottom */
     height: 70px; 
     background-color: #1c1e22;
     border-top: 1px solid #333;
@@ -170,9 +140,26 @@
     align-items: center;
     justify-content: space-around; 
     z-index: 1000;
-    padding-bottom: 10px; 
+    padding-bottom: env(safe-area-inset-bottom); /* iPhone X fix */
+    flex-shrink: 0;
   }
 
+  .main-content.mobile {
+    order: 1; /* Content above tabs */
+    flex: 1;
+    height: calc(100% - 70px); /* subtract tab bar */
+  }
+
+  /* Mobile View Padding Adjustments */
+  .view-header {
+    padding: 15px 20px 0 20px;
+  }
+  
+  .view-content {
+    padding: 15px 20px 20px 20px;
+  }
+
+  /* Nav Buttons in Tab Bar */
   .nav-btn {
     flex-direction: column; 
     justify-content: center;
@@ -185,28 +172,34 @@
     flex: 1;
   }
   
-  .nav-btn:hover {
-    background-color: transparent; 
-    color: white;
-  }
-
-  .nav-btn.active {
-    background-color: transparent;
-    color: #61dafb;
-  }
-
+  .nav-btn:hover { background-color: transparent; color: white; }
+  .nav-btn.active { background-color: transparent; color: #61dafb; }
+  
   .nav-btn.sign-out-btn {
     margin-top: 0; 
+  }
+
+  /* Info Tables on Mobile */
+  .info-table {
+    grid-template-columns: 1fr; 
+    row-gap: 5px; 
+  }
+  .info-label {
+    text-align: left;
+    font-size: 0.8rem; 
+    margin-top: 10px; 
+  }
+  .info-value {
+    padding-left: 10px; 
   }
 }
 
 /* Code formatting */
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
-/* --- FIX: Prevent Mobile Auto-Zoom --- */
+/* Prevent Mobile Auto-Zoom */
 input, select, textarea, button {
   font-size: 16px;
 }

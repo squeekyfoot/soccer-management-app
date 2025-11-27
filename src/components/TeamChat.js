@@ -49,13 +49,12 @@ function TeamChat() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // ... (Same data logic as before)
   useEffect(() => {
     if (selectedChat) {
       const freshChatData = myChats.find(c => c.id === selectedChat.id);
-      if (freshChatData) {
-        if (JSON.stringify(freshChatData) !== JSON.stringify(selectedChat)) {
-          setSelectedChat(freshChatData);
-        }
+      if (freshChatData && JSON.stringify(freshChatData) !== JSON.stringify(selectedChat)) {
+        setSelectedChat(freshChatData);
       }
     }
   }, [myChats, selectedChat]);
@@ -69,9 +68,7 @@ function TeamChat() {
     const usersRef = collection(db, "users");
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
       const profiles = {};
-      snapshot.docs.forEach(doc => {
-        profiles[doc.id] = doc.data();
-      });
+      snapshot.docs.forEach(doc => profiles[doc.id] = doc.data());
       setUserProfiles(profiles);
     });
     return () => unsubscribe();
@@ -82,67 +79,44 @@ function TeamChat() {
         if(messages.length > 0) setMessages([]); 
         return;
     }
-    
     markChatAsRead(selectedChat.id);
-
     const messagesRef = collection(db, "chats", selectedChat.id, "messages");
-    
     let qConstraints = [orderBy("createdAt", "asc"), limitToLast(50)];
-
     if (selectedChat.hiddenHistory && selectedChat.hiddenHistory[loggedInUser.uid]) {
          const cutoffTimestamp = selectedChat.hiddenHistory[loggedInUser.uid];
          qConstraints.push(where("createdAt", ">=", cutoffTimestamp));
     }
-
     const q = query(messagesRef, ...qConstraints);
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(msgs);
       markChatAsRead(selectedChat.id);
     });
     return () => unsubscribe();
-  }, [selectedChat, isCreatingChat, loggedInUser.uid]); 
+  }, [selectedChat, isCreatingChat, loggedInUser.uid]);
 
   const handleFileChange = (e) => {
-    if (e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (e.target.files[0]) setSelectedFile(e.target.files[0]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const startNewChat = useCallback(() => {
-      setIsCreatingChat(true);
-      setSelectedChat(null);
-      setMessages([]); 
-      setNewChatName("");
-      setSelectedEmails([]);
-      setNewMessage("");
-      setSelectedFile(null);
+      setIsCreatingChat(true); setSelectedChat(null); setMessages([]); 
+      setNewChatName(""); setSelectedEmails([]); setNewMessage(""); setSelectedFile(null);
   }, []);
 
   const handleSelectChat = useCallback((chat) => {
-    setMessages([]); 
-    setSelectedChat(chat);
-    setIsCreatingChat(false);
+    setMessages([]); setSelectedChat(chat); setIsCreatingChat(false);
   }, []);
 
   const handleBackToList = () => {
-    setSelectedChat(null);
-    setIsCreatingChat(false);
+    setSelectedChat(null); setIsCreatingChat(false);
   };
 
   const handleRenameGroup = async () => {
     if (!selectedChat) return;
     const newName = window.prompt("Enter new group name:", selectedChat.name);
-    if (newName && newName.trim() !== "") {
-      await renameChat(selectedChat.id, newName.trim());
-    }
+    if (newName && newName.trim() !== "") await renameChat(selectedChat.id, newName.trim());
   };
 
   const handleAddMember = async (email, includeHistory) => {
@@ -153,14 +127,11 @@ function TeamChat() {
   const handleGroupPhotoChange = async (file) => {
     if (!selectedChat || !file) return;
     const isGroup = selectedChat.type === 'group' || (selectedChat.participants.length > 2 && selectedChat.type !== 'roster');
-    
     if (isGroup) {
        try {
            const compressedFile = await compressImage(file, 300, 0.8);
            const imageUrl = await uploadImage(compressedFile, `chat_avatars/${selectedChat.id}/${Date.now()}`);
-           if (imageUrl) {
-               await updateGroupPhoto(selectedChat.id, imageUrl);
-           }
+           if (imageUrl) await updateGroupPhoto(selectedChat.id, imageUrl);
        } catch (error) {
            console.error("Failed to compress or upload group photo", error);
            alert("Failed to update photo. Please try again.");
@@ -169,24 +140,15 @@ function TeamChat() {
   };
 
   const handleDeleteChat = useCallback(async (chat) => {
-    if (chat.type === 'roster') {
-      alert("Team Roster chats cannot be deleted.");
-      return;
-    }
-
+    if (chat.type === 'roster') { alert("Team Roster chats cannot be deleted."); return; }
     const isGroup = chat.type === 'group' || (chat.participants.length > 2 && chat.type !== 'roster');
-
     if (isGroup) {
-       if (window.confirm("Are you sure you want to leave this group? You will no longer receive messages.")) {
-          await leaveChat(chat.id);
-          setSelectedChat(null);
-          setShowChatDetails(false);
+       if (window.confirm("Are you sure you want to leave this group?")) {
+          await leaveChat(chat.id); setSelectedChat(null); setShowChatDetails(false);
        }
     } else {
        if (window.confirm("Are you sure you want to delete this chat history?")) {
-           await hideChat(chat.id, chat.visibleTo);
-           setSelectedChat(null);
-           setShowChatDetails(false);
+           await hideChat(chat.id, chat.visibleTo); setSelectedChat(null); setShowChatDetails(false);
        }
     }
   }, [leaveChat, hideChat]);
@@ -194,52 +156,32 @@ function TeamChat() {
   const handleSend = async (e) => {
     e.preventDefault();
     if (isCreatingChat) {
-        if (selectedEmails.length === 0) {
-            alert("Please add at least one person to the chat.");
-            return;
-        }
+        if (selectedEmails.length === 0) { alert("Please add at least one person to the chat."); return; }
         const chatResult = await createChat(selectedEmails, newChatName);
         if (chatResult && chatResult.id) {
              const newChatId = chatResult.id;
              const participants = chatResult.participants;
              const text = newMessage;
              let fileToUpload = selectedFile;
-             
-             setNewMessage(""); 
-             setSelectedFile(null); 
-             
+             setNewMessage(""); setSelectedFile(null); 
              let imageUrl = null;
-             if (fileToUpload) {
-                 imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
-             }
-             if (text || imageUrl) {
-                await sendMessage(newChatId, text, participants, imageUrl);
-             }
+             if (fileToUpload) imageUrl = await uploadImage(fileToUpload, `chat_images/${newChatId}`);
+             if (text || imageUrl) await sendMessage(newChatId, text, participants, imageUrl);
 
              const optimisticChat = {
-                 id: newChatId,
-                 name: chatResult.name || newChatName || "New Chat",
+                 id: newChatId, name: chatResult.name || newChatName || "New Chat",
                  type: selectedEmails.length > 0 ? 'group' : 'dm',
-                 participants: participants,
-                 participantDetails: chatResult.participantDetails || [] 
+                 participants: participants, participantDetails: chatResult.participantDetails || [] 
              };
-             setSelectedChat(optimisticChat);
-             setIsCreatingChat(false);
-             setNewChatName("");
-             setSelectedEmails([]);
+             setSelectedChat(optimisticChat); setIsCreatingChat(false); setNewChatName(""); setSelectedEmails([]);
         }
     } else {
         if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
-        const text = newMessage;
-        let fileToUpload = selectedFile;
-
-        setNewMessage(""); 
-        setSelectedFile(null); 
+        const text = newMessage; let fileToUpload = selectedFile;
+        setNewMessage(""); setSelectedFile(null); 
         let imageUrl = null;
         try {
-            if (fileToUpload) {
-                imageUrl = await uploadImage(fileToUpload, `chat_images/${selectedChat.id}`);
-            }
+            if (fileToUpload) imageUrl = await uploadImage(fileToUpload, `chat_images/${selectedChat.id}`);
             await sendMessage(selectedChat.id, text, selectedChat.participants, imageUrl);
         } catch (error) {
             console.error("Error sending message/image:", error);
@@ -249,16 +191,12 @@ function TeamChat() {
   };
 
   const canSend = isCreatingChat ? (selectedEmails.length > 0) : true; 
-  
-  // Determine logic for showing the banner and list
   const showList = !isMobile || (!selectedChat && !isCreatingChat);
   const showChat = !isMobile || (selectedChat || isCreatingChat);
-  // Show header on Desktop OR Mobile List View
   const showHeader = !isMobile || showList; 
 
   return (
-    // Use height: 100% to fill the parent "main-content" container
-    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="view-container">
         
         {showHeader && (
           <Header 
@@ -269,101 +207,112 @@ function TeamChat() {
                  <span>New Message</span>
               </Button>
             }
-            style={{ maxWidth: '1000px', margin: '0 auto 20px' }} 
+            style={{ maxWidth: '1000px', margin: '0 auto' }} 
           />
         )}
         
         <div style={{ 
-          display: 'flex', flex: 1, width: '100%', maxWidth: '1000px', 
-          margin: '0 auto', backgroundColor: COLORS.background, 
-          borderRadius: isMobile ? '0' : '8px', overflow: 'hidden', boxSizing: 'border-box',
-          border: isMobile ? 'none' : `1px solid ${COLORS.border}`,
-          minHeight: 0 // Allows flex container to shrink/scroll correctly
+            flex: 1, 
+            overflow: 'hidden', // Hide main scrollbar
+            padding: isMobile ? '15px 20px 20px 20px' : '20px 40px 40px 40px',
+            display: 'flex',
+            flexDirection: 'column',
+            maxWidth: '1000px',
+            margin: '0 auto',
+            width: '100%',
+            boxSizing: 'border-box'
         }}>
-          
-          {showList && (
-            <ChatList 
-              myChats={myChats}
-              selectedChat={selectedChat}
-              onSelectChat={handleSelectChat}
-              onDeleteChat={handleDeleteChat}
-              userProfiles={userProfiles}
-              isMobile={isMobile}
-            />
-          )}
+            <div style={{ 
+                display: 'flex', flex: 1, width: '100%', 
+                backgroundColor: COLORS.background, 
+                borderRadius: isMobile ? '0' : '8px', overflow: 'hidden',
+                border: isMobile ? 'none' : `1px solid ${COLORS.border}`,
+                minHeight: 0 
+            }}>
+            
+            {showList && (
+                <ChatList 
+                myChats={myChats}
+                selectedChat={selectedChat}
+                onSelectChat={handleSelectChat}
+                onDeleteChat={handleDeleteChat}
+                userProfiles={userProfiles}
+                isMobile={isMobile}
+                />
+            )}
 
-          {showChat && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, height: '100%' }}>
-              
-              {isCreatingChat ? (
-                  <>
-                      <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, display: 'flex', alignItems: 'center' }}>
-                          {isMobile && (
-                            <button onClick={handleBackToList} style={{ background: 'none', border: 'none', color: COLORS.primary, fontSize: '24px', marginRight: '10px', cursor: 'pointer' }}>
-                              ‹
-                            </button>
-                          )}
-                          <h3 style={{ margin: 0, color: 'white' }}>New Message</h3>
-                      </div>
-                      <div style={{ padding: '20px' }}>
-                          <UserSearch onSelectionChange={setSelectedEmails} />
-                      </div>
-                      <div style={{ flex: 1 }} />
-                  </>
-              ) : selectedChat ? (
-                <>
-                  <ChatHeader 
-                    selectedChat={selectedChat}
-                    userProfiles={userProfiles}
-                    loggedInUser={loggedInUser}
-                    onShowDetails={() => setShowChatDetails(true)}
-                    onBack={isMobile ? handleBackToList : null}
-                    totalUnreadCount={totalUnread}
-                  />
+            {showChat && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: COLORS.sidebar, minWidth: 0, height: '100%' }}>
+                
+                {isCreatingChat ? (
+                    <>
+                        <div style={{ padding: '15px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background, display: 'flex', alignItems: 'center' }}>
+                            {isMobile && (
+                                <button onClick={handleBackToList} style={{ background: 'none', border: 'none', color: COLORS.primary, fontSize: '24px', marginRight: '10px', cursor: 'pointer' }}>
+                                ‹
+                                </button>
+                            )}
+                            <h3 style={{ margin: 0, color: 'white' }}>New Message</h3>
+                        </div>
+                        <div style={{ padding: '20px' }}>
+                            <UserSearch onSelectionChange={setSelectedEmails} />
+                        </div>
+                        <div style={{ flex: 1 }} />
+                    </>
+                ) : selectedChat ? (
+                    <>
+                    <ChatHeader 
+                        selectedChat={selectedChat}
+                        userProfiles={userProfiles}
+                        loggedInUser={loggedInUser}
+                        onShowDetails={() => setShowChatDetails(true)}
+                        onBack={isMobile ? handleBackToList : null}
+                        totalUnreadCount={totalUnread}
+                    />
 
-                  <MessageList 
-                    messages={messages}
-                    loggedInUser={loggedInUser}
-                    onImageClick={setViewingImage}
-                    selectedChatId={selectedChat.id}
-                  />
-                </>
-              ) : (
-                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
-                    Select a conversation or start a new one.
+                    <MessageList 
+                        messages={messages}
+                        loggedInUser={loggedInUser}
+                        onImageClick={setViewingImage}
+                        selectedChatId={selectedChat.id}
+                    />
+                    </>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
+                        Select a conversation or start a new one.
+                    </div>
+                )}
+
+                {(isCreatingChat || selectedChat) && (
+                    <MessageInput 
+                        messageText={newMessage}
+                        onMessageChange={setNewMessage}
+                        onSend={handleSend}
+                        selectedFile={selectedFile}
+                        onFileChange={handleFileChange}
+                        onRemoveFile={() => setSelectedFile(null)}
+                        fileInputRef={fileInputRef}
+                        canSend={canSend}
+                    />
+                )}
                 </div>
-              )}
+            )}
 
-              {(isCreatingChat || selectedChat) && (
-                  <MessageInput 
-                    messageText={newMessage}
-                    onMessageChange={setNewMessage}
-                    onSend={handleSend}
-                    selectedFile={selectedFile}
-                    onFileChange={handleFileChange}
-                    onRemoveFile={() => setSelectedFile(null)}
-                    fileInputRef={fileInputRef}
-                    canSend={canSend}
-                  />
-              )}
+            <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
+            
+            {showChatDetails && (
+                <ChatDetailsModal 
+                chat={selectedChat} 
+                onClose={() => setShowChatDetails(false)}
+                onRename={handleRenameGroup}
+                onDelete={handleDeleteChat}
+                onUpdatePhoto={handleGroupPhotoChange}
+                onAddMember={handleAddMember}
+                userProfiles={userProfiles}
+                loggedInUser={loggedInUser}
+                />
+            )}
             </div>
-          )}
-
-          <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
-          
-          {showChatDetails && (
-            <ChatDetailsModal 
-              chat={selectedChat} 
-              onClose={() => setShowChatDetails(false)}
-              onRename={handleRenameGroup}
-              onDelete={handleDeleteChat}
-              onUpdatePhoto={handleGroupPhotoChange}
-              onAddMember={handleAddMember}
-              userProfiles={userProfiles}
-              loggedInUser={loggedInUser}
-            />
-          )}
-
         </div>
     </div>
   );

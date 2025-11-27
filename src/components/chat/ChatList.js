@@ -11,9 +11,7 @@ const ChatListItem = React.memo(({
   onSelect, 
   onMenuOpen 
 }) => {
-    // Logic to determine if this looks like a DM (Direct Message)
     const isDM = chat.type === 'dm' || (chat.participants && chat.participants.length === 2 && chat.type !== 'roster');
-    
     let displayTitle = chat.name || "Chat";
     let iconImage = null;
 
@@ -23,10 +21,8 @@ const ChatListItem = React.memo(({
         const otherUser = chat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
         if (otherUser) {
             const freshUser = userProfiles[otherUser.uid];
-            // Robust check for name property variants (name vs playerName)
             const otherUserName = otherUser.name || otherUser.playerName || "Unknown User";
             const freshUserName = freshUser?.playerName || freshUser?.name;
-            
             displayTitle = freshUserName || otherUserName;
             iconImage = freshUser ? freshUser.photoURL : otherUser.photoURL;
         }
@@ -34,14 +30,12 @@ const ChatListItem = React.memo(({
         iconImage = chat.photoURL;
     }
 
-    // Final safeguard to prevent the crash
     if (!displayTitle) displayTitle = "Chat";
 
     const firstLetter = displayTitle.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || "?";
     const unreadCount = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
     const hasUnread = unreadCount > 0;
     
-    // --- MESSAGE VISIBILITY LOGIC ---
     let messagePreview = chat.lastMessage || "No messages yet";
     let timeDisplay = "";
 
@@ -53,12 +47,9 @@ const ChatListItem = React.memo(({
             ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
             : date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
 
-        // CHECK HISTORY RESTRICTION
         if (chat.hiddenHistory && chat.hiddenHistory[loggedInUser.uid]) {
             const hiddenTs = chat.hiddenHistory[loggedInUser.uid];
             const hiddenDate = hiddenTs.toDate ? hiddenTs.toDate() : new Date(hiddenTs);
-            
-            // If last message is OLDER than the time I joined (and chose to hide history)
             if (date < hiddenDate) {
                 messagePreview = "No messages yet";
             }
@@ -75,7 +66,6 @@ const ChatListItem = React.memo(({
                 boxSizing: 'border-box', position: 'relative'
             }}
         >
-            {/* Col A: Avatar */}
             <div style={{ width: '20%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 <div style={{ 
                      width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#444',
@@ -90,7 +80,6 @@ const ChatListItem = React.memo(({
                 </div>
             </div>
 
-            {/* Col B: Info */}
             <div style={{ width: '60%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ height: '5%', width: '100%' }} />
                 <div style={{ 
@@ -125,7 +114,6 @@ const ChatListItem = React.memo(({
                 <div style={{ height: '5%', width: '100%' }} />
             </div>
 
-            {/* Col C: Meta */}
             <div style={{ width: '20%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ height: '5%', width: '100%' }} />
                 <div style={{ height: '40%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -185,8 +173,6 @@ const ChatList = ({
       position: 'relative',
       zIndex: 1
     }}>
-      
-      {/* Internal header removed in favor of global banner */}
       
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {myChats.length === 0 ? (

@@ -59,13 +59,8 @@ function Layout() {
         {/* Mobile Badge */}
         {isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
           <div style={{
-            position: 'absolute',
-            top: -2,
-            right: -4,
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: COLORS.primary 
+            position: 'absolute', top: -2, right: -4, width: '8px', height: '8px',
+            borderRadius: '50%', backgroundColor: COLORS.primary 
           }} />
         )}
       </div>
@@ -75,33 +70,17 @@ function Layout() {
       {/* Desktop Badge */}
       {!isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
         <div style={{
-          marginLeft: 'auto',
-          marginRight: '10px',
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          backgroundColor: COLORS.primary 
+          marginLeft: 'auto', marginRight: '10px', width: '8px', height: '8px',
+          borderRadius: '50%', backgroundColor: COLORS.primary 
         }} />
       )}
     </button>
   );
 
   return (
-    <div
-      style={{
-        display: 'flex', width: '100vw', height: '100vh',
-        backgroundColor: COLORS.background, 
-        flexDirection: isMobile ? 'column' : 'row'
-      }}
-    >
-      {/* Mobile Header Removed - Title is now inside views */}
-      {isMobile && (
-         <div style={{ height: '10px', backgroundColor: COLORS.background }} /> // Tiny spacer for mobile top
-      )}
-
+    <div className="App">
+      {/* Sidebar / Tab Bar */}
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
-        {!isMobile && <h3 style={{ marginTop: 0, marginBottom: '20px', paddingLeft: '10px' }}>Team App</h3>}
-        
         <NavButton view="home" label="Home" icon={House} />
         <NavButton view="groups" label="Community" icon={Users} />
         <NavButton view="myteams" label="My Teams" icon={Dribbble} />
@@ -116,10 +95,10 @@ function Layout() {
         )}
       </nav>
 
+      {/* Main Content Area */}
       <main className={`main-content ${isMobile ? 'mobile' : ''}`}>
         {renderActiveView()}
       </main>
-
     </div>
   );
 }

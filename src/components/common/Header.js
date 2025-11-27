@@ -1,21 +1,24 @@
 import React from 'react';
 import { COLORS } from '../../constants';
 
-const Header = ({ title, actions, style }) => {
+const Header = ({ title, actions, style, className }) => {
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      width: '100%', 
-      marginBottom: '20px',
-      ...style 
-    }}>
+    <div 
+      className={`view-header ${className || ''}`}
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        width: '100%', 
+        boxSizing: 'border-box',
+        ...style 
+      }}
+    >
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
         paddingBottom: '10px',
-        minHeight: '40px' // Ensure consistent height even without actions
+        minHeight: '40px'
       }}>
         <h2 style={{ margin: 0, color: 'white', fontSize: '24px' }}>{title}</h2>
         
