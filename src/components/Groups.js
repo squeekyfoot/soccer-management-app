@@ -118,11 +118,44 @@ function Groups() {
     return me ? (me.role || 'member') : 'member';
   };
 
+  // --- FIX: Removed fixed height and added box-sizing to prevent overlap ---
   const HubButton = ({ title, desc, icon: Icon, onClick, color = COLORS.primary }) => (
-    <Card onClick={onClick} hoverable style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center' }}>
-      <Icon size={40} color={color} style={{ marginBottom: '15px' }} />
-      <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>{title}</div>
-      <div style={{ fontSize: '13px', color: '#aaa' }}>{desc}</div>
+    <Card 
+        onClick={onClick} 
+        hoverable 
+        style={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'row' : 'column', 
+            alignItems: 'center', 
+            justifyContent: isMobile ? 'flex-start' : 'center', 
+            textAlign: isMobile ? 'left' : 'center',
+            
+            // Desktop: Enforce min-height. Grid will stretch this automatically.
+            minHeight: isMobile ? 'auto' : '220px', 
+            
+            // FIX: Removed height: '100%' to prevent overflow issues
+            // The Grid container's 'stretch' behavior will handle the height.
+            
+            marginBottom: 0,
+            padding: '20px',
+            
+            // FIX: Ensures padding is calculated inside the dimensions
+            boxSizing: 'border-box' 
+        }}
+    >
+      <Icon 
+        size={isMobile ? 32 : 40} 
+        color={color} 
+        style={{ 
+            marginBottom: isMobile ? 0 : '15px', 
+            marginRight: isMobile ? '15px' : 0,
+            flexShrink: 0 
+        }} 
+      />
+      <div>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>{title}</div>
+        <div style={{ fontSize: '13px', color: '#aaa' }}>{desc}</div>
+      </div>
     </Card>
   );
 
@@ -137,8 +170,9 @@ function Groups() {
             width: '100%', 
             display: 'grid', 
             gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
-            /* REMOVED: gridTemplateRows to allow auto-sizing and prevent overlap */
-            gap: '15px', 
+            // Desktop rows are at least 220px. Cards will stretch to fill this.
+            gridAutoRows: isMobile ? 'auto' : 'minmax(220px, auto)',
+            gap: '20px', 
             minHeight: 0 
           }}>
             <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} />
@@ -151,7 +185,7 @@ function Groups() {
     );
   }
 
-  // ... (Rest of the file: myGroups, findTeams, detail views remain unchanged)
+  // ... (Rest of the file remains unchanged: myGroups, findTeams, detail)
   if (currentView === 'myGroups') {
     return (
       <div className="view-container">
