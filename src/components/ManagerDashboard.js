@@ -50,6 +50,9 @@ function ManagerDashboard() {
   const [playerToAdd, setPlayerToAdd] = useState(null); 
   const [showConfirmAddModal, setShowConfirmAddModal] = useState(false);
   const [manualAddTargetGroupId, setManualAddTargetGroupId] = useState("");
+  
+  // NEW: State for the Add Player Modal
+  const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
 
   // --- Data Loading ---
   const loadRosters = useCallback(async () => {
@@ -73,7 +76,8 @@ function ManagerDashboard() {
       setIncomingRequests(requests);
     });
     return () => { if (unsubscribe) unsubscribe(); };
-  }, [loadRosters, loadMyGroups, subscribeToIncomingRequests]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep selected roster updated if underlying data changes
   useEffect(() => {
@@ -137,9 +141,13 @@ function ManagerDashboard() {
   const initiateManualAdd = (e) => {
       e.preventDefault();
       if (selectedPlayerEmails.length === 0) return;
+      
       // Default to associated group if exists
       const associated = myGroups.find(g => g.associatedRosterId === selectedRoster.id);
       setManualAddTargetGroupId(associated ? associated.id : "");
+      
+      // Close the selection modal and open the confirm modal
+      setShowAddPlayerModal(false); 
       setShowConfirmAddModal(true);
   };
 
@@ -212,7 +220,17 @@ function ManagerDashboard() {
         <Header 
           title={selectedRoster.name}
           style={{ maxWidth: '1000px', margin: '0 auto' }}
-          actions={<Button onClick={() => setSelectedRoster(null)} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button>}
+          // NEW: Actions now include Add Player + Back
+          actions={
+            <div style={{ display: 'flex', gap: '10px' }}>
+               <Button onClick={() => setShowAddPlayerModal(true)} style={{ padding: '6px 12px', fontSize: '14px' }}>
+                 + Add Player
+               </Button>
+               <Button onClick={() => setSelectedRoster(null)}OX variant="secondary" style={{ padding: '6px 12px', fontSize: '14px' }}>
+                 Back
+               </Button>
+            </div>
+          }
         />
 
         <div className="view-content">
@@ -222,9 +240,8 @@ function ManagerDashboard() {
               {selectedRoster.isDiscoverable && <span style={{ marginLeft: '10px', fontSize: '12px', backgroundColor: COLORS.success, padding: '2px 6px', borderRadius: '4px', color: 'white' }}>Discoverable</span>}
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
-              {/* Column 1: Player List */}
-              <div>
+            {/* UPDATED: Removed Grid Layout. Now a simple list. */}
+            <div style={{ marginTop: '30px' }}>
                 <h3 style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px' }}>Roster</h3>
                 {(!selectedRoster.players || selectedRoster.players.length === 0) ? (
                   <p style={{ fontStyle: 'italic', color: '#888' }}>No players yet.</p>
@@ -244,22 +261,31 @@ function ManagerDashboard() {
                     ))}
                   </div>
                 )}
-              </div>
+            </div>
 
-              {/* Column 2: Add Player Form */}
-              <div>
-                <h3 style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px' }}>Add Player</h3>
-                <Card>
-                  <p style={{ marginTop: 0, fontSize: '14px', marginBottom: '15px' }}>Search for users by name or email to add them to this team.</p>
+            {/* --- NEW: Add Player Modal --- */}
+            {showAddPlayerModal && (
+              <Modal 
+                title="Add Players" 
+                onClose={() => setShowAddPlayerModal(false)}
+                actions={null} // Actions are handled inside the form
+              >
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ marginTop: 0, fontSize: '14px', marginBottom: '15px', color: '#ccc' }}>
+                    Search for users by name or email to add them to <strong>{selectedRoster.name}</strong>.
+                  </p>
                   <form onSubmit={initiateManualAdd}>
-                    <div style={{ marginBottom: '15px' }}>
+                    <div style={{ marginBottom: '20px' }}>
                         <UserSearch key={userSearchKey} onSelectionChange={setSelectedPlayerEmails} />
                     </div>
-                    <Button type="submit" style={{ width: '100%' }}>Add Selected to Roster</Button>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                       <Button variant="secondary" onClick={() => setShowAddPlayerModal(false)}>Cancel</Button>
+                       <Button type="submit" disabled={selectedPlayerEmails.length === 0}>Continue</Button>
+                    </div>
                   </form>
-                </Card>
-              </div>
-            </div>
+                </div>
+              </Modal>
+            )}
 
             {/* Modals for Roster View */}
             {showConfirmAddModal && (
@@ -445,7 +471,8 @@ function ManagerDashboard() {
           </div>
         </div>
       </div>
-    );
-  }
+    </div> 
+  );
+}
 
-  export default ManagerDashboard;
+export default ManagerDashboard;

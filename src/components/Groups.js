@@ -7,9 +7,9 @@ import { COLORS, MOBILE_BREAKPOINT } from '../constants';
 import { Users, Search, UserPlus, Globe } from 'lucide-react';
 import Header from './common/Header'; 
 import Button from './common/Button'; 
-import Input from './common/Input'; // NEW
-import Card from './common/Card';   // NEW
-import Avatar from './common/Avatar'; // NEW
+import Input from './common/Input';
+import Card from './common/Card';
+import Avatar from './common/Avatar';
 
 function Groups() {
   const { 
@@ -131,7 +131,16 @@ function Groups() {
       <div className="view-container">
         <Header title="Community" style={{ maxWidth: '1000px', margin: '0 auto' }} />
         <div className="view-content">
-          <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gridTemplateRows: isMobile ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: '15px', minHeight: 0 }}>
+          <div style={{ 
+            maxWidth: '1000px', 
+            margin: '0 auto', 
+            width: '100%', 
+            display: 'grid', 
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
+            /* REMOVED: gridTemplateRows to allow auto-sizing and prevent overlap */
+            gap: '15px', 
+            minHeight: 0 
+          }}>
             <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} />
             <HubButton title="Find Teams" desc="Search for local teams to join" icon={Search} onClick={() => setCurrentView('findTeams')} />
             <HubButton title="Find Players" desc="Connect with other players (Coming Soon)" icon={UserPlus} color="#888" onClick={() => alert("Feature coming soon!")} />
@@ -142,6 +151,7 @@ function Groups() {
     );
   }
 
+  // ... (Rest of the file: myGroups, findTeams, detail views remain unchanged)
   if (currentView === 'myGroups') {
     return (
       <div className="view-container">
