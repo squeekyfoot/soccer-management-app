@@ -86,8 +86,6 @@ function Layout() {
     </button>
   );
 
-  const isFixedView = activeView === 'messaging';
-
   return (
     <div
       style={{
@@ -118,7 +116,7 @@ function Layout() {
         )}
       </nav>
 
-      <main className={`main-content ${isMobile ? 'mobile' : ''} ${isFixedView ? 'fixed-height' : 'scrollable'}`}>
+      <main className={`main-content ${isMobile ? 'mobile' : ''}`}>
         {renderActiveView()}
       </main>
 

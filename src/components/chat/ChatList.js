@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { SquarePen, MoreVertical } from 'lucide-react'; 
+import { MoreVertical } from 'lucide-react'; 
 import { COLORS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -151,7 +151,6 @@ const ChatList = ({
   myChats, 
   selectedChat, 
   onSelectChat, 
-  onStartNewChat, 
   onDeleteChat,
   userProfiles,
   isMobile
@@ -186,20 +185,8 @@ const ChatList = ({
       position: 'relative',
       zIndex: 1
     }}>
-      <div style={{ 
-        padding: '15px', borderBottom: `1px solid ${COLORS.border}`, 
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        height: '60px', boxSizing: 'border-box', backgroundColor: COLORS.background, zIndex: 10
-      }}>
-        <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 'bold' }}>Chats</h2>
-        <button 
-          onClick={onStartNewChat}
-          style={{ background: 'none', border: 'none', color: COLORS.primary, cursor: 'pointer' }}
-          title="Start New Chat"
-        >
-          <SquarePen size={24} />
-        </button>
-      </div>
+      
+      {/* Internal header removed in favor of global banner */}
       
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {myChats.length === 0 ? (

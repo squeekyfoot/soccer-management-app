@@ -6,6 +6,7 @@ import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
 import { compressImage } from '../utils/imageUtils'; 
+import { SquarePen } from 'lucide-react';
 
 import ChatList from './chat/ChatList';
 import ImageViewer from './chat/ImageViewer';
@@ -13,7 +14,8 @@ import ChatHeader from './chat/ChatHeader';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 import ChatDetailsModal from './chat/ChatDetailsModal'; 
-import Header from './common/Header'; // NEW
+import Header from './common/Header'; 
+import Button from './common/Button';
 
 function TeamChat() {
   const { uploadImage, loggedInUser } = useAuth();
@@ -103,7 +105,7 @@ function TeamChat() {
       markChatAsRead(selectedChat.id);
     });
     return () => unsubscribe();
-  }, [selectedChat, isCreatingChat, loggedInUser.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedChat, isCreatingChat, loggedInUser.uid]); 
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -247,19 +249,36 @@ function TeamChat() {
   };
 
   const canSend = isCreatingChat ? (selectedEmails.length > 0) : true; 
+  
+  // Determine logic for showing the banner and list
   const showList = !isMobile || (!selectedChat && !isCreatingChat);
   const showChat = !isMobile || (selectedChat || isCreatingChat);
+  // Show header on Desktop OR Mobile List View
+  const showHeader = !isMobile || showList; 
 
   return (
-    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-        {!isMobile && <Header title="Messaging" style={{ maxWidth: '1000px', margin: '0 auto 20px' }} />}
+    // Use height: 100% to fill the parent "main-content" container
+    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        
+        {showHeader && (
+          <Header 
+            title="Messaging" 
+            actions={
+              <Button onClick={startNewChat} style={{ padding: '5px 10px', fontSize: '14px' }}>
+                 <SquarePen size={18} />
+                 <span>New Message</span>
+              </Button>
+            }
+            style={{ maxWidth: '1000px', margin: '0 auto 20px' }} 
+          />
+        )}
         
         <div style={{ 
           display: 'flex', flex: 1, width: '100%', maxWidth: '1000px', 
           margin: '0 auto', backgroundColor: COLORS.background, 
           borderRadius: isMobile ? '0' : '8px', overflow: 'hidden', boxSizing: 'border-box',
           border: isMobile ? 'none' : `1px solid ${COLORS.border}`,
-          height: isMobile ? '100%' : 'calc(100% - 80px)' // Subtract header height on desktop
+          minHeight: 0 // Allows flex container to shrink/scroll correctly
         }}>
           
           {showList && (
@@ -267,7 +286,6 @@ function TeamChat() {
               myChats={myChats}
               selectedChat={selectedChat}
               onSelectChat={handleSelectChat}
-              onStartNewChat={startNewChat}
               onDeleteChat={handleDeleteChat}
               userProfiles={userProfiles}
               isMobile={isMobile}
