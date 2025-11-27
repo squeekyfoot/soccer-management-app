@@ -11,7 +11,9 @@ const ChatListItem = React.memo(({
   onSelect, 
   onMenuOpen 
 }) => {
+    // Logic to determine if this looks like a DM (Direct Message)
     const isDM = chat.type === 'dm' || (chat.participants && chat.participants.length === 2 && chat.type !== 'roster');
+    
     let displayTitle = chat.name || "Chat";
     let iconImage = null;
 
@@ -21,12 +23,19 @@ const ChatListItem = React.memo(({
         const otherUser = chat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
         if (otherUser) {
             const freshUser = userProfiles[otherUser.uid];
-            displayTitle = freshUser ? (freshUser.playerName || otherUser.name) : otherUser.name;
+            // Robust check for name property variants (name vs playerName)
+            const otherUserName = otherUser.name || otherUser.playerName || "Unknown User";
+            const freshUserName = freshUser?.playerName || freshUser?.name;
+            
+            displayTitle = freshUserName || otherUserName;
             iconImage = freshUser ? freshUser.photoURL : otherUser.photoURL;
         }
     } else {
         iconImage = chat.photoURL;
     }
+
+    // Final safeguard to prevent the crash
+    if (!displayTitle) displayTitle = "Chat";
 
     const firstLetter = displayTitle.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || "?";
     const unreadCount = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
@@ -52,7 +61,6 @@ const ChatListItem = React.memo(({
             // If last message is OLDER than the time I joined (and chose to hide history)
             if (date < hiddenDate) {
                 messagePreview = "No messages yet";
-                // Optionally clear time if you want to hide that too, but usually time of 'join' is fine
             }
         }
     }

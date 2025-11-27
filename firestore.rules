@@ -13,35 +13,25 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      // READ: Allow ANY authenticated user to read user profiles.
-      // This enables "User Search" for players to find each other.
       allow read: if request.auth != null;
-
-      // CREATE: Allow new users to create their profile, but enforce 'player' role.
-      // This fixes the "Missing Permissions" error on Sign Up.
       allow create: if isOwner(userId) && request.resource.data.role == 'player';
-
-      // UPDATE: Only the owner can edit, AND they cannot change their 'role'
-      // (This prevents the "Self-Promotion" exploit)
       allow update: if isOwner(userId) 
                    && (!request.resource.data.keys().hasAny(['role']) 
                        || request.resource.data.role == resource.data.role);
 
-      // 2. Sports Details Sub-collection
       match /sportsDetails/{document=**} {
-        allow read, write: if isOwner(userId);
+        allow read: if request.auth != null;
+        allow write: if isOwner(userId);
       }
     }
 
     // 2. Rosters Collection
     match /rosters/{rosterId} {
       allow read: if request.auth != null;
-      // Only managers can create/delete rosters or change main details
-      allow write: if isManager(); 
+      allow write: if isManager();
       
       match /events/{eventId} {
         allow read: if request.auth != null;
-        // Managers OR any player on the roster can create events
         allow write: if isManager() 
                      || request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
       }
@@ -59,17 +49,13 @@ service cloud.firestore {
         request.auth.uid in resource.data.participants ||
         isManager()
       );
-      
-      // Allow updates (like "hiding" chat) if you are a participant
       allow update: if request.auth != null && (
         request.auth.uid in resource.data.participants ||
         isManager()
       );
-
-      // Allow creation if you are one of the participants
       allow create: if request.auth != null
                     && request.auth.uid in request.resource.data.participants;
-
+      
       match /messages/{messageId} {
         allow read, write: if request.auth != null && (
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
@@ -81,14 +67,22 @@ service cloud.firestore {
     // 4. Groups Collection
     match /groups/{groupId} {
       allow create: if request.auth != null;
+      // FIX: Allow Managers to read/update groups (fixes "Missing permissions" error)
+      allow read: if (request.auth != null && request.auth.uid in resource.data.members) || isManager();
+      allow update: if (request.auth != null && request.auth.uid in resource.data.members) || isManager();
       
-      allow read: if request.auth != null && request.auth.uid in resource.data.members;
-      
-      allow update: if request.auth != null && request.auth.uid in resource.data.members;
-
       match /posts/{postId} {
-        allow read, write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+        allow read, write: if (request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members) || isManager();
       }
+    }
+
+    // 5. Roster Requests
+    match /rosterRequests/{requestId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.managerId == request.auth.uid
+      );
     }
   }
 }

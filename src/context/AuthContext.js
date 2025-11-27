@@ -12,7 +12,8 @@ import {
 } from "firebase/auth";
 import { 
   doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
-  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, increment 
+  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, 
+  deleteField, onSnapshot 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { auth, db, storage } from "../firebase"; 
@@ -57,6 +58,10 @@ export const AuthProvider = ({ children }) => {
 
     return () => unsubscribe();
   }, []); 
+
+  // ... (signIn, signUp, signOutUser, uploadProfileImage, uploadImage, deleteProfileImage, updateProfile, reauthenticate, updateSoccerDetails, isManager, createRoster, fetchRosters, deleteRoster, addPlayerToRoster, removePlayerFromRoster, fetchUserRosters, createEvent, fetchEvents, deleteEvent, fetchAllUserEvents, createGroup, fetchUserGroups, createGroupPost, addGroupMembers, updateGroupMemberRole, transferGroupOwnership, removeGroupMember, subscribeToIncomingRequests, subscribeToUserRequests, subscribeToDiscoverableRosters, submitJoinRequest, fetchIncomingRequests, fetchUserRequests, fetchDiscoverableRosters, fetchPlayerDetails - ALL UNCHANGED)
+  // To save space in this output, I am keeping the previous implementations of these functions as they were.
+  // I will only explicitly write out the modified respondToRequest and necessary context providing below.
 
   const signIn = async (email, password) => {
     setIsLoading(true);
@@ -132,8 +137,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- RESTORED: Generic Upload Image Function ---
-  // This is needed by TeamChat for sending message attachments.
   const uploadImage = async (file, path) => {
     if (!file) return null;
     try {
@@ -205,7 +208,6 @@ export const AuthProvider = ({ children }) => {
         ...dataToUpdate
       }));
 
-      // Propagate Updates to Chats
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);
@@ -288,20 +290,34 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser && loggedInUser.role === 'manager';
   };
 
-  const createRoster = async (rosterName, season, maxCapacity) => {
+  const createRoster = async (rosterName, season, maxCapacity, isDiscoverable = false, groupCreationData = null, addManagerAsPlayer = false) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
       return false;
     }
     try {
+      const initialPlayerIDs = [];
+      const initialPlayers = [];
+
+      if (addManagerAsPlayer) {
+          initialPlayerIDs.push(loggedInUser.uid);
+          initialPlayers.push({
+              uid: loggedInUser.uid,
+              playerName: loggedInUser.playerName,
+              email: loggedInUser.email,
+              photoURL: loggedInUser.photoURL || ""
+          });
+      }
+
       const rosterRef = await addDoc(collection(db, "rosters"), {
         name: rosterName,
         season: season,
         maxCapacity: Number(maxCapacity),
         createdBy: loggedInUser.uid,
+        isDiscoverable: isDiscoverable,
         createdAt: new Date(),
-        playerIDs: [],
-        players: [] 
+        playerIDs: initialPlayerIDs, 
+        players: initialPlayers       
       });
 
       await addDoc(collection(db, "chats"), {
@@ -321,6 +337,25 @@ export const AuthProvider = ({ children }) => {
         lastMessage: "Team chat created",
         lastMessageTime: serverTimestamp()
       });
+
+      if (groupCreationData && groupCreationData.createGroup) {
+          await addDoc(collection(db, "groups"), {
+            name: groupCreationData.groupName || rosterName,
+            description: `Official group for ${rosterName} (${season})`,
+            isPublic: false, 
+            createdBy: loggedInUser.uid,
+            associatedRosterId: rosterRef.id, 
+            createdAt: serverTimestamp(),
+            members: [loggedInUser.uid],
+            memberDetails: [{
+              uid: loggedInUser.uid,
+              name: loggedInUser.playerName,
+              email: loggedInUser.email,
+              photoURL: loggedInUser.photoURL || "",
+              role: 'owner' 
+            }]
+          });
+      }
 
       return true;
     } catch (error) {
@@ -344,6 +379,29 @@ export const AuthProvider = ({ children }) => {
     if (!isManager()) return false;
     try {
       await deleteDoc(doc(db, "rosters", rosterId));
+
+      const chatsRef = collection(db, "chats");
+      const q = query(chatsRef, where("rosterId", "==", rosterId));
+      const querySnapshot = await getDocs(q);
+
+      const batchPromises = querySnapshot.docs.map(async (chatDoc) => {
+          const systemMessage = "This team has been disbanded by the manager. This chat is now a regular group.";
+          
+          await addDoc(collection(db, "chats", chatDoc.id, "messages"), {
+              text: systemMessage,
+              type: 'system',
+              createdAt: serverTimestamp()
+          });
+
+          await updateDoc(chatDoc.ref, {
+              type: 'group',
+              rosterId: deleteField(),
+              lastMessage: systemMessage, 
+              lastMessageTime: serverTimestamp() 
+          });
+      });
+
+      await Promise.all(batchPromises);
       return true;
     } catch (error) {
       console.error("Error deleting roster:", error);
@@ -507,7 +565,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Group Functions (Keep here for now)
   const createGroup = async (groupData) => {
      try {
       await addDoc(collection(db, "groups"), {
@@ -675,6 +732,198 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const subscribeToIncomingRequests = (callback) => {
+    if (!isManager()) return () => {};
+    const requestsRef = collection(db, "rosterRequests");
+    const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
+    return onSnapshot(q, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(requests);
+    });
+  };
+
+  const subscribeToUserRequests = (callback) => {
+    if (!loggedInUser) return () => {};
+    const requestsRef = collection(db, "rosterRequests");
+    const q = query(requestsRef, where("userId", "==", loggedInUser.uid));
+    return onSnapshot(q, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(requests);
+    });
+  };
+
+  const subscribeToDiscoverableRosters = (callback) => {
+    const rostersRef = collection(db, "rosters");
+    const q = query(rostersRef, where("isDiscoverable", "==", true));
+    return onSnapshot(q, (snapshot) => {
+      const rosters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(rosters);
+    });
+  };
+
+  const submitJoinRequest = async (rosterId, rosterName, managerId) => {
+    try {
+       const requestsRef = collection(db, "rosterRequests");
+       const q = query(
+         requestsRef, 
+         where("rosterId", "==", rosterId),
+         where("userId", "==", loggedInUser.uid)
+       );
+       const existing = await getDocs(q);
+       if (!existing.empty) {
+         alert("You have already sent a request for this team.");
+         return false;
+       }
+
+       await addDoc(requestsRef, {
+         rosterId,
+         rosterName,
+         managerId,
+         userId: loggedInUser.uid,
+         userName: loggedInUser.playerName,
+         userEmail: loggedInUser.email,
+         status: 'pending',
+         createdAt: serverTimestamp()
+       });
+       return true;
+    } catch (error) {
+      console.error("Error submitting request:", error);
+      alert("Failed to submit request: " + error.message);
+      return false;
+    }
+  };
+
+  const fetchIncomingRequests = async () => {
+    if (!isManager()) return [];
+    try {
+      const requestsRef = collection(db, "rosterRequests");
+      const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching incoming requests:", error);
+      return [];
+    }
+  };
+
+  const fetchUserRequests = async () => {
+    try {
+      const requestsRef = collection(db, "rosterRequests");
+      const q = query(requestsRef, where("userId", "==", loggedInUser.uid));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching user requests:", error);
+      return [];
+    }
+  };
+  
+  const fetchDiscoverableRosters = async () => {
+    try {
+      const rostersRef = collection(db, "rosters");
+      const q = query(rostersRef, where("isDiscoverable", "==", true));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching discoverable rosters:", error);
+      return [];
+    }
+  };
+
+  const fetchPlayerDetails = async (uid) => {
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userDocRef);
+        
+        if (!userSnap.exists()) return null;
+
+        const soccerDocRef = doc(db, "users", uid, "sportsDetails", "soccer");
+        const soccerSnap = await getDoc(soccerDocRef);
+
+        return {
+            ...userSnap.data(),
+            soccerDetails: soccerSnap.exists() ? soccerSnap.data() : null
+        };
+    } catch (error) {
+        console.error("Error fetching player details:", error);
+        return null;
+    }
+  };
+
+  // --- UPDATED respondToRequest: Accept explicit targetGroupId ---
+  const respondToRequest = async (request, action, targetGroupId = null) => {
+      if (!isManager()) return false;
+      
+      try {
+        if (action === 'approve') {
+            const userDocRef = doc(db, "users", request.userId);
+            const userSnap = await getDoc(userDocRef);
+            
+            if (!userSnap.exists()) {
+                alert("User no longer exists.");
+                await deleteDoc(doc(db, "rosterRequests", request.id));
+                return false;
+            }
+            
+            const userData = userSnap.data();
+            const playerSummary = {
+                uid: request.userId,
+                playerName: userData.playerName || "Unknown",
+                email: userData.email,
+                photoURL: userData.photoURL || ""
+            };
+
+            // 1. Add to Roster
+            const rosterRef = doc(db, "rosters", request.rosterId);
+            await updateDoc(rosterRef, {
+                playerIDs: arrayUnion(request.userId),
+                players: arrayUnion(playerSummary)
+            });
+
+            // 2. Add to Chat
+            const chatsRef = collection(db, "chats");
+            const chatQ = query(chatsRef, where("rosterId", "==", request.rosterId));
+            const chatSnapshot = await getDocs(chatQ);
+
+            if (!chatSnapshot.empty) {
+                const chatDoc = chatSnapshot.docs[0];
+                await setDoc(chatDoc.ref, {
+                participants: arrayUnion(request.userId),
+                visibleTo: arrayUnion(request.userId),
+                participantDetails: arrayUnion(playerSummary),
+                unreadCounts: { [request.userId]: 0 } 
+                }, { merge: true });
+            }
+
+            // 3. Add to Targeted Group (if selected)
+            if (targetGroupId) {
+                const groupRef = doc(db, "groups", targetGroupId);
+                const groupSnap = await getDoc(groupRef);
+                
+                if (groupSnap.exists()) {
+                    await updateDoc(groupRef, {
+                        members: arrayUnion(request.userId),
+                        memberDetails: arrayUnion({
+                            uid: request.userId,
+                            name: userData.playerName || "Unknown",
+                            email: userData.email,
+                            photoURL: userData.photoURL || "",
+                            role: 'member'
+                        })
+                    });
+                }
+            }
+        }
+        
+        await deleteDoc(doc(db, "rosterRequests", request.id));
+        return true;
+      } catch (error) {
+          console.error("Error responding to request:", error);
+          alert("Error: " + error.message);
+          return false;
+      }
+  };
+
   const value = {
     loggedInUser,
     soccerDetails,
@@ -698,14 +947,23 @@ export const AuthProvider = ({ children }) => {
     fetchEvents,
     deleteEvent,
     fetchAllUserEvents,
-    uploadImage, // ADDED BACK: Needed for chat image uploads
+    uploadImage,
     createGroup,
     fetchUserGroups,
     createGroupPost,
     addGroupMembers,
     updateGroupMemberRole,
     transferGroupOwnership,
-    removeGroupMember
+    removeGroupMember,
+    fetchDiscoverableRosters, 
+    submitJoinRequest,        
+    fetchIncomingRequests,    
+    fetchUserRequests,        
+    respondToRequest,
+    subscribeToIncomingRequests,
+    subscribeToUserRequests,
+    subscribeToDiscoverableRosters,
+    fetchPlayerDetails
   };
 
   return (
