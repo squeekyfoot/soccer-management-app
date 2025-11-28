@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { db } from "../../lib/firebase";
 
 function UserSearch({ onSelectionChange }) {
   const [allUsers, setAllUsers] = useState([]);

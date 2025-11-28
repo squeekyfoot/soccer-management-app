@@ -1,5 +1,6 @@
 import React from 'react';
-import { COLORS } from '../../config/constants';
+// CHANGED: Point to 'lib' instead of 'config'
+import { COLORS } from '../../lib/constants';
 import { ChevronLeft } from 'lucide-react';
 
 const Header = ({ title, actions, onBack, style, className }) => {
@@ -46,7 +47,7 @@ const Header = ({ title, actions, onBack, style, className }) => {
                         alignItems: 'center'
                     }}
                 >
-                    <ChevronLeft size={24} /> {/* Reduced from 32 */}
+                    <ChevronLeft size={24} />
                 </button>
             )}
         </div>
@@ -63,7 +64,6 @@ const Header = ({ title, actions, onBack, style, className }) => {
             overflow: 'hidden',
             textOverflow: 'ellipsis'
         }}>
-            {/* Title size preserved, but line-height ensures it fits */}
             <h1 style={{ margin: 0, color: 'white', fontSize: '28px', lineHeight: '44px' }}>{title}</h1>
         </div>
         

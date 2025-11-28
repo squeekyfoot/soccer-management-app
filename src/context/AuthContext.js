@@ -17,8 +17,8 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
-// CHANGED: Import from new config folder
-import { auth, db, storage } from "../config/firebase"; 
+// CHANGED: Point to 'lib' instead of 'config'
+import { auth, db, storage } from "../lib/firebase"; 
 
 const AuthContext = createContext();
 

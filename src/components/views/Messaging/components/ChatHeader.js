@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronLeft, MoreVertical } from 'lucide-react'; 
 // FIX: Up 4 levels to src
-import { COLORS } from '../../../../config/constants';
+import { COLORS } from '../../../../lib/constants';
 
 const ChatHeader = ({ 
   selectedChat, 

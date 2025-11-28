@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { COLORS } from '../../config/constants';
+import { COLORS } from '../../lib/constants';
 import Button from './Button';
 
 const Modal = ({ title, children, onClose, actions }) => {

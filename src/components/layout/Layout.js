@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-// FIX: Move up 2 levels to reach 'src'
 import { useAuth } from '../../context/AuthContext'; 
 import { useChat } from '../../context/ChatContext'; 
 import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; 
-import { MOBILE_BREAKPOINT, COLORS } from '../../config/constants'; // CHANGED: config/constants
+// CHANGED: Point to 'lib' instead of 'config'
+import { MOBILE_BREAKPOINT, COLORS } from '../../lib/constants';
 
-// FIX: Update imports to point to new 'views' structure
 import Home from '../views/Home/Home';
 import Community from '../views/Community/Community'; 
 import MyTeams from '../views/MyTeams/MyTeams'; 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MoreVertical } from 'lucide-react'; 
 // FIX: Up 4 levels to src
-import { COLORS } from '../../../../config/constants';
+import { COLORS } from '../../../../lib/constants';
 import { useAuth } from '../../../../context/AuthContext';
 
 const ChatListItem = React.memo(({ 

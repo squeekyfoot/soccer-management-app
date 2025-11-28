@@ -4,7 +4,8 @@ import {
   query, where, orderBy, onSnapshot, serverTimestamp, increment, 
   getDocs, getDoc, arrayUnion, deleteField 
 } from "firebase/firestore"; 
-import { db } from "../config/firebase"; // CHANGED: config/firebase
+// CHANGED: Point to 'lib' instead of 'config'
+import { db } from "../lib/firebase"; 
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();

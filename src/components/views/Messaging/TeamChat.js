@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '../../../context/AuthContext';
 import { useChat } from '../../../context/ChatContext'; 
 import { collection, query, orderBy, onSnapshot, limitToLast, where } from "firebase/firestore"; 
-import { db } from "../../../config/firebase";
-import { COLORS, MOBILE_BREAKPOINT } from '../../../config/constants';
+import { db } from "../../../lib/firebase";
+import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { compressImage } from '../../../utils/imageUtils'; 
 import { SquarePen } from 'lucide-react';
 

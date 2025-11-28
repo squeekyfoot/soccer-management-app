@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext'; 
 import Button from '../../common/Button'; 
 import Input from '../../common/Input';   
-import { COLORS } from '../../../config/constants'; 
+import { COLORS } from '../../../lib/constants'; 
 
 function SportsInfo() {
   const { soccerDetails, updateSoccerDetails } = useAuth();
