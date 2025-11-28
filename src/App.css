@@ -3,27 +3,26 @@
   text-align: center;
   background-color: #282c34;
   
-  /* Modern Mobile Fix: Use dvh (dynamic viewport height) */
-  min-height: 100vh;       /* Fallback for older browsers */
-  height: 100dvh;          /* Adjusts for mobile address bars */
-  
+  /* Use dvh to match the actual visible screen on mobile */
+  height: 100dvh; 
   width: 100vw;
+  
   color: white;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden; /* Prevent body scroll, let containers scroll */
+  
+  /* Flex setup for Desktop */
   display: flex;
-  flex-direction: row; /* Default Desktop: Sidebar | Content */
+  flex-direction: row; 
+  overflow: hidden;
 }
 
 /* --- DESKTOP SIDEBAR --- */
 .sidebar {
-  /* Updated to 280px to match previous visual width (240 + 20 + 20 padding) 
-     now that we are using box-sizing: border-box */
-  width: 280px; 
+  width: 280px; /* 240px + 40px padding correction */
   background-color: #1c1e22;
   padding: 20px;
   color: white;
@@ -36,19 +35,17 @@
 }
 
 /* --- MAIN CONTENT SHELL --- */
-/* This container holds the View Component (Home, Chat, etc) */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 0; /* Flexbox fix for text truncation */
+  min-width: 0; 
   background-color: #282c34;
   position: relative;
 }
 
-/* --- VIEW STRUCTURE (Standardizes all pages) --- */
-/* Every page component (Home, Groups, Chat) should use this class or style */
+/* --- VIEW STRUCTURE --- */
 .view-container {
   display: flex;
   flex-direction: column;
@@ -56,19 +53,18 @@
   width: 100%;
 }
 
-/* The top part of the view */
 .view-header {
-  flex-shrink: 0; /* Never shrink */
-  background-color: #282c34; /* Match bg to cover scrolling content */
+  flex-shrink: 0;
+  background-color: #282c34; 
   z-index: 10;
-  padding: 20px 40px 0 40px; /* Desktop Padding */
+  padding: 20px 40px 0 40px; 
 }
 
-/* The scrolling part of the view */
 .view-content {
   flex: 1;
-  overflow-y: auto; /* Internal Scroll */
-  padding: 20px 40px 40px 40px; /* Desktop Padding */
+  overflow-y: auto; /* Only this internal div should scroll */
+  -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+  padding: 20px 40px 40px 40px; 
 }
 
 /* --- Navigation Buttons --- */
@@ -132,36 +128,45 @@
 /* --- MOBILE RESPONSIVE STYLES --- */
 @media (max-width: 768px) {
   .App {
-    flex-direction: column; /* Top Content | Bottom Nav */
+    flex-direction: column; 
   }
 
-  /* Sidebar becomes Bottom Tab Bar */
+  /* FIXED POSITIONING FOR TAB BAR 
+    This solves the "Disappearing" and "Floating" issues by forcing 
+    the bar to stick to the bottom of the viewport, ignoring scroll flow.
+  */
   .tab-bar {
-    order: 2; /* Moves to bottom */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1000;
     
-    /* FIX: Allow height to grow for Safe Area (iPhone X+) */
     min-height: 70px;
     height: auto; 
-    
     background-color: #1c1e22;
     border-top: 1px solid #333;
+    
     display: flex;
     flex-direction: row; 
     align-items: center;
     justify-content: space-around; 
-    z-index: 1000;
-    padding-bottom: env(safe-area-inset-bottom); /* iPhone X fix */
-    flex-shrink: 0;
+    
+    /* Ensure padding handles the iPhone home indicator area */
+    padding-bottom: env(safe-area-inset-bottom); 
   }
 
   .main-content.mobile {
-    order: 1; /* Content above tabs */
-    flex: 1; /* Automatically fills space */
-    min-height: 0; /* Allows nested scrolling to work */
-    /* REMOVED: height: calc(...) which caused conflicts */
+    height: 100dvh; /* Fill the screen */
+    
+    /* Add padding to the bottom so content doesn't get hidden 
+       behind the fixed tab bar.
+       70px (bar height) + 20px (buffer) + Safe Area
+    */
+    padding-bottom: calc(90px + env(safe-area-inset-bottom));
   }
 
-  /* Mobile View Padding Adjustments */
   .view-header {
     padding: 15px 20px 0 20px;
   }
@@ -190,7 +195,6 @@
     margin-top: 0; 
   }
 
-  /* Info Tables on Mobile */
   .info-table {
     grid-template-columns: 1fr; 
     row-gap: 5px; 

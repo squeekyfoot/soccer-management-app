@@ -1,6 +1,17 @@
-/* --- Global Reset for Consistent Sizing --- */
+/* --- Global Reset & App Lock --- */
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+/* CRITICAL IOS FIX: 
+   Lock the html/body height to 100% and disable overflow.
+   This prevents the "whole page" from scrolling and detaching your headers/footers.
+*/
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* Disables browser chrome scrolling */
+  position: fixed;  /* Prevents 'rubber-banding' bounce effects on iOS */
 }
 
 body {
@@ -10,6 +21,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #282c34; /* Match app background to hide rubber band gaps */
 }
 
 code {
@@ -18,8 +30,6 @@ code {
 }
 
 /* --- FIX: Prevent Mobile Auto-Zoom --- */
-/* iOS Safari zooms in if inputs are less than 16px. 
-   Setting this globally prevents the zoom from triggering. */
 input, select, textarea, button {
   font-size: 16px;
 }
