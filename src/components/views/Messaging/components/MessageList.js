@@ -1,6 +1,4 @@
 import React, { useRef, useEffect } from 'react';
-// FIX: Up 4 levels to src
-import { COLORS } from '../../../../constants';
 
 const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) => {
   const messagesEndRef = useRef(null);
