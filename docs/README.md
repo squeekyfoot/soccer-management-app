@@ -12,11 +12,6 @@ Originally built with a single "God Object" context, the application has been re
 
 The UI is built using a "Container/Presentation" pattern where parent components (like `TeamChat.js`) handle logic/state, and child components (like `MessageList.js`) simply render data.
 
-### **Routing Strategy (Custom)**
-Unlike many React apps, this project **does not use `react-router-dom`**. 
-* **Navigation:** Handled via conditional rendering based on local state (`activeView` in `Layout.js`).
-* **Reasoning:** This simplifies the "App Shell" architecture, allowing us to keep the Sidebar/Tab Bar persistent and mounted while only swapping the main content area.
-
 ### **Core Technology Stack**
 
 * **Frontend:** React (Create React App)
@@ -25,63 +20,16 @@ Unlike many React apps, this project **does not use `react-router-dom`**.
   * **Firestore Database:** Stores all structured data (profiles, rosters, chats).
   * **Storage:** Stores user-uploaded media (profile pictures, chat images).
   * **Hosting:** Serves the web app globally.
-* **Styling:** Custom CSS with a centralized Design System (`src/constants.js`).
+* **Styling:** Custom CSS with a centralized Design System (`src/config/constants.js`).
 * **Icons:** lucide-react library.
 
 ---
 
 ## **Directory Structure & File Guide**
 
-src/
-└── components/
-    ├── auth/                 # Authentication related screens
-    │   ├── AuthPage.js
-    │   └── ReauthModal.js
-    │
-    ├── common/               # "Dumb" UI components (Design System)
-    │   ├── Button.js
-    │   ├── Input.js
-    │   ├── Card.js
-    │   ├── Header.js
-    │   ├── Avatar.js
-    │   ├── Loading.js
-    │   └── Modal.js
-    │
-    ├── layout/               # The App Shell
-    │   └── Layout.js
-    │
-    ├── shared/               # Smart widgets used in multiple views
-    │   └── UserSearch.js
-    │
-    └── views/                # The Main Screens (Navigation Destinations)
-        ├── Home/
-        │   ├── Home.js
-        │   └── CalendarView.js
-        │
-        ├── Community/
-        │   └── Community.js
-        │
-        ├── Messaging/        # Self-contained feature folder
-        │   ├── TeamChat.js
-        │   └── components/   # Chat-specific sub-components (ChatList, etc.)
-        │
-        ├── Profile/
-        │   ├── MyProfile.js
-        │   └── SportsInfo.js
-        │
-        ├── Manager/
-        │   ├── ManagerDashboard.js
-        │   └── components/   # Manager-specific forms/lists
-        │
-        ├── MyTeams/
-        │   └── MyTeams.js
-        │
-        └── Feedback/
-            └── Feedback.js
-
 ### **1. Configuration & State (The Brains)**
 
-* **`src/constants.js`**: **Single Source of Truth.** Contains global configuration for:
+* **`src/config/constants.js`**: **Single Source of Truth.** Contains global configuration for:
   * **Colors:** (`COLORS.primary`, `COLORS.background`, etc.)
   * **Layout:** (`MOBILE_BREAKPOINT`) to ensure consistent responsive behavior.
 * **`src/context/AuthContext.js`**: Manages **Identity & Data**.
@@ -107,57 +55,31 @@ Located in **`src/components/common/`**. These are reusable "dumb" components th
 ### **3. The Router & Layout**
 
 * **`src/App.js`**: The main entry point. It decides whether to render the `AuthPage` or the main `Layout` based on login status.
-* **`src/components/Layout.js`**: The application shell.
+* **`src/components/layout/Layout.js`**: The application shell.
   * **Desktop:** Renders a persistent left sidebar.
   * **Mobile:** Renders a top header and bottom tab bar.
   * **Navigation:** Connects to `ChatContext` to display unread notification badges.
 
 ### **4. Feature Components (The Views)**
 
-* **`src/components/Home.js`**: The dashboard. Combines `CalendarView` and `MyTeams`.
-* **`src/components/Groups.js`**: Community groups for posts/feeds.
-* **`src/components/MyTeams.js`**: Teams that the user is apart of and actions needed to be taken.
-* **`src/components/MyProfile.js`**: User settings and profile picture management.
-* **`src/components/Feedback.js`**: A page dedicated to crowd-sourcing feature prioritization. Users can submit new ideas, vote on existing ones, and track the status (`Proposed`, `Accepted`, `In Progress`, `Completed`).
-* **`src/components/ManagerDashboard.js`**: Admin tools for creating rosters and inviting players.
+* **`src/components/views/Home/Home.js`**: The dashboard. Combines `CalendarView` and `MyTeams`.
+* **`src/components/views/Community/Community.js`**: Community groups for posts/feeds.
+* **`src/components/views/MyTeams/MyTeams.js`**: Teams that the user is apart of and actions needed to be taken.
+* **`src/components/views/Profile/MyProfile.js`**: User settings and profile picture management.
+* **`src/components/views/Feedback/Feedback.js`**: A page dedicated to crowd-sourcing feature prioritization. Users can submit new ideas, vote on existing ones, and track the status (`Proposed`, `Accepted`, `In Progress`, `Completed`).
+* **`src/components/views/Manager/ManagerDashboard.js`**: Admin tools for creating rosters and inviting players.
 
 ### **5. Messaging System (TeamChat)**
 
-The chat system is split into specialized sub-components in **`src/components/chat/`**:
+The chat system is split into specialized sub-components in **`src/components/views/Messaging/`**:
 
 * **`TeamChat.js` (Controller):** The parent container. It connects to the Contexts, manages local state (selected chat), and orchestrates the sub-components.
-* **`ChatList.js`:** The left-hand list of conversations. Displays user avatars and unread badges using a 3-column grid layout.
-* **`ChatHeader.js`:** The top bar showing the active chat name, avatar, and action menu.
-* **`MessageList.js`:** The scrolling history area. Handles "Auto-Scroll" logic and layout stability.
-* **`MessageInput.js`:** The bottom form for typing and attaching images.
-* **`ChatDetailsModal.js`**: A modal interface for managing chat settings. Handles renaming groups, updating group photos, adding members, and leaving groups.
-* **`ImageViewer.js`:** A portal-based modal for viewing full-screen images.
-
----
-
-## **Mobile Layout & CSS Strategy**
-
-*Learnings from iOS Safari/Chrome inconsistencies.*
-
-To ensure the app behaves like a native mobile app (App Shell) rather than a document webpage, we enforce specific CSS rules:
-
-1.  **The `100dvh` Rule:**
-    * **Problem:** Standard `100vh` ignores the mobile browser's dynamic address bar/toolbar, causing the bottom of the app to be cut off.
-    * **Solution:** We use `height: 100dvh` (Dynamic Viewport Height) on the main `.App` container. This ensures the app resizes instantly when browser UI expands/retracts.
-
-2.  **App Shell vs. Flexbox Layout:**
-    * **Strategy:** We use `position: fixed; bottom: 0;` for the Mobile Tab Bar (`.tab-bar`).
-    * **Why:** Pure Flexbox layouts often break on iOS when scrolling, causing the navigation bar to "disappear" or float in the middle of the screen. Fixed positioning anchors it to the viewport glass.
-    * **Content Padding:** Because the nav bar is fixed (floating over content), the main content area requires `padding-bottom` to ensure the last items in a list aren't hidden behind the nav bar.
-
-3.  **Safe Area Insets:**
-    * **iPhone X+:** We use `padding-bottom: env(safe-area-inset-bottom)` on the Tab Bar to prevent buttons from overlapping with the iOS Home Indicator.
-
-4.  **Scroll Locking:**
-    * **Global Lock:** We apply `overflow: hidden` and `position: fixed` to `html` and `body`. This prevents the "rubber-banding" effect of the entire page and ensures only the internal content area (`.view-content`) scrolls.
-
-5.  **Box Sizing Reset:**
-    * We apply `box-sizing: border-box` globally. This ensures that adding `padding` to elements (like the Sidebar) doesn't unexpectedly increase their calculated width/height, which is critical for pixel-perfect mobile layouts.
+* **`components/ChatList.js`:** The left-hand list of conversations. Displays user avatars and unread badges using a 3-column grid layout.
+* **`components/ChatHeader.js`:** The top bar showing the active chat name, avatar, and action menu.
+* **`components/MessageList.js`:** The scrolling history area. Handles "Auto-Scroll" logic and layout stability.
+* **`components/MessageInput.js`:** The bottom form for typing and attaching images.
+* **`components/ChatDetailsModal.js`**: A modal interface for managing chat settings. Handles renaming groups, updating group photos, adding members, and leaving groups.
+* **`components/ImageViewer.js`:** A portal-based modal for viewing full-screen images.
 
 ---
 
@@ -166,7 +88,7 @@ To ensure the app behaves like a native mobile app (App Shell) rather than a doc
 To keep the codebase clean and efficient, follow these principles when adding new features:
 
 1.  **No Magic Numbers/Strings:**
-    * Do not write `768` or `#61dafb` in your components. Import them from `src/constants.js`.
+    * Do not write `768` or `#61dafb` in your components. Import them from `src/config/constants.js`.
 2.  **Separation of Concerns:**
     * **Data Logic** goes in a Context (`AuthContext` or `ChatContext`).
     * **UI Logic** goes in a Component.
@@ -185,7 +107,7 @@ To keep the codebase clean and efficient, follow these principles when adding ne
 
 ## **Database Maintenance & Security**
 
-The app utilizes a strict "Owner/Manager" security model enforced by Firestore Rules (`firestore.rules`).
+The app utilizes a strict "Owner/Manager" security model enforced by Firestore Rules (`config/firebase/firestore.rules`).
 
 ### **Core Security Principle: The CRUD-to-Rule Rule** 🛡️
 Whenever you implement a new **C**reate, **R**ead, **U**pdate, or **D**elete operation (CRUD) in your application, you must immediately check and update the security rules for the relevant collection.
@@ -202,6 +124,17 @@ Whenever you implement a new **C**reate, **R**ead, **U**pdate, or **D**elete ope
 * **Rosters:** Only Managers can create/edit rosters. Everyone can read.
 * **Chats:** Only participants of a chat (listed in the participants array) can read or write messages.
 * **Groups:** Members can read/post. Only Owners/Admins can manage members.
+
+---
+
+## **AI Assistant & Developer Workflow**
+
+**Important constraints for AI code generation:**
+
+1.  **Full Code Files:** When providing code solutions, **ALWAYS** provide the full content of the file. Do not provide partial snippets, diffs, or "search and replace" instructions. The developer prefers to copy/paste entire files to ensure accuracy.
+2.  **Reorganization Exception:** The **ONLY** exception to the rule above is during **File Reorganization** (moving files to new folders).
+    * If the task involves moving files and the user's IDE (VS Code) can automatically handle import updates, the AI should provide instructions for the move rather than generating code for every single file.
+    * However, if *logic* changes alongside the move, the full file rule applies.
 
 ---
 
