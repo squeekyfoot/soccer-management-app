@@ -2,7 +2,11 @@
 .App {
   text-align: center;
   background-color: #282c34;
-  height: 100vh; /* Force full viewport height */
+  
+  /* Modern Mobile Fix: Use dvh (dynamic viewport height) */
+  min-height: 100vh;       /* Fallback for older browsers */
+  height: 100dvh;          /* Adjusts for mobile address bars */
+  
   width: 100vw;
   color: white;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -17,7 +21,9 @@
 
 /* --- DESKTOP SIDEBAR --- */
 .sidebar {
-  width: 240px;
+  /* Updated to 280px to match previous visual width (240 + 20 + 20 padding) 
+     now that we are using box-sizing: border-box */
+  width: 280px; 
   background-color: #1c1e22;
   padding: 20px;
   color: white;
@@ -132,7 +138,11 @@
   /* Sidebar becomes Bottom Tab Bar */
   .tab-bar {
     order: 2; /* Moves to bottom */
-    height: 70px; 
+    
+    /* FIX: Allow height to grow for Safe Area (iPhone X+) */
+    min-height: 70px;
+    height: auto; 
+    
     background-color: #1c1e22;
     border-top: 1px solid #333;
     display: flex;
@@ -146,8 +156,9 @@
 
   .main-content.mobile {
     order: 1; /* Content above tabs */
-    flex: 1;
-    height: calc(100% - 70px); /* subtract tab bar */
+    flex: 1; /* Automatically fills space */
+    min-height: 0; /* Allows nested scrolling to work */
+    /* REMOVED: height: calc(...) which caused conflicts */
   }
 
   /* Mobile View Padding Adjustments */
@@ -192,14 +203,4 @@
   .info-value {
     padding-left: 10px; 
   }
-}
-
-/* Code formatting */
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-}
-
-/* Prevent Mobile Auto-Zoom */
-input, select, textarea, button {
-  font-size: 16px;
 }
