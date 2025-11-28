@@ -1,5 +1,5 @@
 import React from 'react';
-import { COLORS } from '../../constants';
+import { COLORS } from '../../config/constants';
 
 const Card = ({ children, onClick, style, hoverable = false }) => {
   return (

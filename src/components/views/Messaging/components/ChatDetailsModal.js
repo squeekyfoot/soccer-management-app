@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 // FIX: Up 4 levels to src
-import { COLORS } from '../../../../constants';
+import { COLORS } from '../../../../config/constants';
 // FIX: Up 3 levels to components
 import Button from '../../../common/Button';
 import UserSearch from '../../../shared/UserSearch'; 

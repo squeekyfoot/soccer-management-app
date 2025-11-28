@@ -4,7 +4,7 @@ import Button from '../../../common/Button';
 import Modal from '../../../common/Modal';
 import UserSearch from '../../../shared/UserSearch';
 import Header from '../../../common/Header';
-import { COLORS } from '../../../../constants';
+import { COLORS } from '../../../../config/constants';
 import { UserPlus } from 'lucide-react';
 
 const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, onAddToGroup }) => {

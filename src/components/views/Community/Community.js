@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 // FIX: Move up 3 levels to reach 'src'
 import { useAuth } from '../../../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; 
-import { db } from "../../../firebase";
-import { COLORS, MOBILE_BREAKPOINT } from '../../../constants';
+import { db } from "../../../config/firebase";
+import { COLORS, MOBILE_BREAKPOINT } from '../../../config/constants';
 import { Users, Search, UserPlus, Globe, Plus, X } from 'lucide-react';
 
 // FIX: Point to ../../shared and ../../common

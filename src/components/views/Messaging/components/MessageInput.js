@@ -1,6 +1,6 @@
 import React from 'react';
 import { Send, Paperclip } from 'lucide-react'; 
-import { COLORS } from '../../../../constants';
+import { COLORS } from '../../../../config/constants';
 
 const MessageInput = ({
   messageText,

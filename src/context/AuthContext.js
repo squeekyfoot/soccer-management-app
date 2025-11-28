@@ -16,7 +16,7 @@ import {
   deleteField, onSnapshot, increment 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { auth, db, storage } from "../firebase"; 
+import { auth, db, storage } from "../config/firebase"; 
 
 const AuthContext = createContext();
 

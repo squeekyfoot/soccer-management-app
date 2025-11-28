@@ -4,7 +4,7 @@ import Button from '../../../common/Button';
 import Avatar from '../../../common/Avatar';
 import Modal from '../../../common/Modal';
 import { useAuth } from '../../../../context/AuthContext';
-import { COLORS } from '../../../../constants';
+import { COLORS } from '../../../../config/constants';
 
 const IncomingRequests = ({ requests, onApprove, onDeny, myGroups }) => {
   const { fetchPlayerDetails } = useAuth();

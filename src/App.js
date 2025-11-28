@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
-import './App.css';
+import './styles/App.css'; // CHANGED: Point to styles folder
 import { useAuth } from './context/AuthContext';
 
-// UPDATED IMPORTS: Pointing to new organizational folders
+// Components
 import Layout from './components/layout/Layout';
 import AuthPage from './components/auth/AuthPage';
 import ReauthModal from './components/auth/ReauthModal';

@@ -4,7 +4,7 @@ import {
   query, where, orderBy, onSnapshot, serverTimestamp, increment, 
   getDocs, getDoc, arrayUnion, deleteField 
 } from "firebase/firestore"; 
-import { db } from "../firebase"; 
+import { db } from "../config/firebase"; 
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();

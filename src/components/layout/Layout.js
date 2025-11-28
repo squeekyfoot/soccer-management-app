@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext'; 
 import { useChat } from '../../context/ChatContext'; 
 import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; 
-import { MOBILE_BREAKPOINT, COLORS } from '../../constants';
+import { MOBILE_BREAKPOINT, COLORS } from '../../config/constants';
 
 // FIX: Update imports to point to new 'views' structure
 import Home from '../views/Home/Home';

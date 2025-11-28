@@ -1,5 +1,5 @@
 import React from 'react';
-import { COLORS } from '../../constants';
+import { COLORS } from '../../config/constants';
 import { ChevronLeft } from 'lucide-react';
 
 const Header = ({ title, actions, onBack, style, className }) => {

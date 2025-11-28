@@ -1,5 +1,5 @@
 import React from 'react';
-import { COLORS } from '../../constants';
+import { COLORS } from '../../config/constants';
 
 const Avatar = ({ src, alt, text, size = 40, style }) => {
   return (

@@ -2,7 +2,7 @@ import React from 'react';
 import Card from '../../../common/Card';
 import Button from '../../../common/Button';
 import EmptyState from '../../../common/EmptyState';
-import { COLORS } from '../../../../constants';
+import { COLORS } from '../../../../config/constants';
 
 const RosterList = ({ rosters, onSelect, onDelete }) => {
   if (!rosters || rosters.length === 0) return <EmptyState message="No rosters found. Create one to get started." />;

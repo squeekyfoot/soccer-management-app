@@ -8,7 +8,7 @@ import Card from '../../common/Card';
 import Avatar from '../../common/Avatar';
 import Modal from '../../common/Modal'; 
 import Input from '../../common/Input'; 
-import { COLORS, MOBILE_BREAKPOINT } from '../../../constants';
+import { COLORS, MOBILE_BREAKPOINT } from '../../../config/constants';
 
 function MyProfile() {
   const { loggedInUser, updateProfile, signOutUser, updateSoccerDetails } = useAuth();
