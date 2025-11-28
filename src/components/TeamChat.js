@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'; // Added useMemo
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext'; 
 import { collection, query, orderBy, onSnapshot, limitToLast, where } from "firebase/firestore"; 
@@ -49,7 +49,6 @@ function TeamChat() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ... (Same data logic as before)
   useEffect(() => {
     if (selectedChat) {
       const freshChatData = myChats.find(c => c.id === selectedChat.id);
@@ -59,10 +58,13 @@ function TeamChat() {
     }
   }, [myChats, selectedChat]);
 
-  const totalUnread = myChats.reduce((acc, chat) => {
-    const count = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
-    return acc + count;
-  }, 0);
+  // OPTIMIZATION: Memoize this calculation so it doesn't run on every render (e.g. typing)
+  const totalUnread = useMemo(() => {
+    return myChats.reduce((acc, chat) => {
+      const count = (chat.unreadCounts && chat.unreadCounts[loggedInUser.uid]) || 0;
+      return acc + count;
+    }, 0);
+  }, [myChats, loggedInUser.uid]);
 
   useEffect(() => {
     const usersRef = collection(db, "users");
@@ -76,7 +78,6 @@ function TeamChat() {
 
   useEffect(() => {
     if (!selectedChat || isCreatingChat) {
-        // Fix: Use functional update to avoid 'messages' dependency
         setMessages(prev => prev.length > 0 ? [] : prev); 
         return;
     }
@@ -96,7 +97,7 @@ function TeamChat() {
       markChatAsRead(selectedChat.id);
     });
     return () => unsubscribe();
-  }, [selectedChat, isCreatingChat, loggedInUser.uid, markChatAsRead]); // Fix: Added markChatAsRead
+  }, [selectedChat, isCreatingChat, loggedInUser.uid, markChatAsRead]);
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) setSelectedFile(e.target.files[0]);
