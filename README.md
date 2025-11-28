@@ -32,6 +32,53 @@ Unlike many React apps, this project **does not use `react-router-dom`**.
 
 ## **Directory Structure & File Guide**
 
+src/
+└── components/
+    ├── auth/                 # Authentication related screens
+    │   ├── AuthPage.js
+    │   └── ReauthModal.js
+    │
+    ├── common/               # "Dumb" UI components (Design System)
+    │   ├── Button.js
+    │   ├── Input.js
+    │   ├── Card.js
+    │   ├── Header.js
+    │   ├── Avatar.js
+    │   ├── Loading.js
+    │   └── Modal.js
+    │
+    ├── layout/               # The App Shell
+    │   └── Layout.js
+    │
+    ├── shared/               # Smart widgets used in multiple views
+    │   └── UserSearch.js
+    │
+    └── views/                # The Main Screens (Navigation Destinations)
+        ├── Home/
+        │   ├── Home.js
+        │   └── CalendarView.js
+        │
+        ├── Community/
+        │   └── Community.js
+        │
+        ├── Messaging/        # Self-contained feature folder
+        │   ├── TeamChat.js
+        │   └── components/   # Chat-specific sub-components (ChatList, etc.)
+        │
+        ├── Profile/
+        │   ├── MyProfile.js
+        │   └── SportsInfo.js
+        │
+        ├── Manager/
+        │   ├── ManagerDashboard.js
+        │   └── components/   # Manager-specific forms/lists
+        │
+        ├── MyTeams/
+        │   └── MyTeams.js
+        │
+        └── Feedback/
+            └── Feedback.js
+
 ### **1. Configuration & State (The Brains)**
 
 * **`src/constants.js`**: **Single Source of Truth.** Contains global configuration for:

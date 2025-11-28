@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import Header from './common/Header';
-import Button from './common/Button';
-import Card from './common/Card';
-import Modal from './common/Modal';
-import Input from './common/Input';
-import { COLORS, MOBILE_BREAKPOINT } from '../constants';
+import { useAuth } from '../../../context/AuthContext';
+import Header from '../../common/Header';
+import Button from '../../common/Button';
+import Card from '../../common/Card';
+import Modal from '../../common/Modal';
+import Input from '../../common/Input';
+import { COLORS, MOBILE_BREAKPOINT } from '../../../constants';
 import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus } from 'lucide-react';
 
 function Feedback() {

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import Card from '../common/Card';
-import Button from '../common/Button';
-import Modal from '../common/Modal';
+import Card from '../../../common/Card';
+import Button from '../../../common/Button';
+import Modal from '../../../common/Modal';
 import UserSearch from '../UserSearch';
-import Header from '../common/Header';
-import { COLORS } from '../../constants';
+import Header from '../../../common/Header';
+import { COLORS } from '../../../../constants';
 import { UserPlus } from 'lucide-react';
 
 const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, onAddToGroup }) => {

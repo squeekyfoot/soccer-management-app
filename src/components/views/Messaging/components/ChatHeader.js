@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronLeft, MoreVertical } from 'lucide-react'; 
-import { COLORS } from '../../constants';
+import { COLORS } from '../../../../constants';
 
 const ChatHeader = ({ 
   selectedChat, 

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../context/AuthContext';
-import SportsInfo from './SportsInfo';
+import { useAuth } from '../../../context/AuthContext';
+import SportsInfo from '../../SportsInfo';
 import { LogOut, User, Activity, Plus } from 'lucide-react'; 
-import Header from './common/Header';
-import Button from './common/Button';
-import Card from './common/Card';
-import Avatar from './common/Avatar';
-import Modal from './common/Modal'; 
-import Input from './common/Input'; 
-import { COLORS, MOBILE_BREAKPOINT } from '../constants';
+import Header from '../../common/Header';
+import Button from '../../common/Button';
+import Card from '../../common/Card';
+import Avatar from '../../common/Avatar';
+import Modal from '../../common/Modal'; 
+import Input from '../../common/Input'; 
+import { COLORS, MOBILE_BREAKPOINT } from '../../../constants';
 
 function MyProfile() {
   const { loggedInUser, updateProfile, signOutUser, updateSoccerDetails } = useAuth();

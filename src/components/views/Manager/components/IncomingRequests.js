@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import Card from '../common/Card';
-import Button from '../common/Button';
-import Avatar from '../common/Avatar';
-import Modal from '../common/Modal';
-import { useAuth } from '../../context/AuthContext';
-import { COLORS } from '../../constants';
+import Card from '../../../common/Card';
+import Button from '../../../common/Button';
+import Avatar from '../../../common/Avatar';
+import Modal from '../../../common/Modal';
+import { useAuth } from '../../../../context/AuthContext';
+import { COLORS } from '../../../../constants';
 
 const IncomingRequests = ({ requests, onApprove, onDeny, myGroups }) => {
   const { fetchPlayerDetails } = useAuth();

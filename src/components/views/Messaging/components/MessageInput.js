@@ -1,6 +1,6 @@
 import React from 'react';
 import { SquarePen, Send, Paperclip } from 'lucide-react'; 
-import { COLORS } from '../../constants';
+import { COLORS } from '../../../../constants';
 
 const MessageInput = ({
   messageText,

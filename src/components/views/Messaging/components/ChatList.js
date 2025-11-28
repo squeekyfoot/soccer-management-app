@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MoreVertical } from 'lucide-react'; 
-import { COLORS } from '../../constants';
-import { useAuth } from '../../context/AuthContext';
+import { COLORS } from '../../../../constants';
+import { useAuth } from '../../../../context/AuthContext';
 
 const ChatListItem = React.memo(({ 
   chat, 

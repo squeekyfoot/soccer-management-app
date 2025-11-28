@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { COLORS } from '../../constants';
+import { COLORS } from '../../../../constants';
 
 const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) => {
   const messagesEndRef = useRef(null);
