@@ -16,6 +16,8 @@ import {
   deleteField, onSnapshot, increment 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+
+// CHANGED: Import from new config folder
 import { auth, db, storage } from "../config/firebase"; 
 
 const AuthContext = createContext();
@@ -70,7 +72,6 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(false);
   };
 
-  // --- UPDATED SIGN UP ---
   const signUp = async (formData) => {
     if (formData.password.length < 6) {
       alert("Password must be at least 6 characters long.");
@@ -82,7 +83,6 @@ export const AuthProvider = ({ children }) => {
       userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
       
-      // Concatenate First + Last for display name compatibility
       const displayName = `${formData.firstName} ${formData.lastName}`;
       
       const userProfileData = {
@@ -90,11 +90,10 @@ export const AuthProvider = ({ children }) => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         preferredName: formData.preferredName,
-        playerName: displayName, // Kept for display/compatibility
+        playerName: displayName,
         email: formData.email,
         phone: formData.phone,
         notificationPreference: formData.notificationPreference,
-        // Emergency Contact Object
         emergencyContact: {
             firstName: formData.emergencyContactFirstName,
             lastName: formData.emergencyContactLastName,
@@ -167,7 +166,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- UPDATED UPDATE PROFILE ---
   const updateProfile = async (profileData, newImageFile = null, removeImage = false) => {
     if (!loggedInUser) return;
 
@@ -194,7 +192,6 @@ export const AuthProvider = ({ children }) => {
         photoURL = await uploadProfileImage(newImageFile, loggedInUser.uid);
       }
 
-      // Concatenate for display
       const displayName = `${profileData.firstName} ${profileData.lastName}`;
 
       const dataToUpdate = {
@@ -227,7 +224,6 @@ export const AuthProvider = ({ children }) => {
         ...dataToUpdate
       }));
 
-      // Update denormalized data in chats
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);

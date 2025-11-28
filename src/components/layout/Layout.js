@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext'; 
 import { useChat } from '../../context/ChatContext'; 
 import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; 
-import { MOBILE_BREAKPOINT, COLORS } from '../../config/constants';
+import { MOBILE_BREAKPOINT, COLORS } from '../../config/constants'; // CHANGED: config/constants
 
 // FIX: Update imports to point to new 'views' structure
 import Home from '../views/Home/Home';
-import Community from '../views/Community/Community'; // Renamed from Groups
+import Community from '../views/Community/Community'; 
 import MyTeams from '../views/MyTeams/MyTeams'; 
 import TeamChat from '../views/Messaging/TeamChat';
 import MyProfile from '../views/Profile/MyProfile'; 
@@ -39,7 +39,7 @@ function Layout() {
   const renderActiveView = () => {
     switch (activeView) {
       case 'home': return <Home />;
-      case 'community': return <Community />; // Updated to Community
+      case 'community': return <Community />; 
       case 'myteams': return <MyTeams />; 
       case 'messaging': return <TeamChat />;
       case 'profile': return <MyProfile />; 

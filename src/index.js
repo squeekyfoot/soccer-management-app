@@ -1,17 +1,19 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './styles/index.css'; // CHANGED: Point to styles folder
+import './styles/index.css'; // CHANGED: Points to src/styles/
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+import { AuthProvider } from './context/AuthContext';
+import { ChatProvider } from './context/ChatContext';
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+  <AuthProvider>
+    <ChatProvider>
+      <App />
+    </ChatProvider>
+  </AuthProvider>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
