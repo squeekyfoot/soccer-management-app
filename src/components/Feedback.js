@@ -6,7 +6,7 @@ import Card from './common/Card';
 import Modal from './common/Modal';
 import Input from './common/Input';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
-import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus } from 'lucide-react';
 
 function Feedback() {
   const { subscribeToFeedback, createFeedback, voteForFeedback, loggedInUser } = useAuth();
@@ -94,7 +94,7 @@ function Feedback() {
         <Header 
           title="Feedback Details" 
           style={{ maxWidth: '1000px', margin: '0 auto' }}
-          actions={<Button variant="secondary" onClick={() => setCurrentView('list')}>Back</Button>}
+          onBack={() => setCurrentView('list')}
         />
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
@@ -164,7 +164,19 @@ function Feedback() {
       <Header 
         title="Feedback" 
         style={{ maxWidth: '1000px', margin: '0 auto' }}
-        actions={<Button onClick={() => setShowAddModal(true)}>+ Add Feedback</Button>}
+        actions={
+            <Button 
+                onClick={() => setShowAddModal(true)} 
+                style={{ 
+                  padding: 0, 
+                  width: '32px', height: '32px', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  borderRadius: '50%' 
+                }}
+            >
+                <Plus size={18} />
+            </Button>
+        }
       />
       
       <div className="view-content">

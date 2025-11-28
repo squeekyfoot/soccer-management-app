@@ -4,7 +4,7 @@ import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/fi
 import { db } from "../firebase";
 import UserSearch from './UserSearch';
 import { COLORS, MOBILE_BREAKPOINT } from '../constants';
-import { Users, Search, UserPlus, Globe } from 'lucide-react';
+import { Users, Search, UserPlus, Globe, Plus, X } from 'lucide-react';
 import Header from './common/Header'; 
 import Button from './common/Button'; 
 import Input from './common/Input';
@@ -118,7 +118,6 @@ function Groups() {
     return me ? (me.role || 'member') : 'member';
   };
 
-  // --- FIX: Removed fixed height and added box-sizing to prevent overlap ---
   const HubButton = ({ title, desc, icon: Icon, onClick, color = COLORS.primary }) => (
     <Card 
         onClick={onClick} 
@@ -129,17 +128,9 @@ function Groups() {
             alignItems: 'center', 
             justifyContent: isMobile ? 'flex-start' : 'center', 
             textAlign: isMobile ? 'left' : 'center',
-            
-            // Desktop: Enforce min-height. Grid will stretch this automatically.
-            minHeight: isMobile ? 'auto' : '220px', 
-            
-            // FIX: Removed height: '100%' to prevent overflow issues
-            // The Grid container's 'stretch' behavior will handle the height.
-            
+            gridAutoRows: isMobile ? 'auto' : 'minmax(220px, auto)',
             marginBottom: 0,
             padding: '20px',
-            
-            // FIX: Ensures padding is calculated inside the dimensions
             boxSizing: 'border-box' 
         }}
     >
@@ -170,7 +161,6 @@ function Groups() {
             width: '100%', 
             display: 'grid', 
             gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
-            // Desktop rows are at least 220px. Cards will stretch to fill this.
             gridAutoRows: isMobile ? 'auto' : 'minmax(220px, auto)',
             gap: '20px', 
             minHeight: 0 
@@ -185,11 +175,27 @@ function Groups() {
     );
   }
 
-  // ... (Rest of the file remains unchanged: myGroups, findTeams, detail)
   if (currentView === 'myGroups') {
     return (
       <div className="view-container">
-        <Header title="My Groups" style={{ maxWidth: '1000px', margin: '0 auto' }} actions={<><Button onClick={() => setCurrentView('hub')} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button><Button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: '5px 10px', fontSize: '14px' }}>{showCreateForm ? "Cancel" : "+ Create"}</Button></>} />
+        <Header 
+            title="My Groups" 
+            style={{ maxWidth: '1000px', margin: '0 auto' }} 
+            onBack={() => setCurrentView('hub')}
+            actions={
+              <Button 
+                onClick={() => setShowCreateForm(!showCreateForm)} 
+                style={{ 
+                  padding: 0, 
+                  width: '32px', height: '32px', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  borderRadius: '50%' 
+                }}
+              >
+                {showCreateForm ? <X size={18} /> : <Plus size={18} />}
+              </Button>
+            } 
+        />
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
             {showCreateForm && (
@@ -222,7 +228,11 @@ function Groups() {
   if (currentView === 'findTeams') {
       return (
         <div className="view-container">
-            <Header title="Find Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} actions={<Button onClick={() => setCurrentView('hub')} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button>} />
+            <Header 
+                title="Find Teams" 
+                style={{ maxWidth: '1000px', margin: '0 auto' }} 
+                onBack={() => setCurrentView('hub')}
+            />
             <div className="view-content">
               <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
                 {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams found.</p> : (
@@ -299,7 +309,11 @@ function Groups() {
 
       return (
       <div className="view-container">
-        <Header title={selectedGroup.name} style={{ maxWidth: '1000px', margin: '0 auto' }} actions={<Button onClick={() => { setSelectedGroup(null); setCurrentView('myGroups'); }} variant="secondary" style={{ padding: '5px 10px', fontSize: '14px' }}>Back</Button>} />
+        <Header 
+            title={selectedGroup.name} 
+            style={{ maxWidth: '1000px', margin: '0 auto' }} 
+            onBack={() => { setSelectedGroup(null); setCurrentView('myGroups'); }}
+        />
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
             <p style={{ color: '#ccc', marginTop: '5px' }}>{selectedGroup.description}</p>

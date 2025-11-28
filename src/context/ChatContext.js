@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { 
-  collection, addDoc, setDoc, updateDoc, deleteDoc, doc, 
+  collection, addDoc, updateDoc, doc, 
   query, where, orderBy, onSnapshot, serverTimestamp, increment, 
-  arrayRemove, getDocs, getDoc, arrayUnion, deleteField // <--- IMPORT deleteField
+  getDocs, getDoc, arrayUnion, deleteField 
 } from "firebase/firestore"; 
 import { db } from "../firebase"; 
 import { useAuth } from './AuthContext';
@@ -44,8 +44,8 @@ export const ChatProvider = ({ children }) => {
     return () => unsubscribe();
   }, [loggedInUser]);
 
-  // 2. MARK READ
-  const markChatAsRead = async (chatId) => {
+  // 2. MARK READ (Stabilized with useCallback)
+  const markChatAsRead = useCallback(async (chatId) => {
     if (!loggedInUser) return;
     try {
       const chatRef = doc(db, "chats", chatId);
@@ -55,7 +55,7 @@ export const ChatProvider = ({ children }) => {
     } catch (error) {
       console.error("Error marking read:", error);
     }
-  };
+  }, [loggedInUser]);
 
   // 3. CREATE CHAT
   const createChat = async (participantEmails, chatName = "") => {
@@ -211,7 +211,7 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  // 6. ADD PARTICIPANT (UPDATED)
+  // 6. ADD PARTICIPANT
   const addParticipant = async (chatId, newEmail, includeHistory) => {
     try {
         const usersRef = collection(db, "users");
@@ -248,7 +248,6 @@ export const ChatProvider = ({ children }) => {
             [`unreadCounts.${newUser.uid}`]: 0
         };
 
-        // FIXED LOGIC HERE:
         if (!includeHistory) {
              // Hide history -> Set timestamp
              updateData[`hiddenHistory.${newUser.uid}`] = serverTimestamp();

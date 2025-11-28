@@ -76,10 +76,13 @@ function TeamChat() {
 
   useEffect(() => {
     if (!selectedChat || isCreatingChat) {
-        if(messages.length > 0) setMessages([]); 
+        // Fix: Use functional update to avoid 'messages' dependency
+        setMessages(prev => prev.length > 0 ? [] : prev); 
         return;
     }
+    
     markChatAsRead(selectedChat.id);
+    
     const messagesRef = collection(db, "chats", selectedChat.id, "messages");
     let qConstraints = [orderBy("createdAt", "asc"), limitToLast(50)];
     if (selectedChat.hiddenHistory && selectedChat.hiddenHistory[loggedInUser.uid]) {
@@ -93,7 +96,7 @@ function TeamChat() {
       markChatAsRead(selectedChat.id);
     });
     return () => unsubscribe();
-  }, [selectedChat, isCreatingChat, loggedInUser.uid]);
+  }, [selectedChat, isCreatingChat, loggedInUser.uid, markChatAsRead]); // Fix: Added markChatAsRead
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) setSelectedFile(e.target.files[0]);
@@ -202,9 +205,16 @@ function TeamChat() {
           <Header 
             title="Messaging" 
             actions={
-              <Button onClick={startNewChat} style={{ padding: '5px 10px', fontSize: '14px' }}>
+              <Button 
+                onClick={startNewChat} 
+                style={{ 
+                    padding: 0, 
+                    width: '32px', height: '32px', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    borderRadius: '50%' 
+                }}
+              >
                  <SquarePen size={18} />
-                 <span>New Message</span>
               </Button>
             }
             style={{ maxWidth: '1000px', margin: '0 auto' }} 

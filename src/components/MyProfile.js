@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import SportsInfo from './SportsInfo';
-import { LogOut, User, Activity } from 'lucide-react'; 
+import { LogOut, User, Activity, Plus } from 'lucide-react'; 
 import Header from './common/Header';
 import Button from './common/Button';
 import Card from './common/Card';
@@ -16,16 +16,13 @@ function MyProfile() {
   const [currentView, setCurrentView] = useState('hub'); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
-  // --- Edit Profile State ---
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileFormData, setProfileFormData] = useState({});
   
-  // --- Image State ---
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(loggedInUser?.photoURL || "");
   const [isRemovingImage, setIsRemovingImage] = useState(false);
 
-  // --- Add Sport State ---
   const [showAddSportModal, setShowAddSportModal] = useState(false);
   const [newSportType, setNewSportType] = useState("Soccer");
   const [newSportData, setNewSportData] = useState({
@@ -58,7 +55,6 @@ function MyProfile() {
      }
   }, [loggedInUser]);
 
-  // --- Handlers ---
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
       const file = e.target.files[0];
@@ -95,7 +91,6 @@ function MyProfile() {
     }
   };
 
-  // --- Add Sport Handlers ---
   const handleSportChange = (e) => {
       const { name, value } = e.target;
       setNewSportData(prev => ({ ...prev, [name]: value }));
@@ -107,7 +102,6 @@ function MyProfile() {
           const success = await updateSoccerDetails(newSportData);
           if (success) {
               setShowAddSportModal(false);
-              // Reset form
               setNewSportData({
                   favoredPosition: "", jerseySize: "Large", playerNumber: 0,
                   currentRosters: "", rosterJerseysOwned: "", comments: ""
@@ -147,14 +141,20 @@ function MyProfile() {
     </Card>
   );
 
-  // --- VIEW 1: HUB ---
   if (currentView === 'hub') {
       return (
         <div className="view-container">
           <Header title="Profile" style={{ maxWidth: '1000px', margin: '0 auto' }}
             actions={
-                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 'bold' }}>
-                  <LogOut size={20} /> Sign Out
+                <button 
+                  onClick={handleSignOut} 
+                  style={{ 
+                    background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    width: '32px', height: '32px' 
+                  }}
+                >
+                  <LogOut size={20} />
                 </button>
             }
           />
@@ -178,7 +178,6 @@ function MyProfile() {
       );
   }
 
-  // --- VIEW 2: PERSONAL INFO ---
   if (currentView === 'personal') {
       if (isEditingProfile) {
         return (
@@ -233,7 +232,11 @@ function MyProfile() {
 
       return (
         <div className="view-container">
-          <Header title="Personal Information" style={{ maxWidth: '1000px', margin: '0 auto' }} actions={<Button variant="secondary" onClick={() => setCurrentView('hub')} style={{ fontSize: '14px', padding: '5px 15px' }}>Back</Button>} />
+          <Header 
+            title="Personal Information" 
+            style={{ maxWidth: '1000px', margin: '0 auto' }} 
+            onBack={() => setCurrentView('hub')}
+          />
           <div className="view-content">
             <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
               <div className="info-table">
@@ -257,18 +260,26 @@ function MyProfile() {
       );
   }
 
-  // --- VIEW 3: SPORTS DETAILS ---
   if (currentView === 'sports') {
       return (
         <div className="view-container">
           <Header 
             title="Sports Details" 
             style={{ maxWidth: '1000px', margin: '0 auto' }} 
+            onBack={() => setCurrentView('hub')}
             actions={
                 <div style={{ display: 'flex', gap: '10px' }}>
-                     {/* ADD SPORT BUTTON */}
-                     <Button onClick={() => setShowAddSportModal(true)} style={{ fontSize: '14px', padding: '5px 15px' }}>+ Add Sport</Button>
-                     <Button variant="secondary" onClick={() => setCurrentView('hub')} style={{ fontSize: '14px', padding: '5px 15px' }}>Back</Button>
+                     <Button 
+                        onClick={() => setShowAddSportModal(true)} 
+                        style={{ 
+                          padding: 0, 
+                          width: '32px', height: '32px', 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                          borderRadius: '50%' 
+                        }}
+                     >
+                        <Plus size={18} />
+                     </Button>
                 </div>
             } 
           />
@@ -278,7 +289,6 @@ function MyProfile() {
              </div>
           </div>
 
-          {/* ADD SPORT MODAL (Styled by Modal.js, Form Layout matches AuthPage) */}
           {showAddSportModal && (
               <Modal 
                   title="Add Sport" 
@@ -287,7 +297,6 @@ function MyProfile() {
               >
                   <form onSubmit={handleAddSportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
                       
-                      {/* Sport Selection */}
                       <div style={{ marginBottom: '10px' }}>
                         <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Select Sport</label>
                         <select

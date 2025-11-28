@@ -7,7 +7,8 @@ import UserSearch from './UserSearch';
 import Header from './common/Header';
 import Avatar from './common/Avatar'; 
 import Card from './common/Card';     
-import Modal from './common/Modal';   
+import Modal from './common/Modal';
+import { Plus, X, UserPlus } from 'lucide-react';
 
 function ManagerDashboard() {
   const { 
@@ -51,7 +52,6 @@ function ManagerDashboard() {
   const [showConfirmAddModal, setShowConfirmAddModal] = useState(false);
   const [manualAddTargetGroupId, setManualAddTargetGroupId] = useState("");
   
-  // NEW: State for the Add Player Modal
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
 
   // --- Data Loading ---
@@ -79,7 +79,6 @@ function ManagerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep selected roster updated if underlying data changes
   useEffect(() => {
     if (selectedRoster) {
       const updated = rosters.find(r => r.id === selectedRoster.id);
@@ -115,7 +114,6 @@ function ManagerDashboard() {
     if (success) {
       alert("Roster created!");
       setShowCreateForm(false);
-      // Reset Form
       setNewRosterName(""); setNewRosterSeason(""); setNewRosterCapacity("20");
       setIsDiscoverable(false); setAddManagerToRoster(false); setCreateAssociatedGroup(false);
       setAssociatedGroupName(""); setGroupNameDirty(false);
@@ -142,11 +140,9 @@ function ManagerDashboard() {
       e.preventDefault();
       if (selectedPlayerEmails.length === 0) return;
       
-      // Default to associated group if exists
       const associated = myGroups.find(g => g.associatedRosterId === selectedRoster.id);
       setManualAddTargetGroupId(associated ? associated.id : "");
       
-      // Close the selection modal and open the confirm modal
       setShowAddPlayerModal(false); 
       setShowConfirmAddModal(true);
   };
@@ -160,7 +156,7 @@ function ManagerDashboard() {
       }
       alert("Players added successfully!");
       setSelectedPlayerEmails([]);
-      setUserSearchKey(prev => prev + 1); // Force clear UserSearch component
+      setUserSearchKey(prev => prev + 1); 
       setShowConfirmAddModal(false);
       setManualAddTargetGroupId("");
       loadRosters();
@@ -220,16 +216,19 @@ function ManagerDashboard() {
         <Header 
           title={selectedRoster.name}
           style={{ maxWidth: '1000px', margin: '0 auto' }}
-          // NEW: Actions now include Add Player + Back
+          onBack={() => setSelectedRoster(null)}
           actions={
-            <div style={{ display: 'flex', gap: '10px' }}>
-               <Button onClick={() => setShowAddPlayerModal(true)} style={{ padding: '6px 12px', fontSize: '14px' }}>
-                 + Add Player
-               </Button>
-               <Button onClick={() => setSelectedRoster(null)}OX variant="secondary" style={{ padding: '6px 12px', fontSize: '14px' }}>
-                 Back
-               </Button>
-            </div>
+             <Button 
+                onClick={() => setShowAddPlayerModal(true)} 
+                style={{ 
+                  padding: 0, 
+                  width: '32px', height: '32px', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  borderRadius: '50%' 
+                }}
+             >
+               <UserPlus size={18} />
+             </Button>
           }
         />
 
@@ -240,7 +239,6 @@ function ManagerDashboard() {
               {selectedRoster.isDiscoverable && <span style={{ marginLeft: '10px', fontSize: '12px', backgroundColor: COLORS.success, padding: '2px 6px', borderRadius: '4px', color: 'white' }}>Discoverable</span>}
             </p>
 
-            {/* UPDATED: Removed Grid Layout. Now a simple list. */}
             <div style={{ marginTop: '30px' }}>
                 <h3 style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px' }}>Roster</h3>
                 {(!selectedRoster.players || selectedRoster.players.length === 0) ? (
@@ -263,12 +261,11 @@ function ManagerDashboard() {
                 )}
             </div>
 
-            {/* --- NEW: Add Player Modal --- */}
             {showAddPlayerModal && (
               <Modal 
                 title="Add Players" 
                 onClose={() => setShowAddPlayerModal(false)}
-                actions={null} // Actions are handled inside the form
+                actions={null} 
               >
                 <div style={{ textAlign: 'left' }}>
                   <p style={{ marginTop: 0, fontSize: '14px', marginBottom: '15px', color: '#ccc' }}>
@@ -287,7 +284,6 @@ function ManagerDashboard() {
               </Modal>
             )}
 
-            {/* Modals for Roster View */}
             {showConfirmAddModal && (
                 <Modal 
                   title="Confirm Add" 
@@ -336,8 +332,16 @@ function ManagerDashboard() {
         title="Manager Dashboard" 
         style={{ maxWidth: '1000px', margin: '0 auto' }}
         actions={
-           <Button onClick={() => setShowCreateForm(!showCreateForm)} style={{ fontSize: '14px', padding: '5px 15px' }}>
-            {showCreateForm ? "Cancel" : "+ Create Roster"}
+           <Button 
+                onClick={() => setShowCreateForm(!showCreateForm)} 
+                style={{ 
+                  padding: 0, 
+                  width: '32px', height: '32px', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  borderRadius: '50%' 
+                }}
+           >
+            {showCreateForm ? <X size={18} /> : <Plus size={18} />}
           </Button>
         }
       />
@@ -368,7 +372,6 @@ function ManagerDashboard() {
                                     {loadingDetails ? <p style={{ fontStyle: 'italic', margin: 0 }}>Loading player details...</p> : expandedPlayerDetails ? (
                                         <div style={{ fontSize: '14px' }}>
                                             <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
-                                                {/* REFACTORED: Using Avatar Component */}
                                                 <Avatar src={expandedPlayerDetails.photoURL} text={expandedPlayerDetails.playerName} size={50} />
                                                 <div>
                                                     <strong>{expandedPlayerDetails.playerName}</strong>
