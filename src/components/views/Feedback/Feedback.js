@@ -202,9 +202,9 @@ function Feedback() {
     const isClosed = selectedFeedback.status === 'Completed' || selectedFeedback.status === 'Rejected';
     
     // Sort notes: Newest first (LIFO stack)
-    const sortedNotes = selectedFeedback.developerNotes 
-        ? [...selectedFeedback.developerNotes].sort((a, b) => b.createdAt - a.createdAt)
-        : [];
+    // FIX APPLIED HERE: Added Array.isArray check
+    const sortedNotes = (Array.isArray(selectedFeedback.developerNotes) ? selectedFeedback.developerNotes : [])
+        .sort((a, b) => b.createdAt - a.createdAt);
 
     return (
       <div className="view-container">
