@@ -5,7 +5,7 @@ import Home from './Home';
 import MyProfile from './MyProfile'; 
 import ManagerDashboard from './ManagerDashboard'; 
 import TeamChat from './TeamChat';
-import Groups from './Groups';
+import Community from './Community'; // CHANGED: Renamed import
 import MyTeams from './MyTeams'; 
 import Feedback from './Feedback'; 
 import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; 
@@ -38,7 +38,7 @@ function Layout() {
   const renderActiveView = () => {
     switch (activeView) {
       case 'home': return <Home />;
-      case 'groups': return <Groups />;
+      case 'community': return <Community />; // CHANGED: Updated view key and component
       case 'myteams': return <MyTeams />; 
       case 'messaging': return <TeamChat />;
       case 'profile': return <MyProfile />; 
@@ -82,7 +82,7 @@ function Layout() {
       {/* Sidebar / Tab Bar */}
       <nav className={isMobile ? 'tab-bar' : 'sidebar'}>
         <NavButton view="home" label="Home" icon={House} />
-        <NavButton view="groups" label="Community" icon={Users} />
+        <NavButton view="community" label="Community" icon={Users} /> {/* CHANGED: View key updated */}
         <NavButton view="myteams" label="My Teams" icon={Dribbble} />
         
         <NavButton view="messaging" label="Messaging" icon={MessageSquare} showBadge={true} />

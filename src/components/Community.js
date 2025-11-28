@@ -11,7 +11,7 @@ import Input from './common/Input';
 import Card from './common/Card';
 import Avatar from './common/Avatar';
 
-function Groups() {
+function Community() {
   const { 
     fetchUserGroups, createGroup, createGroupPost, 
     addGroupMembers, updateGroupMemberRole, transferGroupOwnership, removeGroupMember,
@@ -372,4 +372,4 @@ function Groups() {
   return <div>Error: View state unknown</div>;
 }
 
-export default Groups;
+export default Community;
