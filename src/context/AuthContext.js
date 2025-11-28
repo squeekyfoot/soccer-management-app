@@ -17,7 +17,6 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
-// CHANGED: Point to 'lib' instead of 'config'
 import { auth, db, storage } from "../lib/firebase"; 
 
 const AuthContext = createContext();
@@ -302,9 +301,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // --- ROLES ---
+  
   const isManager = () => {
-    return loggedInUser && loggedInUser.role === 'manager';
+    return loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
   };
+
+  const isDeveloper = () => {
+    return loggedInUser && loggedInUser.role === 'developer';
+  };
+
+  // --- ROSTER & GROUP LOGIC ---
 
   const createRoster = async (rosterName, season, maxCapacity, isDiscoverable = false, groupCreationData = null, addManagerAsPlayer = false) => {
     if (!isManager()) {
@@ -644,7 +651,7 @@ export const AuthProvider = ({ children }) => {
       const groupData = groupSnap.data();
       const myMemberDetails = groupData.memberDetails.find(m => m.uid === loggedInUser.uid);
       
-      if (!myMemberDetails || (myMemberDetails.role !== 'owner' && myMemberDetails.role !== 'admin')) {
+      if (!isDeveloper() && (!myMemberDetails || (myMemberDetails.role !== 'owner' && myMemberDetails.role !== 'admin'))) {
         alert("Only Owners and Admins can add members.");
         return false;
       }
@@ -749,7 +756,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const subscribeToIncomingRequests = (callback) => {
-    if (!isManager()) return () => {};
+    if (!isManager() && !isDeveloper()) return () => {};
     const requestsRef = collection(db, "rosterRequests");
     const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
     return onSnapshot(q, (snapshot) => {
@@ -810,7 +817,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const fetchIncomingRequests = async () => {
-    if (!isManager()) return [];
+    if (!isManager() && !isDeveloper()) return [];
     try {
       const requestsRef = collection(db, "rosterRequests");
       const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
@@ -867,7 +874,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const respondToRequest = async (request, action, targetGroupId = null) => {
-      if (!isManager()) return false;
+      if (!isManager() && !isDeveloper()) return false;
       
       try {
         if (action === 'approve') {
@@ -939,7 +946,7 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
-  // --- NEW FEEDBACK FUNCTIONS ---
+  // --- FEEDBACK FUNCTIONS ---
 
   const createFeedback = async (data) => {
     try {
@@ -948,7 +955,7 @@ export const AuthProvider = ({ children }) => {
         authorId: loggedInUser.uid,
         authorName: loggedInUser.playerName,
         status: 'Proposed', // Default status
-        developerNotes: '',
+        developerNotes: [], // Changed to Array for structured history
         votes: 0,
         voters: [], // Array to track who voted
         createdAt: serverTimestamp()
@@ -980,20 +987,88 @@ export const AuthProvider = ({ children }) => {
       
       if (feedbackSnap.exists()) {
         const data = feedbackSnap.data();
-        // Check if user already voted
-        if (data.voters && data.voters.includes(loggedInUser.uid)) {
-          alert("You have already voted for this item.");
+        
+        // Block voting if Completed or Rejected
+        if (data.status === 'Completed' || data.status === 'Rejected') {
+          alert("Voting is closed for this item.");
           return false;
         }
 
-        await updateDoc(feedbackRef, {
-          votes: increment(1),
-          voters: arrayUnion(loggedInUser.uid)
-        });
+        // Toggle Vote Logic
+        if (data.voters && data.voters.includes(loggedInUser.uid)) {
+          // Remove Vote
+          await updateDoc(feedbackRef, {
+             votes: increment(-1),
+             voters: arrayRemove(loggedInUser.uid)
+          });
+        } else {
+          // Add Vote
+          await updateDoc(feedbackRef, {
+            votes: increment(1),
+            voters: arrayUnion(loggedInUser.uid)
+          });
+        }
         return true;
       }
     } catch (error) {
       console.error("Error voting:", error);
+      return false;
+    }
+  };
+
+  // **NEW** Update Feedback (Developer only)
+  const updateFeedback = async (feedbackId, updates) => {
+    if (!isDeveloper()) return false;
+    try {
+      const feedbackRef = doc(db, "feedback", feedbackId);
+      
+      // If status is changing, update the statusUpdatedAt timestamp
+      if (updates.status) {
+          updates.statusUpdatedAt = serverTimestamp();
+      }
+
+      await updateDoc(feedbackRef, updates);
+      return true;
+    } catch (error) {
+      console.error("Error updating feedback:", error);
+      alert("Error updating feedback: " + error.message);
+      return false;
+    }
+  };
+
+  // **NEW** Add Developer Note (Appends to array)
+  const addDeveloperNote = async (feedbackId, noteText) => {
+      if (!isDeveloper()) return false;
+      try {
+          const feedbackRef = doc(db, "feedback", feedbackId);
+          const noteObject = {
+              text: noteText,
+              createdAt: Date.now(), // Store as number for easier sorting/display
+              author: loggedInUser.playerName
+          };
+
+          // We use arrayUnion. To ensure 'stacking' order, we can sort in UI, 
+          // or just use arrayUnion and map them.
+          await updateDoc(feedbackRef, {
+              developerNotes: arrayUnion(noteObject)
+          });
+          return true;
+      } catch (error) {
+          console.error("Error adding note:", error);
+          alert("Error adding note: " + error.message);
+          return false;
+      }
+  };
+
+  // **NEW** Delete Feedback (Developer only)
+  const deleteFeedback = async (feedbackId) => {
+    if (!isDeveloper()) return false;
+    try {
+      await deleteDoc(doc(db, "feedback", feedbackId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting feedback:", error);
+      alert("Error deleting feedback: " + error.message);
       return false;
     }
   };
@@ -1012,6 +1087,7 @@ export const AuthProvider = ({ children }) => {
     reauthenticate,
     updateSoccerDetails,
     isManager,
+    isDeveloper, // EXPORTED HERE
     createRoster,
     fetchRosters,
     deleteRoster,
@@ -1041,7 +1117,10 @@ export const AuthProvider = ({ children }) => {
     fetchPlayerDetails,
     createFeedback,
     subscribeToFeedback,
-    voteForFeedback
+    voteForFeedback,
+    updateFeedback, // EXPORTED
+    deleteFeedback,  // EXPORTED
+    addDeveloperNote // EXPORTED
   };
 
   return (

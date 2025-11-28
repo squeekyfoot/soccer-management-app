@@ -6,23 +6,42 @@ import Card from '../../common/Card';
 import Modal from '../../common/Modal';
 import Input from '../../common/Input';
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
-import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus } from 'lucide-react';
+import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus, Trash2, Save, ShieldAlert, Edit3, PlusCircle } from 'lucide-react';
 
 function Feedback() {
-  const { subscribeToFeedback, createFeedback, voteForFeedback, loggedInUser } = useAuth();
+  const { 
+    subscribeToFeedback, createFeedback, voteForFeedback, 
+    updateFeedback, deleteFeedback, addDeveloperNote, // New functions
+    loggedInUser, isDeveloper 
+  } = useAuth();
 
   // --- State ---
   const [feedbackList, setFeedbackList] = useState([]);
+  const [filteredList, setFilteredList] = useState([]);
   const [currentView, setCurrentView] = useState('list'); // 'list' | 'detail'
   const [selectedFeedback, setSelectedFeedback] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
   
+  // --- Filter State ---
+  const [activeFilter, setActiveFilter] = useState('Active'); // Active, Completed, Rejected
+  const [counts, setCounts] = useState({ Active: 0, Completed: 0, Rejected: 0 });
+
   // --- Modal State ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [newFeedback, setNewFeedback] = useState({
     title: "",
     type: "Suggestion",
     description: ""
+  });
+
+  // --- Developer Edit State ---
+  const [newNoteText, setNewNoteText] = useState("");
+  const [devStatus, setDevStatus] = useState("");
+  const [devOverrideMode, setDevOverrideMode] = useState(false);
+  const [overrideData, setOverrideData] = useState({
+      title: "",
+      type: "",
+      description: ""
   });
 
   useEffect(() => {
@@ -34,19 +53,52 @@ function Feedback() {
   // --- Data Subscription ---
   useEffect(() => {
     const unsubscribe = subscribeToFeedback((data) => {
-      // Filter out 'Completed' and 'Rejected' items
-      const filtered = data.filter(item => 
-        item.status !== 'Completed' && item.status !== 'Rejected'
-      );
-      setFeedbackList(filtered);
+      setFeedbackList(data);
+      
+      // Calculate Counts
+      const active = data.filter(i => i.status !== 'Completed' && i.status !== 'Rejected').length;
+      const completed = data.filter(i => i.status === 'Completed').length;
+      const rejected = data.filter(i => i.status === 'Rejected').length;
+      setCounts({ Active: active, Completed: completed, Rejected: rejected });
+
+      // If looking at detail, keep it fresh
+      if (selectedFeedback) {
+          const updated = data.find(i => i.id === selectedFeedback.id);
+          if (updated) setSelectedFeedback(updated);
+      }
     });
     return () => unsubscribe();
-  }, [subscribeToFeedback]);
+  }, [subscribeToFeedback, selectedFeedback]);
+
+  // --- Filtering & Sorting Logic ---
+  useEffect(() => {
+    let filtered = [];
+    
+    if (activeFilter === 'Active') {
+        filtered = feedbackList.filter(item => 
+            item.status !== 'Completed' && item.status !== 'Rejected'
+        );
+        // Sort Active: Highest Votes -> Newest
+        filtered.sort((a, b) => {
+            if (b.votes !== a.votes) return b.votes - a.votes;
+            return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+        });
+    } else {
+        // Completed or Rejected
+        filtered = feedbackList.filter(item => item.status === activeFilter);
+        // Sort Completed/Rejected: Newest Status Update -> Newest Creation
+        filtered.sort((a, b) => {
+             const timeA = a.statusUpdatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+             const timeB = b.statusUpdatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+             return timeB - timeA;
+        });
+    }
+    setFilteredList(filtered);
+  }, [feedbackList, activeFilter]);
 
   // --- Handlers ---
   const handleVote = async (e, feedback) => {
-    e.stopPropagation(); // Prevent card click
-    if (feedback.voters?.includes(loggedInUser.uid)) return;
+    e.stopPropagation(); 
     await voteForFeedback(feedback.id);
   };
 
@@ -61,12 +113,54 @@ function Feedback() {
     }
   };
 
+  // Developer Actions
+  const handleDevSaveStatus = async () => {
+    if (!selectedFeedback) return;
+    const success = await updateFeedback(selectedFeedback.id, { status: devStatus });
+    if (success) alert("Status updated.");
+  };
+
+  const handleAddNote = async () => {
+      if (!selectedFeedback || !newNoteText.trim()) return;
+      const success = await addDeveloperNote(selectedFeedback.id, newNoteText);
+      if (success) {
+          setNewNoteText("");
+          alert("Note added.");
+      }
+  };
+
+  const handleDevOverrideSave = async () => {
+      if (!selectedFeedback) return;
+      const success = await updateFeedback(selectedFeedback.id, {
+          title: overrideData.title,
+          type: overrideData.type,
+          description: overrideData.description
+      });
+      if (success) {
+          alert("Feedback details updated.");
+          setDevOverrideMode(false);
+      }
+  };
+
+  const handleDevDelete = async () => {
+      if (!selectedFeedback) return;
+      if (window.confirm("Are you sure you want to DELETE this feedback item? This cannot be undone.")) {
+          const success = await deleteFeedback(selectedFeedback.id);
+          if (success) {
+              setSelectedFeedback(null);
+              setCurrentView('list');
+          }
+      }
+  };
+
   // --- Helpers ---
   const getStatusColor = (status) => {
     switch (status) {
       case 'Accepted': return COLORS.success;
-      case 'In Progress': return '#ffc107'; // Yellow/Gold
-      default: return '#888'; // Grey for Proposed
+      case 'In Progress': return '#ffc107'; 
+      case 'Completed': return '#00bcd4';   
+      case 'Rejected': return COLORS.danger;
+      default: return '#888'; 
     }
   };
 
@@ -78,17 +172,40 @@ function Feedback() {
     }
   };
 
+  const formatDate = (timestamp) => {
+      if (!timestamp) return 'Unknown date';
+      // Handle Firestore Timestamp or millis
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
   const handleCardClick = (item) => {
-      // Refresh selected feedback item to ensure vote count is latest
-      const updatedItem = feedbackList.find(f => f.id === item.id) || item;
-      setSelectedFeedback(updatedItem);
+      setSelectedFeedback(item);
+      setDevStatus(item.status || 'Proposed');
+      setOverrideData({
+          title: item.title,
+          type: item.type,
+          description: item.description
+      });
       setCurrentView('detail');
   };
 
   // --- RENDER: Detail View ---
   if (currentView === 'detail' && selectedFeedback) {
     const hasVoted = selectedFeedback.voters?.includes(loggedInUser.uid);
+    const isClosed = selectedFeedback.status === 'Completed' || selectedFeedback.status === 'Rejected';
     
+    // Sort notes: Newest first (LIFO stack)
+    const sortedNotes = selectedFeedback.developerNotes 
+        ? [...selectedFeedback.developerNotes].sort((a, b) => b.createdAt - a.createdAt)
+        : [];
+
     return (
       <div className="view-container">
         <Header 
@@ -99,37 +216,47 @@ function Feedback() {
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
             
-            {/* Main Content Card */}
             <Card style={{ padding: '25px' }}>
+              {/* Header Row */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                 <div>
                   <h2 style={{ margin: '0 0 10px 0', color: 'white' }}>{selectedFeedback.title}</h2>
-                  <div style={{ display: 'flex', gap: '15px', fontSize: '14px', color: '#ccc' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', fontSize: '14px', color: '#ccc' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       {getTypeIcon(selectedFeedback.type)} {selectedFeedback.type}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: getStatusColor(selectedFeedback.status) }}>
                       <Clock size={16} /> {selectedFeedback.status}
                     </span>
+                    <span style={{ color: '#888' }}>
+                       Created: {formatDate(selectedFeedback.createdAt)}
+                    </span>
+                    {isClosed && selectedFeedback.statusUpdatedAt && (
+                        <span style={{ color: getStatusColor(selectedFeedback.status) }}>
+                            {selectedFeedback.status === 'Completed' ? 'Completed' : 'Rejected'}: {formatDate(selectedFeedback.statusUpdatedAt)}
+                        </span>
+                    )}
                   </div>
                 </div>
                 
-                {/* Big Vote Button */}
-                <div style={{ textAlign: 'center' }}>
-                   <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '5px', color: COLORS.primary }}>
+                {/* Vote Button */}
+                <div style={{ textAlign: 'center', minWidth: '60px' }}>
+                   <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '5px', color: isClosed ? '#666' : COLORS.primary }}>
                      {selectedFeedback.votes}
                    </div>
                    <Button 
                      onClick={(e) => handleVote(e, selectedFeedback)} 
-                     disabled={hasVoted}
+                     disabled={isClosed} // Disable if closed
                      style={{ 
-                       opacity: hasVoted ? 0.8 : 1, 
-                       cursor: hasVoted ? 'default' : 'pointer',
+                       backgroundColor: hasVoted ? COLORS.primary : (isClosed ? '#333' : '#555'),
+                       color: hasVoted ? '#000' : (isClosed ? '#666' : 'white'),
+                       border: hasVoted ? 'none' : (isClosed ? '1px solid #444' : 'none'),
+                       cursor: isClosed ? 'not-allowed' : 'pointer',
                        padding: '5px 15px',
                        fontSize: '12px'
                      }}
                    >
-                     {hasVoted ? 'Voted' : 'Vote'}
+                     {hasVoted ? 'Voted' : (isClosed ? 'Closed' : 'Vote')}
                    </Button>
                 </div>
               </div>
@@ -139,12 +266,23 @@ function Feedback() {
                 <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5', color: '#ddd' }}>{selectedFeedback.description}</p>
               </div>
 
-              {selectedFeedback.developerNotes && (
-                <div style={{ backgroundColor: 'rgba(97, 218, 251, 0.1)', padding: '15px', borderRadius: '8px', border: `1px solid ${COLORS.primary}` }}>
-                  <h4 style={{ marginTop: 0, color: COLORS.primary, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <CheckCircle size={16} /> Developer Notes
-                  </h4>
-                  <p style={{ margin: 0, fontSize: '14px', color: 'white' }}>{selectedFeedback.developerNotes}</p>
+              {/* Developer Notes List */}
+              {(sortedNotes.length > 0) && (
+                <div style={{ marginTop: '30px' }}>
+                    <h4 style={{ color: COLORS.primary, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+                        <CheckCircle size={16} /> Developer Notes
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        {sortedNotes.map((note, idx) => (
+                            <div key={idx} style={{ backgroundColor: 'rgba(97, 218, 251, 0.05)', padding: '15px', borderRadius: '8px', borderLeft: `3px solid ${COLORS.primary}` }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '11px', color: '#888' }}>
+                                    <span>{note.author || 'Developer'}</span>
+                                    <span>{formatDateTime(note.createdAt)}</span>
+                                </div>
+                                <p style={{ margin: 0, fontSize: '14px', color: 'white', whiteSpace: 'pre-wrap' }}>{note.text}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
               )}
 
@@ -152,6 +290,98 @@ function Feedback() {
                 Submitted by {selectedFeedback.authorName}
               </div>
             </Card>
+
+            {/* --- DEVELOPER CONTROLS --- */}
+            {isDeveloper() && (
+                <Card style={{ padding: '25px', border: `1px solid ${COLORS.primary}`, backgroundColor: '#2a2a2a', marginTop: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: COLORS.primary }}>
+                            <ShieldAlert size={24} />
+                            <h3 style={{ margin: 0 }}>Developer Controls</h3>
+                        </div>
+                        <button 
+                           onClick={() => setDevOverrideMode(!devOverrideMode)}
+                           style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', display: 'flex', gap: '5px', fontSize: '12px' }}
+                        >
+                           <Edit3 size={14} /> {devOverrideMode ? "Cancel Override" : "Override Details"}
+                        </button>
+                    </div>
+                    
+                    {/* Override Section */}
+                    {devOverrideMode && (
+                        <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #444' }}>
+                            <h4 style={{ color: 'white', marginTop: 0 }}>Override Original Details</h4>
+                            <Input label="Title" value={overrideData.title} onChange={(e) => setOverrideData({...overrideData, title: e.target.value})} />
+                            
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Type</label>
+                                <select 
+                                    value={overrideData.type} 
+                                    onChange={(e) => setOverrideData({...overrideData, type: e.target.value})}
+                                    style={{ width: '100%', padding: '10px', backgroundColor: '#3a3f4a', border: `1px solid ${COLORS.border}`, borderRadius: '4px', color: 'white' }}
+                                >
+                                    <option value="Suggestion">Suggestion</option>
+                                    <option value="Bug">Bug Issue</option>
+                                    <option value="General">General Feedback</option>
+                                </select>
+                            </div>
+
+                            <Input label="Description" multiline value={overrideData.description} onChange={(e) => setOverrideData({...overrideData, description: e.target.value})} />
+                            <Button onClick={handleDevOverrideSave} style={{ width: '100%' }}>Update Content</Button>
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Status Update */}
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                             <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Update Status</label>
+                                <select 
+                                    value={devStatus} 
+                                    onChange={(e) => setDevStatus(e.target.value)}
+                                    style={{ 
+                                        width: '100%', padding: '10px', backgroundColor: '#3a3f4a', 
+                                        border: `1px solid ${COLORS.border}`, borderRadius: '4px', color: 'white', fontSize: '16px' 
+                                    }}
+                                >
+                                    <option value="Proposed">Proposed</option>
+                                    <option value="Accepted">Accepted</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Rejected">Rejected</option>
+                                </select>
+                             </div>
+                             <Button onClick={handleDevSaveStatus} style={{ height: '42px' }}>Update</Button>
+                        </div>
+
+                        {/* Add Note */}
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Add Developer Note (Public)</label>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                                <textarea 
+                                    value={newNoteText} 
+                                    onChange={(e) => setNewNoteText(e.target.value)}
+                                    placeholder="Add a new update..."
+                                    style={{ 
+                                        flex: 1, padding: '10px', backgroundColor: '#3a3f4a', 
+                                        border: `1px solid ${COLORS.border}`, borderRadius: '4px', color: 'white', fontSize: '16px', minHeight: '60px' 
+                                    }} 
+                                />
+                                <Button onClick={handleAddNote} style={{ height: 'auto' }}>
+                                   <PlusCircle size={20} />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid #444', paddingTop: '15px', marginTop: '5px' }}>
+                            <Button variant="danger" onClick={handleDevDelete} style={{ width: '100%' }}>
+                                <Trash2 size={16} style={{ marginRight: '8px' }} /> Delete Feedback Item
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
+            )}
+
           </div>
         </div>
       </div>
@@ -182,10 +412,42 @@ function Feedback() {
       <div className="view-content">
         <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
           
-          {feedbackList.length === 0 ? (
+          {/* Filter Tabs */}
+          <div style={{ display: 'flex', borderBottom: `1px solid ${COLORS.border}`, marginBottom: '20px' }}>
+             {['Active', 'Completed', 'Rejected'].map(tab => (
+                <button
+                   key={tab}
+                   onClick={() => setActiveFilter(tab)}
+                   style={{
+                       flex: 1,
+                       padding: '12px 5px',
+                       background: 'none',
+                       border: 'none',
+                       borderBottom: activeFilter === tab ? `3px solid ${COLORS.primary}` : '3px solid transparent',
+                       color: activeFilter === tab ? 'white' : '#888',
+                       fontWeight: activeFilter === tab ? 'bold' : 'normal',
+                       cursor: 'pointer',
+                       transition: 'all 0.2s',
+                       display: 'flex',
+                       justifyContent: 'center',
+                       alignItems: 'center',
+                       gap: '6px'
+                   }}
+                >
+                   {tab}
+                   <span style={{ 
+                       fontSize: '10px', backgroundColor: activeFilter === tab ? COLORS.primary : '#444', 
+                       color: activeFilter === tab ? '#000' : '#ccc', padding: '1px 6px', borderRadius: '10px' 
+                   }}>
+                       {counts[tab]}
+                   </span>
+                </button>
+             ))}
+          </div>
+
+          {filteredList.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#888', marginTop: '50px' }}>
-              <p>No active feedback found.</p>
-              <p>Be the first to suggest something!</p>
+              <p>No items in {activeFilter}.</p>
             </div>
           ) : (
             <div style={{ 
@@ -193,8 +455,10 @@ function Feedback() {
               gap: '15px', 
               gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(250px, 1fr))' 
             }}>
-              {feedbackList.map(item => {
+              {filteredList.map(item => {
                 const hasVoted = item.voters?.includes(loggedInUser.uid);
+                const isClosed = item.status === 'Completed' || item.status === 'Rejected';
+
                 return (
                   <Card 
                     key={item.id} 
@@ -202,7 +466,6 @@ function Feedback() {
                     hoverable
                     style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}
                   >
-                    {/* Header: Status & Type */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <span style={{ 
                         fontSize: '10px', padding: '2px 6px', borderRadius: '4px', 
@@ -216,8 +479,9 @@ function Feedback() {
                       </span>
                     </div>
 
-                    {/* Title & Description Snippet */}
-                    <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: COLORS.primary }}>{item.title}</h3>
+                    <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: COLORS.primary }}>{item.title}</h3>
+                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '10px' }}>{formatDate(item.createdAt)}</div>
+                    
                     <p style={{ 
                       margin: '0 0 15px 0', fontSize: '13px', color: '#ccc', flex: 1,
                       overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical'
@@ -225,7 +489,6 @@ function Feedback() {
                       {item.description}
                     </p>
 
-                    {/* Footer: Vote Count & Button */}
                     <div style={{ 
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                       marginTop: 'auto', borderTop: '1px solid #444', paddingTop: '10px' 
@@ -233,12 +496,12 @@ function Feedback() {
                       <span style={{ fontSize: '12px', color: '#666' }}>by {item.authorName}</span>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontWeight: 'bold', color: 'white' }}>{item.votes}</span>
+                        <span style={{ fontWeight: 'bold', color: isClosed ? '#666' : 'white' }}>{item.votes}</span>
                         <button 
                           onClick={(e) => handleVote(e, item)}
-                          disabled={hasVoted}
+                          disabled={isClosed}
                           style={{
-                            background: 'none', border: 'none', cursor: hasVoted ? 'default' : 'pointer',
+                            background: 'none', border: 'none', cursor: isClosed ? 'default' : 'pointer',
                             color: hasVoted ? COLORS.primary : '#888', display: 'flex', alignItems: 'center'
                           }}
                         >
@@ -254,7 +517,6 @@ function Feedback() {
         </div>
       </div>
 
-      {/* --- Add Feedback Modal --- */}
       {showAddModal && (
         <Modal 
           title="Submit Feedback" 
