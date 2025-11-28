@@ -6,7 +6,7 @@ import Card from '../../common/Card';
 import Modal from '../../common/Modal';
 import Input from '../../common/Input';
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
-import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus, Trash2, Save, ShieldAlert, Edit3, PlusCircle } from 'lucide-react';
+import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus, Trash2, ShieldAlert, Edit3, PlusCircle } from 'lucide-react';
 
 function Feedback() {
   const { 
