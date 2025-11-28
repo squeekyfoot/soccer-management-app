@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { COLORS } from '../../../../constants';
 import Button from '../../../common/Button';
 import { Camera, UserPlus, ArrowLeft } from 'lucide-react';
-import UserSearch from '../UserSearch'; // We reuse your existing UserSearch
+import UserSearch from '../../../shared/UserSearch'; // We reuse your existing UserSearch
 
 const ChatDetailsModal = ({ 
   chat, 

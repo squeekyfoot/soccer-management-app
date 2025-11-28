@@ -1,7 +1,7 @@
 import React from 'react';
-import MyTeams from './MyTeams';
+import MyTeams from '../MyTeams/MyTeams';
 import CalendarView from './CalendarView';
-import Header from './common/Header';
+import Header from '../../common/Header';
 
 function Home() {
   return (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import SportsInfo from '../../SportsInfo';
+import SportsInfo from './SportsInfo';
 import { LogOut, User, Activity, Plus } from 'lucide-react'; 
 import Header from '../../common/Header';
 import Button from '../../common/Button';

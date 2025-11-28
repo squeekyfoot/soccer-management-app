@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // Import the "brain"
+import { useAuth } from '../../context/AuthContext'; // Import the "brain"
 
 /**
  * This component ONLY worries about the Re-Auth Modal.

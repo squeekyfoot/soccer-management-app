@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import Button from './common/Button'; 
-import Input from './common/Input';   
-import { COLORS } from '../constants'; 
+import { useAuth } from '../../context/AuthContext';
+import Button from '../common/Button'; 
+import Input from '../common/Input';   
+import { COLORS } from '../../constants'; 
 
 function AuthPage() {
   const [authView, setAuthView] = useState('signIn');
