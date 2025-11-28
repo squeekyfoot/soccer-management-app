@@ -12,6 +12,11 @@ Originally built with a single "God Object" context, the application has been re
 
 The UI is built using a "Container/Presentation" pattern where parent components (like `TeamChat.js`) handle logic/state, and child components (like `MessageList.js`) simply render data.
 
+### **Routing Strategy (Custom)**
+Unlike many React apps, this project **does not use `react-router-dom`**. 
+* **Navigation:** Handled via conditional rendering based on local state (`activeView` in `Layout.js`).
+* **Reasoning:** This simplifies the "App Shell" architecture, allowing us to keep the Sidebar/Tab Bar persistent and mounted while only swapping the main content area.
+
 ### **Core Technology Stack**
 
 * **Frontend:** React (Create React App)
@@ -80,6 +85,32 @@ The chat system is split into specialized sub-components in **`src/components/ch
 * **`MessageInput.js`:** The bottom form for typing and attaching images.
 * **`ChatDetailsModal.js`**: A modal interface for managing chat settings. Handles renaming groups, updating group photos, adding members, and leaving groups.
 * **`ImageViewer.js`:** A portal-based modal for viewing full-screen images.
+
+---
+
+## **Mobile Layout & CSS Strategy**
+
+*Learnings from iOS Safari/Chrome inconsistencies.*
+
+To ensure the app behaves like a native mobile app (App Shell) rather than a document webpage, we enforce specific CSS rules:
+
+1.  **The `100dvh` Rule:**
+    * **Problem:** Standard `100vh` ignores the mobile browser's dynamic address bar/toolbar, causing the bottom of the app to be cut off.
+    * **Solution:** We use `height: 100dvh` (Dynamic Viewport Height) on the main `.App` container. This ensures the app resizes instantly when browser UI expands/retracts.
+
+2.  **App Shell vs. Flexbox Layout:**
+    * **Strategy:** We use `position: fixed; bottom: 0;` for the Mobile Tab Bar (`.tab-bar`).
+    * **Why:** Pure Flexbox layouts often break on iOS when scrolling, causing the navigation bar to "disappear" or float in the middle of the screen. Fixed positioning anchors it to the viewport glass.
+    * **Content Padding:** Because the nav bar is fixed (floating over content), the main content area requires `padding-bottom` to ensure the last items in a list aren't hidden behind the nav bar.
+
+3.  **Safe Area Insets:**
+    * **iPhone X+:** We use `padding-bottom: env(safe-area-inset-bottom)` on the Tab Bar to prevent buttons from overlapping with the iOS Home Indicator.
+
+4.  **Scroll Locking:**
+    * **Global Lock:** We apply `overflow: hidden` and `position: fixed` to `html` and `body`. This prevents the "rubber-banding" effect of the entire page and ensures only the internal content area (`.view-content`) scrolls.
+
+5.  **Box Sizing Reset:**
+    * We apply `box-sizing: border-box` globally. This ensures that adding `padding` to elements (like the Sidebar) doesn't unexpectedly increase their calculated width/height, which is critical for pixel-perfect mobile layouts.
 
 ---
 
