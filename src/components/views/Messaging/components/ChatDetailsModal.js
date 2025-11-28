@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react';
+// FIX: Up 4 levels to src
 import { COLORS } from '../../../../constants';
+// FIX: Up 3 levels to components
 import Button from '../../../common/Button';
+import UserSearch from '../../../shared/UserSearch'; 
 import { Camera, UserPlus, ArrowLeft } from 'lucide-react';
-import UserSearch from '../../../shared/UserSearch'; // We reuse your existing UserSearch
 
 const ChatDetailsModal = ({ 
   chat, 
@@ -10,13 +12,11 @@ const ChatDetailsModal = ({
   onRename, 
   onDelete,
   onUpdatePhoto,
-  onAddMember, // New handler
+  onAddMember, 
   userProfiles, 
   loggedInUser 
 }) => {
   const fileInputRef = useRef(null);
-  
-  // Local state for the "Add Member" view
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [selectedEmailsToAdd, setSelectedEmailsToAdd] = useState([]);
   const [includeHistory, setIncludeHistory] = useState(true);
@@ -26,7 +26,6 @@ const ChatDetailsModal = ({
   const isRoster = chat.type === 'roster';
   const isGroup = chat.type === 'group' || (chat.participants.length > 2 && !isRoster);
   
-  // --- HANDLERS ---
   const handlePhotoClick = () => {
     if (isGroup && fileInputRef.current) {
         fileInputRef.current.click();
@@ -41,9 +40,6 @@ const ChatDetailsModal = ({
 
   const handleAddSubmit = async () => {
       if (selectedEmailsToAdd.length === 0) return;
-      
-      // We assume single select for simplicity, or iterate for multiple
-      // Prompt said "add someone", so let's loop just in case they picked multiple
       for(const email of selectedEmailsToAdd) {
           await onAddMember(email, includeHistory);
       }
@@ -51,7 +47,6 @@ const ChatDetailsModal = ({
       setSelectedEmailsToAdd([]);
   };
 
-  // --- RENDER CONTENT ---
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -67,13 +62,11 @@ const ChatDetailsModal = ({
         minHeight: '300px'
       }} onClick={e => e.stopPropagation()}>
         
-        {/* Close Button */}
         <button onClick={onClose} style={{
           position: 'absolute', top: '10px', right: '10px', background: 'none',
           border: 'none', color: '#aaa', fontSize: '20px', cursor: 'pointer'
         }}>✕</button>
 
-        {/* --- VIEW 1: ADD MEMBER --- */}
         {isAddingMember ? (
              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
@@ -85,11 +78,9 @@ const ChatDetailsModal = ({
 
                  <div style={{ marginBottom: '20px', textAlign: 'left' }}>
                      <label style={{ color: '#ccc', fontSize: '12px', display: 'block', marginBottom: '5px' }}>Search User by Email</label>
-                     {/* Reuse UserSearch but control it via local state */}
                      <UserSearch onSelectionChange={setSelectedEmailsToAdd} />
                  </div>
 
-                 {/* Include History Checkbox */}
                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px', cursor: 'pointer' }} onClick={() => setIncludeHistory(!includeHistory)}>
                      <input 
                         type="checkbox" 
@@ -112,7 +103,6 @@ const ChatDetailsModal = ({
                  </div>
              </div>
         ) : (
-        /* --- VIEW 2: DETAILS (DEFAULT) --- */
             <>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
 
@@ -144,7 +134,6 @@ const ChatDetailsModal = ({
                     {isRoster ? 'Team Roster' : (isGroup ? 'Group Chat' : 'Direct Message')}
                 </p>
 
-                {/* Participants List */}
                 <div style={{ textAlign: 'left', marginTop: '20px', maxHeight: '200px', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '5px', marginBottom: '5px' }}>
                       <h4 style={{ color: '#aaa', margin: 0, fontSize: '12px' }}>PARTICIPANTS</h4>
@@ -169,7 +158,6 @@ const ChatDetailsModal = ({
                   })}
                 </div>
 
-                {/* Actions */}
                 <div style={{ marginTop: '25px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {isGroup && (
                     <Button variant="secondary" onClick={onRename} style={{ width: '100%' }}>Rename Chat</Button>

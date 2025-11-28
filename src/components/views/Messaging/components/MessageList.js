@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+// FIX: Up 4 levels to src
 import { COLORS } from '../../../../constants';
 
 const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) => {
@@ -6,18 +7,13 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
   const containerRef = useRef(null);
   const lastChatIdRef = useRef(null);
 
-  // --- INSTANT SCROLL LOGIC ---
-  // Switched to useEffect to run AFTER paint. 
-  // This eliminates the "Forced reflow" violation.
   useEffect(() => {
     if (containerRef.current) {
       const isNewChat = lastChatIdRef.current !== selectedChatId;
       
       if (isNewChat) {
-        // Jump to bottom immediately for new chat
         containerRef.current.scrollTop = containerRef.current.scrollHeight;
       } else if (messagesEndRef.current) {
-        // Smooth scroll for new messages
         messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       }
 
@@ -29,7 +25,6 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
 
   const handleImageLoad = () => {
     if (containerRef.current) {
-       // Check if user is near bottom before auto-scrolling
        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
        const isNearBottom = scrollHeight - scrollTop - clientHeight < 500;
        
@@ -53,7 +48,6 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
       }}
     >
       {messages.map(msg => {
-        // --- SYSTEM MESSAGES ---
         if (msg.type === 'system') {
           return (
             <div key={msg.id} style={{
@@ -71,7 +65,6 @@ const MessageList = ({ messages, loggedInUser, onImageClick, selectedChatId }) =
           );
         }
 
-        // --- REGULAR MESSAGES ---
         const isMe = msg.senderId === loggedInUser.uid;
         return (
           <div key={msg.id} style={{

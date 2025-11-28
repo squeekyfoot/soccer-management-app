@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MoreVertical } from 'lucide-react'; 
+// FIX: Up 4 levels to src
 import { COLORS } from '../../../../constants';
 import { useAuth } from '../../../../context/AuthContext';
 

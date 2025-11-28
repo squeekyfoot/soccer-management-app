@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, MoreVertical } from 'lucide-react'; 
+// FIX: Up 4 levels to src
 import { COLORS } from '../../../../constants';
 
 const ChatHeader = ({ 
@@ -16,7 +17,6 @@ const ChatHeader = ({
   let displayTitle = selectedChat.name;
   let iconImage = null;
   
-  // LOGIC FIX:
   if (isDM) {
     const otherUser = selectedChat.participantDetails?.find(p => p.uid !== loggedInUser.uid);
     if (otherUser) {
@@ -27,7 +27,6 @@ const ChatHeader = ({
   } else if (selectedChat.type === 'roster') {
       displayTitle = `⚽ ${selectedChat.name}`;
   } else {
-      // Group Chat
       iconImage = selectedChat.photoURL;
   }
 
@@ -37,7 +36,6 @@ const ChatHeader = ({
       boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '100px'
     }}>
       
-      {/* LEFT: Back Button (Mobile Only) */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: '60px' }}>
         {onBack && (
           <button 
@@ -60,7 +58,6 @@ const ChatHeader = ({
         )}
       </div>
 
-      {/* CENTER: Chat Info (Clickable) */}
       <div 
         onClick={onShowDetails}
         style={{ flex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
@@ -88,7 +85,6 @@ const ChatHeader = ({
          )}
       </div>
 
-      {/* RIGHT: Action Indicator */}
       <div 
         onClick={onShowDetails}
         style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }}

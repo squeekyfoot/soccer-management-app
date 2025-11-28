@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext'; // Note: ../../
+// FIX: Move up 2 levels to reach 'src'
+import { useAuth } from '../../context/AuthContext'; 
 import { useChat } from '../../context/ChatContext'; 
 import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react'; 
 import { MOBILE_BREAKPOINT, COLORS } from '../../constants';
 
-// UPDATED VIEW IMPORTS
+// FIX: Update imports to point to new 'views' structure
 import Home from '../views/Home/Home';
-import Community from '../views/Community/Community';
+import Community from '../views/Community/Community'; // Renamed from Groups
 import MyTeams from '../views/MyTeams/MyTeams'; 
 import TeamChat from '../views/Messaging/TeamChat';
 import MyProfile from '../views/Profile/MyProfile'; 
@@ -17,10 +18,13 @@ function Layout() {
   const { isManager, loggedInUser } = useAuth();
   const { myChats } = useChat(); 
   const [activeView, setActiveView] = useState('home');
+  
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -35,7 +39,7 @@ function Layout() {
   const renderActiveView = () => {
     switch (activeView) {
       case 'home': return <Home />;
-      case 'community': return <Community />;
+      case 'community': return <Community />; // Updated to Community
       case 'myteams': return <MyTeams />; 
       case 'messaging': return <TeamChat />;
       case 'profile': return <MyProfile />; 
@@ -54,12 +58,20 @@ function Layout() {
       <div style={{ position: 'relative' }}>
         <Icon size={20} />
         {isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
-          <div style={{ position: 'absolute', top: -2, right: -4, width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS.primary }} />
+          <div style={{
+            position: 'absolute', top: -2, right: -4, width: '8px', height: '8px',
+            borderRadius: '50%', backgroundColor: COLORS.primary 
+          }} />
         )}
       </div>
+      
       <span>{label}</span>
+      
       {!isMobile && showBadge && activeView !== 'messaging' && unreadTotal > 0 && (
-        <div style={{ marginLeft: 'auto', marginRight: '10px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS.primary }} />
+        <div style={{
+          marginLeft: 'auto', marginRight: '10px', width: '8px', height: '8px',
+          borderRadius: '50%', backgroundColor: COLORS.primary 
+        }} />
       )}
     </button>
   );
@@ -73,8 +85,12 @@ function Layout() {
         <NavButton view="messaging" label="Messaging" icon={MessageSquare} showBadge={true} />
         <NavButton view="profile" label="Profile" icon={User} />
         <NavButton view="feedback" label="Feedback" icon={Lightbulb} />
-        {isManager() && <NavButton view="manager" label="Manager" icon={Settings} />}
+        
+        {isManager() && (
+          <NavButton view="manager" label="Manager" icon={Settings} />
+        )}
       </nav>
+
       <main className={`main-content ${isMobile ? 'mobile' : ''}`}>
         {renderActiveView()}
       </main>

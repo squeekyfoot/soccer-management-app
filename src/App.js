@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import './App.css';
 import { useAuth } from './context/AuthContext';
 
-// UPDATED IMPORTS
+// UPDATED IMPORTS: Pointing to new organizational folders
 import Layout from './components/layout/Layout';
 import AuthPage from './components/auth/AuthPage';
 import ReauthModal from './components/auth/ReauthModal';
