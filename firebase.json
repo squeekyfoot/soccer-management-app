@@ -1,10 +1,10 @@
 {
   "firestore": {
-    "rules": "config/firebase/firestore.rules",
-    "indexes": "config/firebase/firestore.indexes.json"
+    "rules": "src/config/firebase/firestore.rules",
+    "indexes": "src/config/firebase/firestore.indexes.json"
   },
   "storage": {
-    "rules": "config/firebase/storage.rules"
+    "rules": "src/config/firebase/storage.rules"
   },
   "hosting": {
     "public": "build",
