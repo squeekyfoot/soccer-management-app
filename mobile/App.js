@@ -25,7 +25,7 @@ function AppNavigator() {
             {() => (
               <View style={{ flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' }}>
                 <Text style={{ color: 'white', fontSize: 20 }}>Welcome {loggedInUser.firstName}!</Text>
-                <Text style={{ color: '#888', marginTop: 10 }}>Your Mobile App is Live.</Text>
+                <Text style={{ color: '#888', marginTop: 10 }}>You are logged in via React Native!</Text>
               </View>
             )}
           </Stack.Screen>
