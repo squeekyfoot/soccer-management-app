@@ -1,30 +1,66 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { Home, Users, MessageSquare, User, Lightbulb } from 'lucide-react-native';
+import { ChatProvider, useChat } from './src/context/ChatContext';
+import { Home, Users, MessageSquare, User, Globe, Settings, Lightbulb } from 'lucide-react-native';
 
 // Screens
-import AuthScreen from './src/screens/AuthScreen';
-import HomeScreen from './src/screens/HomeScreen';
-import MyTeamsScreen from './src/screens/MyTeamsScreen';
-import RosterDetailScreen from './src/screens/RosterDetailScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
-import FeedbackScreen from './src/screens/FeedbackScreen';
-import CommunityScreen from './src/screens/CommunityScreen';
-import FindTeamsScreen from './src/screens/FindTeamsScreen';
+import AuthScreen from './src/components/auth/AuthPage';
+import HomeScreen from './src/components/views/Home/Home';
+import MyTeamsScreen from './src/components/views/MyTeams/MyTeams';
+import RosterDetailScreen from './src/components/views/Roster/RosterDetail';
+import ProfileScreen from './src/components/views/Profile/MyProfile';
+import FeedbackScreen from './src/components/views/Feedback/Feedback';
+import CommunityScreen from './src/components/views/Community/Community';
+import FindTeamsScreen from './src/components/views/MyTeams/FindTeams';
+import MessagingScreen from './src/components/views/Messaging/Messaging';
+import ChatScreen from './src/components/views/Messaging/Chat';
+import NewChatScreen from './src/components/views/Messaging/NewChat';
+import ChatDetailsScreen from './src/components/views/Messaging/ChatDetails';
+import MyGroupsScreen from './src/components/views/Community/MyGroups';
+import GroupDetailScreen from './src/components/views/Community/GroupDetail';
 
-// We need to define these placeholders if you haven't created the files yet,
-// or import them if you have. For safety, I'll define simple placeholders here
-// so the app doesn't crash if the files are missing.
+// Manager Screens
+import ManagerDashboardScreen from './src/components/views/Manager/ManagerDashboard';
+import CreateRosterScreen from './src/components/views/Manager/CreateRoster';
+import ManageRosterScreen from './src/components/views/Manager/ManageRoster';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// 1. The Tab Navigator (Visible when logged in)
+function MessagingIcon({ color, size }) {
+  const { myChats } = useChat();
+  const { loggedInUser } = useAuth();
+  
+  const unreadTotal = myChats.reduce((sum, chat) => {
+    if (chat.unreadCounts && loggedInUser && chat.unreadCounts[loggedInUser.uid]) {
+      return sum + chat.unreadCounts[loggedInUser.uid];
+    }
+    return sum;
+  }, 0);
+
+  return (
+    <View>
+      <MessageSquare color={color} size={size} />
+      {unreadTotal > 0 && (
+        <View style={{
+          position: 'absolute', right: -6, top: -4, 
+          backgroundColor: '#61dafb', borderRadius: 6, 
+          width: 12, height: 12, justifyContent: 'center', alignItems: 'center'
+        }}>
+          <Text style={{ color: 'black', fontSize: 8, fontWeight: 'bold' }}>{unreadTotal}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function MainTabs() {
+  const { isManager } = useAuth();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -38,12 +74,18 @@ function MainTabs() {
         },
         tabBarActiveTintColor: '#61dafb',
         tabBarInactiveTintColor: '#888',
+        tabBarLabelStyle: { fontSize: 10, marginBottom: 2 } // Tweaked for 6 items
       }}
     >
       <Tab.Screen 
-        name="Dashboard" 
+        name="Home" 
         component={HomeScreen} 
         options={{ tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }}
+      />
+      <Tab.Screen 
+        name="Community" 
+        component={CommunityScreen} 
+        options={{ tabBarIcon: ({ color, size }) => <Globe color={color} size={size} /> }}
       />
       <Tab.Screen 
         name="My Teams" 
@@ -51,9 +93,9 @@ function MainTabs() {
         options={{ tabBarIcon: ({ color, size }) => <Users color={color} size={size} /> }}
       />
       <Tab.Screen 
-        name="Community" 
-        component={CommunityScreen} 
-        options={{ tabBarIcon: ({ color, size }) => <MessageSquare color={color} size={size} /> }}
+        name="Messaging" 
+        component={MessagingScreen} 
+        options={{ tabBarIcon: ({ color, size }) => <MessagingIcon color={color} size={size} /> }}
       />
       <Tab.Screen 
         name="Feedback" 
@@ -65,11 +107,18 @@ function MainTabs() {
         component={ProfileScreen} 
         options={{ tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }}
       />
+      
+      {isManager() && (
+        <Tab.Screen 
+          name="Manager" 
+          component={ManagerDashboardScreen} 
+          options={{ tabBarIcon: ({ color, size }) => <Settings color={color} size={size} /> }}
+        />
+      )}
     </Tab.Navigator>
   );
 }
 
-// 2. The Main App Navigator (Switch between Auth and Tabs)
 function AppNavigator() {
   const { loggedInUser, isLoading } = useAuth();
 
@@ -87,13 +136,20 @@ function AppNavigator() {
         {loggedInUser ? (
           <>
             <Stack.Screen name="Main" component={MainTabs} />
-            {/* Detail Screens */}
+            <Stack.Screen name="NewChat" component={NewChatScreen} />
+<Stack.Screen name="ChatDetails" component={ChatDetailsScreen} />
+            <Stack.Screen name="ChatScreen" component={ChatScreen} /> 
+            <Stack.Screen name="CreateRoster" component={CreateRosterScreen} />
+            <Stack.Screen name="ManageRoster" component={ManageRosterScreen} /> 
+            <Stack.Screen name="MyGroups" component={MyGroupsScreen} />
+<Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
             <Stack.Screen 
               name="RosterDetail" 
               component={RosterDetailScreen}
               options={{ headerShown: true, headerStyle: { backgroundColor: '#121212' }, headerTintColor: '#fff' }} 
             />
             <Stack.Screen name="FindTeams" component={FindTeamsScreen} />
+            {/* Feedback is now in Tabs, removed from Stack to avoid dupes/confusion */}
           </>
         ) : (
           <Stack.Screen name="Auth" component={AuthScreen} />
@@ -106,12 +162,12 @@ function AppNavigator() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppNavigator />
+      <ChatProvider>
+        <AppNavigator />
+      </ChatProvider>
     </AuthProvider>
   );
 }
-
-import { Text } from 'react-native'; // Ensure Text is imported
 
 const styles = StyleSheet.create({
   loadingContainer: {
@@ -120,15 +176,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderContainer: {
-    flex: 1,
-    backgroundColor: '#121212',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    color: 'white',
-    marginTop: 10,
-    fontSize: 16,
-  }
 });

@@ -3,9 +3,9 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { View, Text, StyleSheet } from 'react-native';
 
 // Import the sub-screens
-import RosterPlayers from './roster/RosterPlayers';
-import RosterSchedule from './roster/RosterSchedule';
-import RosterChat from './roster/RosterChat';
+import RosterPlayers from './components/RosterPlayers';
+import RosterSchedule from './components/RosterSchedule';
+import RosterChat from './components/RosterChat';
 
 const TopTab = createMaterialTopTabNavigator();
 

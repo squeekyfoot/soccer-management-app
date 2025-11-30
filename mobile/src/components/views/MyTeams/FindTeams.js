@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Alert } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import Header from '../components/common/Header';
-import Card from '../components/common/Card';
-import Button from '../components/common/Button';
+import { useAuth } from '../../../context/AuthContext';
+import Header from '../../common/Header';
+import Card from '../../common/Card';
+import Button from '../../common/Button';
 
 export default function FindTeamsScreen({ navigation }) {
   const { 

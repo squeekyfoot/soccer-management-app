@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, Alert } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import Input from '../components/common/Input';
-import Button from '../components/common/Button';
-import Card from '../components/common/Card';
+import { useAuth } from '../../context/AuthContext';
+import Input from '../common/Input';
+import Button from '../common/Button';
+import Card from '../common/Card';
 
 export default function AuthScreen() {
   const { signIn, signUp } = useAuth();
