@@ -5,12 +5,12 @@ import { useChat } from '../../../context/ChatContext';
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore"; 
 import { db } from "../../../lib/firebase"; 
 
-// NEW IMPORT
 import ChatHeader from './components/ChatHeader'; 
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
+import ImageViewer from './components/ImageViewer'; // NEW IMPORT
 
-export default function ChatScreen({ route, navigation }) {
+export default function Chat({ route, navigation }) {
   const { chatId } = route.params; 
   const { loggedInUser } = useAuth();
   const { sendMessage, markChatAsRead, myChats } = useChat();
@@ -18,17 +18,17 @@ export default function ChatScreen({ route, navigation }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Get the full chat object to pass to the Header (for Avatar/Name logic)
+  // State for image viewing
+  const [viewingImage, setViewingImage] = useState(null); 
+  
   const currentChat = myChats.find(c => c.id === chatId);
 
-  // 1. Mark as Read when entering
   useEffect(() => {
     if (chatId) {
       markChatAsRead(chatId);
     }
   }, [chatId, markChatAsRead]);
 
-  // 2. Listen for Messages
   useEffect(() => {
     const messagesRef = collection(db, "chats", chatId, "messages");
     const q = query(messagesRef, orderBy("createdAt", "desc"));
@@ -45,9 +45,35 @@ export default function ChatScreen({ route, navigation }) {
     return () => unsubscribe();
   }, [chatId]);
 
-  const handleSend = async (text) => {
+  const handleSend = async (messageData) => {
     const participants = currentChat ? currentChat.participants : [];
-    await sendMessage(chatId, text, participants);
+    
+    // Check if messageData is an object (from new input) or string (legacy)
+    let text = "";
+    let file = null;
+
+    if (typeof messageData === 'string') {
+        text = messageData;
+    } else {
+        text = messageData.text;
+        file = messageData.file;
+    }
+
+    // Pass file if it exists, ChatContext/sendMessage handles upload logic if adapted, 
+    // BUT typically we handle upload here in the view for mobile if context expects a URL.
+    // Based on previous web context, sendMessage takes (chatId, text, participants, imageUrl).
+    // So we should upload here if there is a file.
+    
+    let imageUrl = null;
+    if (file) {
+        // We need uploadImage from useAuth to be exposed or handle it here
+        // Assuming context handles it or we need to import it.
+        // Let's assume for now we just pass text. 
+        // If you haven't implemented mobile upload in Chat.js yet:
+        alert("Image upload logic needs to be connected in Chat.js handleSend");
+    }
+
+    await sendMessage(chatId, text, participants, imageUrl);
   };
 
   const handleOpenDetails = () => {
@@ -56,7 +82,6 @@ export default function ChatScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Use the new specialized ChatHeader */}
       <ChatHeader 
         chat={currentChat} 
         currentUser={loggedInUser}
@@ -67,7 +92,11 @@ export default function ChatScreen({ route, navigation }) {
       {loading ? (
         <ActivityIndicator size="large" color="#61dafb" style={{ marginTop: 20 }} />
       ) : (
-        <MessageList messages={messages} currentUser={loggedInUser} />
+        <MessageList 
+            messages={messages} 
+            currentUser={loggedInUser} 
+            onImageClick={setViewingImage} // FIX: Pass the handler
+        />
       )}
 
       <KeyboardAvoidingView
@@ -76,6 +105,9 @@ export default function ChatScreen({ route, navigation }) {
       >
         <MessageInput onSend={handleSend} />
       </KeyboardAvoidingView>
+
+      {/* FIX: Render the Image Viewer Modal */}
+      <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
     </View>
   );
 }

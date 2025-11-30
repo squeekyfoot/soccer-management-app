@@ -1,58 +1,115 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { Send, Image as ImageIcon } from 'lucide-react-native'; // Aliased Image to avoid conflict
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Text } from 'react-native';
+import { Send, Image as ImageIcon, X } from 'lucide-react-native'; 
+import { launchImageLibrary } from 'react-native-image-picker'; // NEW IMPORT
 import { COLORS } from '../../../../lib/constants';
 
-export default function MessageInput({ onSend, isLoading }) {
+export default function MessageInput({ onSend, isLoading, onFileChange, selectedFile, onRemoveFile }) {
   const [text, setText] = useState('');
 
   const handleSend = () => {
-    if (text.trim()) {
-      onSend(text.trim());
+    if (text.trim() || selectedFile) {
+      onSend({ text: text.trim(), file: selectedFile });
       setText('');
     }
   };
 
+  const handlePickImage = async () => {
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+      quality: 1, // We compress manually later
+    });
+
+    if (result.didCancel) return;
+
+    if (result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      // Normalize the object to match what your App expects (uri, name, type)
+      const file = {
+        uri: asset.uri,
+        name: asset.fileName || `photo_${Date.now()}.jpg`,
+        type: asset.type || 'image/jpeg',
+      };
+      if (onFileChange) onFileChange({ target: { files: [file] } });
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.iconButton} onPress={() => alert("Image upload coming soon")}>
-        <ImageIcon color="#888" size={24} />
-      </TouchableOpacity>
+    <View style={styles.wrapper}>
+      {/* Preview Area */}
+      {selectedFile && (
+        <View style={styles.previewContainer}>
+          <Image source={{ uri: selectedFile.uri }} style={styles.previewImage} />
+          <TouchableOpacity onPress={onRemoveFile} style={styles.removePreviewBtn}>
+            <X size={16} color="white" />
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <View style={styles.inputWrapper}>
-        <TextInput
-          style={styles.input}
-          placeholder="Type a message..."
-          placeholderTextColor="#888"
-          value={text}
-          onChangeText={setText}
-          multiline
-        />
+      {/* Input Bar */}
+      <View style={styles.container}>
+        <TouchableOpacity style={styles.iconButton} onPress={handlePickImage} disabled={isLoading}>
+          <ImageIcon color="#888" size={24} />
+        </TouchableOpacity>
+
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message..."
+            placeholderTextColor="#888"
+            value={text}
+            onChangeText={setText}
+            multiline
+          />
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.sendButton, (!text.trim() && !selectedFile) && styles.disabledButton]} 
+          onPress={handleSend}
+          disabled={(!text.trim() && !selectedFile) || isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#121212" size="small" />
+          ) : (
+            <Send color={(text.trim() || selectedFile) ? "#121212" : "#666"} size={20} />
+          )}
+        </TouchableOpacity>
       </View>
-
-      <TouchableOpacity 
-        style={[styles.sendButton, !text.trim() && styles.disabledButton]} 
-        onPress={handleSend}
-        disabled={!text.trim() || isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator color="#121212" size="small" />
-        ) : (
-          <Send color={text.trim() ? "#121212" : "#666"} size={20} />
-        )}
-      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: '#1e1e1e',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  previewContainer: {
+    padding: 10,
+    paddingBottom: 0,
+    flexDirection: 'row',
+  },
+  previewImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#444'
+  },
+  removePreviewBtn: {
+    position: 'absolute',
+    top: 5,
+    left: 60,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    padding: 2,
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 10,
-    backgroundColor: '#1e1e1e',
-    borderTopWidth: 1,
-    borderTopColor: '#333',
   },
   iconButton: {
     padding: 10,

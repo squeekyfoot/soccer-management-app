@@ -4,27 +4,26 @@ import { useChat } from '../../../context/ChatContext';
 import Header from '../../common/Header';
 import Button from '../../common/Button';
 import UserSearch from '../../shared/UserSearch';
-import { COLORS } from '../../../lib/constants';
+import { COLORS } from '../../../../lib/constants';
 
-export default function NewChatScreen({ navigation }) {
+export default function NewChat({ navigation }) {
   const { createChat } = useChat();
-  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectedEmails, setSelectedEmails] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
-    if (selectedUsers.length === 0) {
+    if (selectedEmails.length === 0) {
         Alert.alert("Error", "Please select at least one person.");
         return;
     }
 
     setLoading(true);
-    // Extract emails for the createChat function
-    const emails = selectedUsers.map(u => u.email); // UserSearch returns full objects
-    const result = await createChat(emails);
+    // FIX: UserSearch returns an array of email strings, not objects.
+    // Passed directly to createChat.
+    const result = await createChat(selectedEmails);
     setLoading(false);
 
     if (result) {
-        // Navigate to the new chat, replacing this screen in the stack
         navigation.replace("ChatScreen", {
             chatId: result.id,
             chatName: result.name || "Chat",
@@ -40,21 +39,12 @@ export default function NewChatScreen({ navigation }) {
       <View style={styles.content}>
         <Text style={styles.label}>To:</Text>
         <View style={styles.searchContainer}>
-            <UserSearch onSelectionChange={(emails) => {
-                // UserSearch typically returns just emails or objects based on implementation
-                // Assuming it returns User Objects for better UI, or just mapping to emails
-                // We'll store objects if possible, but let's assume it returns objects 
-                // based on previous context usage. 
-                // Wait, in RosterDetail it returned emails? 
-                // Let's assume it returns User Objects to be safe, then map to email.
-                // Actually, let's just store whatever it gives and map when sending.
-                setSelectedUsers(emails); 
-            }} />
+            <UserSearch onSelectionChange={setSelectedEmails} />
         </View>
 
         <Button 
             onPress={handleCreate} 
-            disabled={selectedUsers.length === 0 || loading}
+            disabled={selectedEmails.length === 0 || loading}
             style={{ marginTop: 20 }}
         >
             {loading ? "Creating..." : "Start Chat"}

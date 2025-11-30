@@ -22,6 +22,7 @@ import NewChatScreen from './src/components/views/Messaging/NewChat';
 import ChatDetailsScreen from './src/components/views/Messaging/ChatDetails';
 import MyGroupsScreen from './src/components/views/Community/MyGroups';
 import GroupDetailScreen from './src/components/views/Community/GroupDetail';
+import ReauthModal from './src/components/auth/ReauthModal';
 
 // Manager Screens
 import ManagerDashboardScreen from './src/components/views/Manager/ManagerDashboard';
@@ -164,6 +165,8 @@ export default function App() {
     <AuthProvider>
       <ChatProvider>
         <AppNavigator />
+        {/* Placed here to overlay any screen in the app */}
+        <ReauthModal />
       </ChatProvider>
     </AuthProvider>
   );

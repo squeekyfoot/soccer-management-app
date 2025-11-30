@@ -10,7 +10,7 @@ import UserSearch from '../../shared/UserSearch';
 import { COLORS } from '../../../lib/constants';
 import { Camera, UserPlus, LogOut, Trash2 } from 'lucide-react-native';
 
-export default function ChatDetailsScreen({ route, navigation }) {
+export default function ChatDetails({ route, navigation }) {
   const { chatId } = route.params;
   const { myChats, renameChat, leaveChat, hideChat, addParticipant } = useChat();
   const { loggedInUser } = useAuth();
@@ -19,9 +19,8 @@ export default function ChatDetailsScreen({ route, navigation }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState("");
   
-  // Add Member State
   const [showAddModal, setShowAddModal] = useState(false);
-  const [usersToAdd, setUsersToAdd] = useState([]);
+  const [emailsToAdd, setEmailsToAdd] = useState([]);
   const [includeHistory, setIncludeHistory] = useState(true);
 
   useEffect(() => {
@@ -36,8 +35,6 @@ export default function ChatDetailsScreen({ route, navigation }) {
 
   const isRoster = chat.type === 'roster';
   const isGroup = chat.type === 'group' || (chat.participants.length > 2 && !isRoster);
-
-  // --- Handlers ---
 
   const handleRename = async () => {
       if (newName.trim() && newName !== chat.name) {
@@ -65,7 +62,7 @@ export default function ChatDetailsScreen({ route, navigation }) {
                   onPress: async () => {
                       if (isGroup) await leaveChat(chat.id);
                       else await hideChat(chat.id, chat.visibleTo);
-                      navigation.popToTop(); // Go back to root
+                      navigation.popToTop();
                   }
               }
           ]
@@ -73,14 +70,14 @@ export default function ChatDetailsScreen({ route, navigation }) {
   };
 
   const handleAddMembers = async () => {
-      if (usersToAdd.length === 0) return;
+      if (emailsToAdd.length === 0) return;
       
-      for(const user of usersToAdd) {
-          // UserSearch returns object with email
-          await addParticipant(chat.id, user.email, includeHistory);
+      // FIX: Loop through email strings directly
+      for(const email of emailsToAdd) {
+          await addParticipant(chat.id, email, includeHistory);
       }
       setShowAddModal(false);
-      setUsersToAdd([]);
+      setEmailsToAdd([]);
       Alert.alert("Success", "Members added.");
   };
 
@@ -95,7 +92,6 @@ export default function ChatDetailsScreen({ route, navigation }) {
       <Header title="Details" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content}>
         
-        {/* Header Section */}
         <View style={styles.profileSection}>
             <TouchableOpacity onPress={handlePhotoPress} activeOpacity={isGroup ? 0.7 : 1}>
                 <View style={styles.avatarContainer}>
@@ -133,7 +129,6 @@ export default function ChatDetailsScreen({ route, navigation }) {
             </Text>
         </View>
 
-        {/* Participants Section */}
         <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>PARTICIPANTS ({chat.participantDetails?.length || 0})</Text>
             {isGroup && (
@@ -161,7 +156,6 @@ export default function ChatDetailsScreen({ route, navigation }) {
             ))}
         </Card>
 
-        {/* Danger Zone */}
         {!isRoster && (
             <Button variant="danger" onPress={handleLeaveOrDelete} style={{ marginTop: 30 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -173,15 +167,14 @@ export default function ChatDetailsScreen({ route, navigation }) {
             </Button>
         )}
 
-        {/* Add Member Modal */}
         <Modal 
             visible={showAddModal} 
             title="Add People" 
             onClose={() => setShowAddModal(false)}
-            actions={<Button onPress={handleAddMembers} disabled={usersToAdd.length === 0}>Add</Button>}
+            actions={<Button onPress={handleAddMembers} disabled={emailsToAdd.length === 0}>Add</Button>}
         >
             <View style={{ height: 200 }}>
-                <UserSearch onSelectionChange={setUsersToAdd} />
+                <UserSearch onSelectionChange={setEmailsToAdd} />
             </View>
             
             <View style={styles.switchRow}>
@@ -206,30 +199,24 @@ export default function ChatDetailsScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   content: { padding: 20 },
-  
   profileSection: { alignItems: 'center', marginBottom: 30 },
   avatarContainer: { position: 'relative', marginBottom: 15 },
   avatar: { width: 80, height: 80, borderRadius: 40 },
   placeholder: { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary },
   initial: { fontSize: 32, color: 'white', fontWeight: 'bold' },
   camBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: COLORS.primary, padding: 6, borderRadius: 12 },
-  
   chatName: { color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 5 },
   subText: { color: '#888', fontSize: 14 },
-  
   renameRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 5 },
   input: { backgroundColor: '#222', color: 'white', padding: 10, borderRadius: 8, minWidth: 200, borderColor: COLORS.border, borderWidth: 1 },
-
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sectionTitle: { color: '#888', fontSize: 12, fontWeight: 'bold' },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   addText: { color: COLORS.primary, fontWeight: 'bold' },
-
   listCard: { padding: 0, overflow: 'hidden' },
   participantRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#333' },
   pAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#444', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
   pName: { color: 'white', fontSize: 16 },
-
   switchRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20, padding: 10, backgroundColor: '#222', borderRadius: 8 },
   switchLabel: { color: 'white', fontWeight: 'bold' },
   switchDesc: { color: '#888', fontSize: 12 }

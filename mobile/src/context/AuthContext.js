@@ -84,20 +84,21 @@ export const AuthProvider = ({ children }) => {
       
       const displayName = `${formData.firstName} ${formData.lastName}`;
       
+      // FIX: Ensure no undefined values during signup creation
       const userProfileData = {
         uid: user.uid,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        preferredName: formData.preferredName,
+        firstName: formData.firstName || "",
+        lastName: formData.lastName || "",
+        preferredName: formData.preferredName || "",
         playerName: displayName,
         email: formData.email,
-        phone: formData.phone,
-        notificationPreference: formData.notificationPreference,
+        phone: formData.phone || "",
+        notificationPreference: formData.notificationPreference || "Email",
         emergencyContact: {
-            firstName: formData.emergencyContactFirstName,
-            lastName: formData.emergencyContactLastName,
-            phone: formData.emergencyContactPhone,
-            relationship: formData.emergencyContactRelationship
+            firstName: formData.emergencyContactFirstName || "",
+            lastName: formData.emergencyContactLastName || "",
+            phone: formData.emergencyContactPhone || "",
+            relationship: formData.emergencyContactRelationship || ""
         },
         role: 'player', 
         photoURL: ""
@@ -135,8 +136,29 @@ export const AuthProvider = ({ children }) => {
     if (!file) return null;
     try {
       const storageRef = ref(storage, `users/${uid}/profile.jpg`);
-      await uploadBytes(storageRef, file);
-      return await getDownloadURL(storageRef);
+      
+      // Handle URI based upload (Mobile) vs File object (Web)
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          resolve(xhr.response);
+        };
+        xhr.onerror = function (e) {
+          console.log(e);
+          reject(new TypeError("Network request failed"));
+        };
+        xhr.responseType = "blob";
+        xhr.open("GET", file.uri, true);
+        xhr.send(null);
+      });
+
+      await uploadBytes(storageRef, blob);
+      blob.close(); // Clean up memory
+      
+      const url = await getDownloadURL(storageRef);
+      // Cache busting: Append a timestamp to force React Native Image component to reload
+      return `${url}&updated=${Date.now()}`;
+
     } catch (error) {
       console.error("Error uploading profile image:", error);
       throw error;
@@ -147,7 +169,24 @@ export const AuthProvider = ({ children }) => {
     if (!file) return null;
     try {
       const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
+      
+      // Handle URI blob conversion
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          resolve(xhr.response);
+        };
+        xhr.onerror = function (e) {
+          reject(new TypeError("Network request failed"));
+        };
+        xhr.responseType = "blob";
+        xhr.open("GET", file.uri, true);
+        xhr.send(null);
+      });
+
+      const snapshot = await uploadBytes(storageRef, blob);
+      blob.close();
+
       const downloadURL = await getDownloadURL(snapshot.ref);
       return downloadURL;
     } catch (error) {
@@ -193,18 +232,20 @@ export const AuthProvider = ({ children }) => {
 
       const displayName = `${profileData.firstName} ${profileData.lastName}`;
 
+      // FIX: Sanitize data to prevent "undefined" errors in Firestore
+      // Using '?? ""' ensures that if a field is undefined or null, it becomes an empty string.
       const dataToUpdate = {
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-        preferredName: profileData.preferredName,
+        firstName: profileData.firstName ?? "",
+        lastName: profileData.lastName ?? "",
+        preferredName: profileData.preferredName ?? "",
         playerName: displayName,
-        phone: profileData.phone,
-        notificationPreference: profileData.notificationPreference,
+        phone: profileData.phone ?? "",
+        notificationPreference: profileData.notificationPreference ?? "Email",
         emergencyContact: {
-            firstName: profileData.emergencyContactFirstName,
-            lastName: profileData.emergencyContactLastName,
-            phone: profileData.emergencyContactPhone,
-            relationship: profileData.emergencyContactRelationship
+            firstName: profileData.emergencyContactFirstName ?? "",
+            lastName: profileData.emergencyContactLastName ?? "",
+            phone: profileData.emergencyContactPhone ?? "",
+            relationship: profileData.emergencyContactRelationship ?? ""
         },
         email: profileData.email,
         photoURL: photoURL || ""
@@ -247,9 +288,10 @@ export const AuthProvider = ({ children }) => {
       
       await Promise.all(batchPromises);
       
-      alert("Profile successfully updated!");
+      // Removed the alert here so the UI component can handle it.
       return true; 
     } catch (error) {
+      console.error(error);
       alert("Error saving profile: " + error.message);
       return false;
     }
@@ -283,8 +325,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const soccerDataToSave = {
         ...soccerData,
-        currentRosters: soccerData.currentRosters.split(',').map(item => item.trim()),
-        rosterJerseysOwned: soccerData.rosterJerseysOwned.split(',').map(item => item.trim()),
+        // FIX: Ensure splits don't crash on undefined
+        currentRosters: (soccerData.currentRosters || "").split(',').map(item => item.trim()),
+        rosterJerseysOwned: (soccerData.rosterJerseysOwned || "").split(',').map(item => item.trim()),
         playerNumber: Number(soccerData.playerNumber) || 0,
       };
       
@@ -292,7 +335,8 @@ export const AuthProvider = ({ children }) => {
       await setDoc(soccerDocRef, soccerDataToSave);
       
       setSoccerDetails(soccerDataToSave); 
-      alert("Soccer info saved!");
+      // Keep this alert as SportsInfo.js might not have its own success alert for the modal save
+      alert("Soccer info saved!"); 
       return true; 
 
     } catch (error) {

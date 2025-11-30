@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../../../lib/constants';
 
-export default function MessageList({ messages, currentUser }) {
+// FIX: Ensure onImageClick is destructured here
+export default function MessageList({ messages, currentUser, onImageClick }) {
   
   const renderItem = ({ item }) => {
-    // 1. Handle System Messages
     if (item.type === 'system') {
       return (
         <View style={styles.systemMessageContainer}>
@@ -14,35 +14,40 @@ export default function MessageList({ messages, currentUser }) {
       );
     }
 
-    // 2. Handle Text Messages
     const isMe = item.senderId === currentUser.uid;
 
     return (
-      <View style={[
-        styles.messageRow, 
-        isMe ? styles.rowRight : styles.rowLeft
-      ]}>
-        {/* Avatar for other users */}
+      <View style={[styles.messageRow, isMe ? styles.rowRight : styles.rowLeft]}>
         {!isMe && (
            <View style={styles.avatarContainer}>
              {item.senderPhoto ? (
                <Image source={{ uri: item.senderPhoto }} style={styles.avatar} />
              ) : (
                <View style={styles.avatarPlaceholder}>
-                 <Text style={styles.avatarInitials}>
-                   {item.senderName?.charAt(0) || '?'}
-                 </Text>
+                 <Text style={styles.avatarInitials}>{item.senderName?.charAt(0) || '?'}</Text>
                </View>
              )}
            </View>
         )}
 
-        <View style={[
-          styles.bubble, 
-          isMe ? styles.bubbleRight : styles.bubbleLeft
-        ]}>
+        <View style={[styles.bubble, isMe ? styles.bubbleRight : styles.bubbleLeft]}>
           {!isMe && <Text style={styles.senderName}>{item.senderName}</Text>}
-          <Text style={isMe ? styles.textRight : styles.textLeft}>{item.text}</Text>
+          
+          {/* IMAGE RENDERER */}
+          {item.imageUrl && (
+            <TouchableOpacity onPress={() => onImageClick && onImageClick(item.imageUrl)}>
+              <Image 
+                source={{ uri: item.imageUrl }} 
+                style={styles.msgImage} 
+                resizeMode="cover" 
+              />
+            </TouchableOpacity>
+          )}
+
+          {item.text ? (
+            <Text style={isMe ? styles.textRight : styles.textLeft}>{item.text}</Text>
+          ) : null}
+
           <Text style={[styles.timestamp, isMe ? styles.timeRight : styles.timeLeft]}>
             {item.createdAt?.seconds 
               ? new Date(item.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -58,7 +63,7 @@ export default function MessageList({ messages, currentUser }) {
       data={messages}
       keyExtractor={item => item.id}
       renderItem={renderItem}
-      inverted // IMPORTANT: Scroll starts from bottom
+      inverted
       contentContainerStyle={styles.listContent}
     />
   );
@@ -66,61 +71,22 @@ export default function MessageList({ messages, currentUser }) {
 
 const styles = StyleSheet.create({
   listContent: { padding: 16, paddingBottom: 20 },
-  
-  // System Message
-  systemMessageContainer: {
-    alignSelf: 'center',
-    marginVertical: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
-  },
+  systemMessageContainer: { alignSelf: 'center', marginVertical: 10, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
   systemMessageText: { color: '#888', fontSize: 12, fontStyle: 'italic' },
-
-  // Message Row
-  messageRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    alignItems: 'flex-end',
-  },
+  messageRow: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end' },
   rowRight: { justifyContent: 'flex-end' },
   rowLeft: { justifyContent: 'flex-start' },
-
-  // Avatar
   avatarContainer: { marginRight: 8 },
   avatar: { width: 32, height: 32, borderRadius: 16 },
-  avatarPlaceholder: { 
-    width: 32, height: 32, borderRadius: 16, 
-    backgroundColor: '#444', justifyContent: 'center', alignItems: 'center' 
-  },
+  avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#444', justifyContent: 'center', alignItems: 'center' },
   avatarInitials: { color: '#ccc', fontSize: 12, fontWeight: 'bold' },
-
-  // Bubble
-  bubble: {
-    maxWidth: '75%',
-    padding: 12,
-    borderRadius: 20,
-  },
-  bubbleRight: {
-    backgroundColor: COLORS.primary,
-    borderBottomRightRadius: 4,
-  },
-  bubbleLeft: {
-    backgroundColor: COLORS.card,
-    borderBottomLeftRadius: 4,
-  },
-
-  // Text
-  senderName: {
-    color: '#888',
-    fontSize: 10,
-    marginBottom: 4,
-  },
+  bubble: { maxWidth: '75%', padding: 12, borderRadius: 20 },
+  bubbleRight: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
+  bubbleLeft: { backgroundColor: '#2a2e36', borderBottomLeftRadius: 4 },
+  senderName: { color: '#888', fontSize: 10, marginBottom: 4 },
   textRight: { color: '#121212', fontSize: 16 },
   textLeft: { color: 'white', fontSize: 16 },
-
-  // Timestamp
+  msgImage: { width: 200, height: 150, borderRadius: 10, marginBottom: 5, backgroundColor: '#000' },
   timestamp: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
   timeRight: { color: 'rgba(0,0,0,0.6)' },
   timeLeft: { color: 'rgba(255,255,255,0.4)' },
