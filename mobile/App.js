@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+// NEW IMPORTS FOR SAFE AREA
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ChatProvider, useChat } from './src/context/ChatContext';
 import { Home, Users, MessageSquare, User, Globe, Settings, Lightbulb } from 'lucide-react-native';
@@ -22,12 +25,14 @@ import NewChatScreen from './src/components/views/Messaging/NewChat';
 import ChatDetailsScreen from './src/components/views/Messaging/ChatDetails';
 import MyGroupsScreen from './src/components/views/Community/MyGroups';
 import GroupDetailScreen from './src/components/views/Community/GroupDetail';
-import ReauthModal from './src/components/auth/ReauthModal';
 
 // Manager Screens
 import ManagerDashboardScreen from './src/components/views/Manager/ManagerDashboard';
 import CreateRosterScreen from './src/components/views/Manager/CreateRoster';
 import ManageRosterScreen from './src/components/views/Manager/ManageRoster';
+
+// Modal
+import ReauthModal from './src/components/auth/ReauthModal';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -61,6 +66,8 @@ function MessagingIcon({ color, size }) {
 
 function MainTabs() {
   const { isManager } = useAuth();
+  // 1. Get the safe area insets (top, bottom, left, right)
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -69,13 +76,15 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: '#121212',
           borderTopColor: '#333',
-          height: 60,
-          paddingBottom: 5,
+          // 2. Dynamically add the bottom inset to the height and padding
+          // This pushes the content UP above the home indicator line
+          height: 60 + (Platform.OS === 'ios' ? insets.bottom : 0),
+          paddingBottom: 5 + (Platform.OS === 'ios' ? insets.bottom : 0),
           paddingTop: 5,
         },
         tabBarActiveTintColor: '#61dafb',
         tabBarInactiveTintColor: '#888',
-        tabBarLabelStyle: { fontSize: 10, marginBottom: 2 } // Tweaked for 6 items
+        tabBarLabelStyle: { fontSize: 10, marginBottom: 2 } 
       }}
     >
       <Tab.Screen 
@@ -138,19 +147,18 @@ function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="NewChat" component={NewChatScreen} />
-<Stack.Screen name="ChatDetails" component={ChatDetailsScreen} />
+            <Stack.Screen name="ChatDetails" component={ChatDetailsScreen} />
             <Stack.Screen name="ChatScreen" component={ChatScreen} /> 
             <Stack.Screen name="CreateRoster" component={CreateRosterScreen} />
             <Stack.Screen name="ManageRoster" component={ManageRosterScreen} /> 
             <Stack.Screen name="MyGroups" component={MyGroupsScreen} />
-<Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
+            <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
             <Stack.Screen 
               name="RosterDetail" 
               component={RosterDetailScreen}
               options={{ headerShown: true, headerStyle: { backgroundColor: '#121212' }, headerTintColor: '#fff' }} 
             />
             <Stack.Screen name="FindTeams" component={FindTeamsScreen} />
-            {/* Feedback is now in Tabs, removed from Stack to avoid dupes/confusion */}
           </>
         ) : (
           <Stack.Screen name="Auth" component={AuthScreen} />
@@ -162,13 +170,15 @@ function AppNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ChatProvider>
-        <AppNavigator />
-        {/* Placed here to overlay any screen in the app */}
-        <ReauthModal />
-      </ChatProvider>
-    </AuthProvider>
+    // 3. Wrap the app in SafeAreaProvider to calculate insets
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ChatProvider>
+          <AppNavigator />
+          <ReauthModal />
+        </ChatProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

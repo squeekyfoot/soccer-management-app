@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, RefreshControl, ScrollView, TouchableOpacity, Modal } from 'react-native';
-// FIX: Go up 3 levels to 'src' (Home -> views -> components -> src)
 import { useAuth } from '../../../context/AuthContext';
-// FIX: Go up 2 levels to 'components' (Home -> views -> components) then into 'common'
 import Card from '../../common/Card';
 import Button from '../../common/Button';
 import Input from '../../common/Input';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
-// FIX: Go up 3 levels to 'src'
 import { COLORS } from '../../../lib/constants';
 
 export default function CalendarView() {
@@ -27,9 +24,9 @@ export default function CalendarView() {
     notes: ""
   });
 
+  // 1. Core Data Loading Logic (Decoupled from UI state)
   const loadData = useCallback(async () => {
     if (!loggedInUser) return;
-    setRefreshing(true);
     try {
       const [eventData, rosterData] = await Promise.all([
         fetchAllUserEvents(loggedInUser.uid),
@@ -44,14 +41,20 @@ export default function CalendarView() {
       }
     } catch (error) {
       console.error("Failed to load data", error);
-    } finally {
-      setRefreshing(false);
     }
   }, [loggedInUser, fetchAllUserEvents, fetchUserRosters]);
 
+  // 2. Automatic Load (Silent - No Spinner)
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // 3. Manual Refresh (Shows Spinner)
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
   const changeMonth = (offset) => {
     const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1);
@@ -69,6 +72,7 @@ export default function CalendarView() {
       alert("Event created!");
       setShowEventModal(false);
       setNewEvent(prev => ({ ...prev, dateTime: "", location: "", notes: "" }));
+      // Reload data to show new event immediately
       loadData();
     }
   };
@@ -135,7 +139,7 @@ export default function CalendarView() {
   return (
     <ScrollView 
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor={COLORS.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
     >
         <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>My Schedule</Text>
