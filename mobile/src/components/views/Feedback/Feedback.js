@@ -16,27 +16,22 @@ export default function FeedbackScreen({ navigation }) {
     loggedInUser, isDeveloper 
   } = useAuth();
 
-  // --- State Hooks ---
   const [feedbackList, setFeedbackList] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
-  const [currentView, setCurrentView] = useState('list'); // 'list' | 'detail'
+  const [currentView, setCurrentView] = useState('list');
   const [selectedFeedback, setSelectedFeedback] = useState(null);
+  
   const [activeFilter, setActiveFilter] = useState('Active');
   const [counts, setCounts] = useState({ Active: 0, Completed: 0, Rejected: 0 });
+
   const [showAddModal, setShowAddModal] = useState(false);
-  
-  // Form State
   const [newFeedback, setNewFeedback] = useState({ title: "", type: "Suggestion", description: "" });
-  
-  // Developer State
+
   const [newNoteText, setNewNoteText] = useState("");
   const [devStatus, setDevStatus] = useState("");
   const [devOverrideMode, setDevOverrideMode] = useState(false);
   const [overrideData, setOverrideData] = useState({ title: "", type: "", description: "" });
 
-  // --- Effects ---
-
-  // 1. Subscribe to Data
   useEffect(() => {
     const unsubscribe = subscribeToFeedback((data) => {
       setFeedbackList(data);
@@ -46,7 +41,6 @@ export default function FeedbackScreen({ navigation }) {
       const rejected = data.filter(i => i.status === 'Rejected').length;
       setCounts({ Active: active, Completed: completed, Rejected: rejected });
 
-      // Live update selected item if open
       if (selectedFeedback) {
         const updated = data.find(i => i.id === selectedFeedback.id);
         if (updated) setSelectedFeedback(updated);
@@ -55,20 +49,18 @@ export default function FeedbackScreen({ navigation }) {
     return () => unsubscribe();
   }, [subscribeToFeedback, selectedFeedback]);
 
-  // 2. Filter Logic
+  // FIX: Handle undefined votes
   useEffect(() => {
     let filtered = [];
     if (activeFilter === 'Active') {
       filtered = feedbackList.filter(item => item.status !== 'Completed' && item.status !== 'Rejected');
-      filtered.sort((a, b) => b.votes - a.votes);
+      filtered.sort((a, b) => (b.votes || 0) - (a.votes || 0));
     } else {
       filtered = feedbackList.filter(item => item.status === activeFilter);
       filtered.sort((a, b) => (b.statusUpdatedAt?.toMillis?.() || 0) - (a.statusUpdatedAt?.toMillis?.() || 0));
     }
     setFilteredList(filtered);
   }, [feedbackList, activeFilter]);
-
-  // --- Handlers ---
 
   const handleCardClick = (item) => {
     setSelectedFeedback(item);
@@ -93,8 +85,6 @@ export default function FeedbackScreen({ navigation }) {
       setNewFeedback({ title: "", type: "Suggestion", description: "" });
     }
   };
-
-  // --- Developer Handlers ---
 
   const handleDevSaveStatus = async () => {
     if (!selectedFeedback) return;
@@ -138,8 +128,6 @@ export default function FeedbackScreen({ navigation }) {
     ]);
   };
 
-  // --- Helper Components (Render Functions) ---
-
   const getTypeIcon = (type, size = 16) => {
     switch (type) {
       case 'Bug': return <AlertCircle size={size} color={COLORS.danger} />;
@@ -170,147 +158,154 @@ export default function FeedbackScreen({ navigation }) {
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  // --- Conditional Rendering Logic ---
-
-  const renderDetailView = () => {
-    if (!selectedFeedback) return null;
-    
+  // --- RENDER: Detail View ---
+  if (currentView === 'detail' && selectedFeedback) {
     const hasVoted = selectedFeedback.voters?.includes(loggedInUser.uid);
     const isClosed = selectedFeedback.status === 'Completed' || selectedFeedback.status === 'Rejected';
     const sortedNotes = (Array.isArray(selectedFeedback.developerNotes) ? selectedFeedback.developerNotes : [])
         .sort((a, b) => b.createdAt - a.createdAt);
 
     return (
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
-        <Card>
-          <View style={styles.detailHeader}>
-            <View style={{flex: 1, marginRight: 10}}>
-              <Text style={styles.detailTitle}>{selectedFeedback.title}</Text>
-              <View style={styles.tagsRow}>
-                  <View style={styles.tag}>{getTypeIcon(selectedFeedback.type)}<Text style={styles.tagText}>{selectedFeedback.type}</Text></View>
-                  <View style={styles.tag}><Clock size={16} color={getStatusColor(selectedFeedback.status)} /><Text style={[styles.tagText, {color: getStatusColor(selectedFeedback.status)}]}>{selectedFeedback.status}</Text></View>
-              </View>
-              <Text style={styles.detailDate}>Created: {formatDate(selectedFeedback.createdAt)}</Text>
-            </View>
-            
-            <View style={styles.voteBox}>
-              <Text style={styles.voteCount}>{selectedFeedback.votes}</Text>
-              <TouchableOpacity 
-                onPress={() => handleVote(selectedFeedback)}
-                disabled={isClosed}
-                style={{ opacity: isClosed ? 0.5 : 1 }}
-              >
-                  <ThumbsUp size={24} color={hasVoted ? COLORS.primary : '#888'} fill={hasVoted ? COLORS.primary : 'transparent'} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-          <Text style={styles.descLabel}>Description</Text>
-          <Text style={styles.description}>{selectedFeedback.description}</Text>
-
-          {/* Developer Notes */}
-          {sortedNotes.length > 0 && (
-            <View style={styles.notesSection}>
-              <Text style={styles.notesHeader}>Developer Notes</Text>
-              {sortedNotes.map((note, idx) => (
-                <View key={idx} style={styles.noteCard}>
-                    <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
-                      <Text style={styles.noteMeta}>{note.author || 'Developer'}</Text>
-                      <Text style={styles.noteMeta}>{formatDateTime(note.createdAt)}</Text>
-                    </View>
-                    <Text style={styles.noteText}>{note.text}</Text>
+      <View style={styles.container}>
+        <Header title="Details" onBack={() => setCurrentView('list')} />
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <Card>
+            <View style={styles.detailHeader}>
+              <View style={{flex: 1, marginRight: 10}}>
+                <Text style={styles.detailTitle}>{selectedFeedback.title}</Text>
+                <View style={styles.tagsRow}>
+                   <View style={styles.tag}>{getTypeIcon(selectedFeedback.type)}<Text style={styles.tagText}>{selectedFeedback.type}</Text></View>
+                   <View style={styles.tag}><Clock size={16} color={getStatusColor(selectedFeedback.status)} /><Text style={[styles.tagText, {color: getStatusColor(selectedFeedback.status)}]}>{selectedFeedback.status}</Text></View>
                 </View>
-              ))}
+                <Text style={styles.detailDate}>Created: {formatDate(selectedFeedback.createdAt)}</Text>
+              </View>
+              
+              <View style={styles.voteBox}>
+                <Text style={styles.voteCount}>{selectedFeedback.votes || 0}</Text>
+                <TouchableOpacity 
+                  onPress={() => handleVote(selectedFeedback)}
+                  disabled={isClosed}
+                  style={{ opacity: isClosed ? 0.5 : 1 }}
+                >
+                   <ThumbsUp size={24} color={hasVoted ? COLORS.primary : '#888'} fill={hasVoted ? COLORS.primary : 'transparent'} />
+                </TouchableOpacity>
+              </View>
             </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.descLabel}>Description</Text>
+            <Text style={styles.description}>{selectedFeedback.description}</Text>
+
+            {sortedNotes.length > 0 && (
+              <View style={styles.notesSection}>
+                <Text style={styles.notesHeader}>Developer Notes</Text>
+                {sortedNotes.map((note, idx) => (
+                  <View key={idx} style={styles.noteCard}>
+                     <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                        <Text style={styles.noteMeta}>{note.author || 'Developer'}</Text>
+                        <Text style={styles.noteMeta}>{formatDateTime(note.createdAt)}</Text>
+                     </View>
+                     <Text style={styles.noteText}>{note.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.divider} />
+            <Text style={styles.authorFooter}>Submitted by {selectedFeedback.authorName}</Text>
+          </Card>
+
+          {isDeveloper() && (
+             <Card style={styles.devControls}>
+                <View style={styles.devHeader}>
+                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <ShieldAlert size={20} color={COLORS.primary} />
+                        <Text style={styles.devTitle}>Developer Controls</Text>
+                   </View>
+                   <TouchableOpacity onPress={() => setDevOverrideMode(!devOverrideMode)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                       <Edit3 size={14} color="#aaa" />
+                       <Text style={{ color: '#aaa', fontSize: 12 }}>{devOverrideMode ? "Cancel" : "Override"}</Text>
+                   </TouchableOpacity>
+                </View>
+                
+                {devOverrideMode && (
+                    <View style={styles.overrideSection}>
+                        <Text style={styles.subHeader}>Override Details</Text>
+                        <Input label="Title" value={overrideData.title} onChangeText={t => setOverrideData({...overrideData, title: t})} />
+                        
+                        <Text style={styles.label}>Type</Text>
+                        <View style={styles.statusRow}>
+                            {['Suggestion', 'Bug', 'General'].map(t => (
+                                <TouchableOpacity 
+                                    key={t} 
+                                    style={[styles.statusOption, overrideData.type === t && styles.activeStatus]}
+                                    onPress={() => setOverrideData({...overrideData, type: t})}
+                                >
+                                    <Text style={[styles.statusText, overrideData.type === t && styles.activeStatusText]}>{t}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Input label="Description" value={overrideData.description} onChangeText={t => setOverrideData({...overrideData, description: t})} multiline />
+                        <Button onPress={handleDevOverrideSave} style={{ marginTop: 10 }}>Update Content</Button>
+                    </View>
+                )}
+
+                <Text style={styles.label}>Update Status:</Text>
+                <View style={[styles.statusRow, { flexWrap: 'wrap' }]}>
+                   {['Proposed', 'Accepted', 'In Progress', 'Completed', 'Rejected'].map(status => (
+                       <TouchableOpacity 
+                            key={status}
+                            style={[styles.statusOption, devStatus === status && styles.activeStatus]}
+                            onPress={() => setDevStatus(status)}
+                       >
+                           <Text style={[styles.statusText, devStatus === status && styles.activeStatusText]}>{status}</Text>
+                       </TouchableOpacity>
+                   ))}
+                </View>
+                <Button onPress={handleDevSaveStatus} style={{ marginBottom: 20 }}>Save Status</Button>
+
+                <Text style={styles.label}>Add Developer Note (Public):</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                        <Input 
+                            value={newNoteText} 
+                            onChangeText={setNewNoteText} 
+                            multiline 
+                            placeholder="Add a new update..."
+                        />
+                    </View>
+                    <TouchableOpacity onPress={handleAddNote} style={styles.iconBtn}>
+                       <PlusCircle size={24} color={COLORS.primary} />
+                    </TouchableOpacity>
+                </View>
+                
+                <View style={[styles.divider, { backgroundColor: '#444' }]} />
+                <Button variant="secondary" style={{borderColor: COLORS.danger}} onPress={handleDevDelete}>
+                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                       <Trash2 size={16} color={COLORS.danger} />
+                       <Text style={{color: COLORS.danger}}>Delete Item</Text>
+                   </View>
+                </Button>
+             </Card>
           )}
-
-          <View style={styles.divider} />
-          <Text style={styles.authorFooter}>Submitted by {selectedFeedback.authorName}</Text>
-        </Card>
-
-        {/* Developer Controls */}
-        {isDeveloper() && (
-            <Card style={styles.devControls}>
-              <View style={styles.devHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <ShieldAlert size={20} color={COLORS.primary} />
-                      <Text style={styles.devTitle}>Developer Controls</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setDevOverrideMode(!devOverrideMode)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Edit3 size={14} color="#aaa" />
-                      <Text style={{ color: '#aaa', fontSize: 12 }}>{devOverrideMode ? "Cancel" : "Override"}</Text>
-                  </TouchableOpacity>
-              </View>
-              
-              {/* Override Mode */}
-              {devOverrideMode && (
-                  <View style={styles.overrideSection}>
-                      <Text style={styles.subHeader}>Override Details</Text>
-                      <Input label="Title" value={overrideData.title} onChangeText={t => setOverrideData({...overrideData, title: t})} />
-                      
-                      <Text style={styles.label}>Type</Text>
-                      <View style={styles.statusRow}>
-                          {['Suggestion', 'Bug', 'General'].map(t => (
-                              <TouchableOpacity 
-                                  key={t} 
-                                  style={[styles.statusOption, overrideData.type === t && styles.activeStatus]}
-                                  onPress={() => setOverrideData({...overrideData, type: t})}
-                              >
-                                  <Text style={[styles.statusText, overrideData.type === t && styles.activeStatusText]}>{t}</Text>
-                              </TouchableOpacity>
-                          ))}
-                      </View>
-
-                      <Input label="Description" value={overrideData.description} onChangeText={t => setOverrideData({...overrideData, description: t})} multiline />
-                      <Button onPress={handleDevOverrideSave} style={{ marginTop: 10 }}>Update Content</Button>
-                  </View>
-              )}
-
-              <Text style={styles.label}>Update Status:</Text>
-              <View style={[styles.statusRow, { flexWrap: 'wrap' }]}>
-                  {['Proposed', 'Accepted', 'In Progress', 'Completed', 'Rejected'].map(status => (
-                      <TouchableOpacity 
-                          key={status}
-                          style={[styles.statusOption, devStatus === status && styles.activeStatus]}
-                          onPress={() => setDevStatus(status)}
-                      >
-                          <Text style={[styles.statusText, devStatus === status && styles.activeStatusText]}>{status}</Text>
-                      </TouchableOpacity>
-                  ))}
-              </View>
-              <Button onPress={handleDevSaveStatus} style={{ marginBottom: 20 }}>Save Status</Button>
-
-              <Text style={styles.label}>Add Developer Note (Public):</Text>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                      <Input 
-                          value={newNoteText} 
-                          onChangeText={setNewNoteText} 
-                          multiline 
-                          placeholder="Add a new update..."
-                      />
-                  </View>
-                  <TouchableOpacity onPress={handleAddNote} style={styles.iconBtn}>
-                      <PlusCircle size={24} color={COLORS.primary} />
-                  </TouchableOpacity>
-              </View>
-              
-              <View style={[styles.divider, { backgroundColor: '#444' }]} />
-              <Button variant="secondary" style={{borderColor: COLORS.danger}} onPress={handleDevDelete}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Trash2 size={16} color={COLORS.danger} />
-                      <Text style={{color: COLORS.danger}}>Delete Item</Text>
-                  </View>
-              </Button>
-            </Card>
-        )}
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
-  };
+  }
 
-  const renderListView = () => (
-    <>
+  // --- RENDER: List View ---
+  return (
+    <View style={styles.container}>
+      <Header 
+        title="Feedback" 
+        actions={
+          <TouchableOpacity onPress={() => setShowAddModal(true)}>
+            <Plus color="#61dafb" size={24} />
+          </TouchableOpacity>
+        }
+      />
+
       <View style={styles.filterBar}>
          {['Active', 'Completed', 'Rejected'].map(tab => (
            <TouchableOpacity 
@@ -352,7 +347,7 @@ export default function FeedbackScreen({ navigation }) {
                   </View>
 
                   <View style={styles.cardVote}>
-                     <Text style={styles.voteCount}>{item.votes}</Text>
+                     <Text style={styles.voteCount}>{item.votes || 0}</Text>
                      <TouchableOpacity onPress={() => handleVote(item)}>
                         <ThumbsUp size={20} color={hasVoted ? COLORS.primary : '#666'} fill={hasVoted ? COLORS.primary : 'transparent'} />
                      </TouchableOpacity>
@@ -362,25 +357,6 @@ export default function FeedbackScreen({ navigation }) {
            );
         }}
       />
-    </>
-  );
-
-  // --- MAIN RETURN ---
-  return (
-    <View style={styles.container}>
-      <Header 
-        title={currentView === 'detail' ? "Details" : "Feedback"} 
-        actions={
-          currentView === 'list' && (
-            <TouchableOpacity onPress={() => setShowAddModal(true)}>
-              <Plus color="#61dafb" size={24} />
-            </TouchableOpacity>
-          )
-        }
-        onBack={currentView === 'detail' ? () => setCurrentView('list') : undefined}
-      />
-
-      {currentView === 'detail' ? renderDetailView() : renderListView()}
 
       <Modal 
         visible={showAddModal} 
