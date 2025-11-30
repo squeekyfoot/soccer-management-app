@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   
   formContainer: { gap: 5 },
   row: { flexDirection: 'row' },
-  sectionLabel: { color: COLORS.primary, marginTop: 15, marginBottom: 10, fontWeight: 'bold' },
+  sectionLabel: { color: COLORS.primary, marginTop: 15, marginBottom: 5, fontWeight: 'bold' },
   btnRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
 
   // Pref Selector Styles

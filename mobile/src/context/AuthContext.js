@@ -84,7 +84,6 @@ export const AuthProvider = ({ children }) => {
       
       const displayName = `${formData.firstName} ${formData.lastName}`;
       
-      // FIX: Ensure no undefined values during signup creation
       const userProfileData = {
         uid: user.uid,
         firstName: formData.firstName || "",
@@ -137,7 +136,6 @@ export const AuthProvider = ({ children }) => {
     try {
       const storageRef = ref(storage, `users/${uid}/profile.jpg`);
       
-      // Handle URI based upload (Mobile) vs File object (Web)
       const blob = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = function () {
@@ -153,11 +151,11 @@ export const AuthProvider = ({ children }) => {
       });
 
       await uploadBytes(storageRef, blob);
-      blob.close(); // Clean up memory
+      blob.close(); 
       
       const url = await getDownloadURL(storageRef);
-      // Cache busting: Append a timestamp to force React Native Image component to reload
-      return `${url}&updated=${Date.now()}`;
+      // FIX: Removed manual cache busting causing invalid URLs
+      return url;
 
     } catch (error) {
       console.error("Error uploading profile image:", error);
@@ -170,7 +168,6 @@ export const AuthProvider = ({ children }) => {
     try {
       const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
       
-      // Handle URI blob conversion
       const blob = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = function () {
@@ -232,8 +229,7 @@ export const AuthProvider = ({ children }) => {
 
       const displayName = `${profileData.firstName} ${profileData.lastName}`;
 
-      // FIX: Sanitize data to prevent "undefined" errors in Firestore
-      // Using '?? ""' ensures that if a field is undefined or null, it becomes an empty string.
+      // Sanitize data
       const dataToUpdate = {
         firstName: profileData.firstName ?? "",
         lastName: profileData.lastName ?? "",
@@ -287,8 +283,6 @@ export const AuthProvider = ({ children }) => {
       });
       
       await Promise.all(batchPromises);
-      
-      // Removed the alert here so the UI component can handle it.
       return true; 
     } catch (error) {
       console.error(error);
@@ -325,7 +319,6 @@ export const AuthProvider = ({ children }) => {
     try {
       const soccerDataToSave = {
         ...soccerData,
-        // FIX: Ensure splits don't crash on undefined
         currentRosters: (soccerData.currentRosters || "").split(',').map(item => item.trim()),
         rosterJerseysOwned: (soccerData.rosterJerseysOwned || "").split(',').map(item => item.trim()),
         playerNumber: Number(soccerData.playerNumber) || 0,
@@ -335,8 +328,7 @@ export const AuthProvider = ({ children }) => {
       await setDoc(soccerDocRef, soccerDataToSave);
       
       setSoccerDetails(soccerDataToSave); 
-      // Keep this alert as SportsInfo.js might not have its own success alert for the modal save
-      alert("Soccer info saved!"); 
+      alert("Soccer info saved!");
       return true; 
 
     } catch (error) {
@@ -345,17 +337,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- ROLES ---
-  
-  const isManager = () => {
-    return loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
-  };
-
-  const isDeveloper = () => {
-    return loggedInUser && loggedInUser.role === 'developer';
-  };
-
-  // --- ROSTER & GROUP LOGIC ---
+  // --- ROLES & GROUPS (unchanged) ---
+  const isManager = () => loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
+  const isDeveloper = () => loggedInUser && loggedInUser.role === 'developer';
 
   const createRoster = async (rosterName, season, maxCapacity, isDiscoverable = false, groupCreationData = null, addManagerAsPlayer = false) => {
     if (!isManager()) {
@@ -479,7 +463,6 @@ export const AuthProvider = ({ children }) => {
 
   const addPlayerToRoster = async (rosterId, playerEmail) => {
     if (!isManager()) return false;
-    
     try {
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", playerEmail));
@@ -530,7 +513,6 @@ export const AuthProvider = ({ children }) => {
 
   const removePlayerFromRoster = async (rosterId, playerSummary) => {
     if (!isManager()) return false;
-    
     try {
       const rosterRef = doc(db, "rosters", rosterId);
       await updateDoc(rosterRef, {
