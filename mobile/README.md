@@ -1,97 +1,88 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# **Soccer Management App \- Mobile Client**
 
-# Getting Started
+A React Native application targeting iOS and Android.  
+**Crucial Rule:** This app follows the **"Mirror Protocol."** Its folder structure (src/components/views/...) matches the Web App exactly to maintain mental continuity for developers.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## **Mobile-Specific Architecture**
 
-## Step 1: Start Metro
+While we mirror the Web's *structure*, the *implementation* relies on Native Modules and a "Translation Layer."
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### **1\. The "Translation Layer" (Web vs. Native)**
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+| Feature | Web Implementation | Mobile Implementation | Reason |
+| :---- | :---- | :---- | :---- |
+| **DOM Elements** | \<div\>, \<span\>, \<input\> | \<View\>, \<Text\>, \<TextInput\> | React Native renders to native UI views, not HTML. |
+| **Styling** | CSS / ClassNames | StyleSheet.create({}) | No CSS engine; uses Flexbox-like JS objects. |
+| **Scrolling** | Automatic (Browser) | Explicit \<ScrollView\> or \<FlatList\> | Views are static by default; scrolling must be enabled. |
+| **Lists** | .map() | \<FlatList\> | **Performance:** FlatList virtualizes long lists (like Chats) to save memory. |
+| **Alerts** | window.alert() | Alert.alert() | Native system dialogs. |
+| **Images** | \<img src="..."\> | \<Image source={{uri: ...}} /\> | **Gotcha:** Requires explicit width and height styles or it won't render. |
 
-```sh
-# Using npm
-npm start
+### **2\. Native Modules (The Hardware Link)**
 
-# OR using Yarn
-yarn start
-```
+We cannot use browser APIs (like navigator or document). We rely on specific libraries to bridge the gap:
 
-## Step 2: Build and run your app
+* **react-native-image-picker**: Replaces \<input type="file"\> for accessing Camera/Gallery.  
+* **react-native-image-resizer**: Replaces HTML5 Canvas for client-side image compression.  
+* **react-native-safe-area-context**: Handles the iPhone notch and Home Indicator to prevent UI overlaps.  
+* **react-native-svg**: Required to render Lucide Icons (unlike Web where SVGs are native).
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+**Warning:** If you add a new library that uses native code, you **MUST** rebuild the binary (npm run ios) or the app will crash. Hot reloading is not enough.
 
-### Android
+### **3\. Navigation**
 
-```sh
-# Using npm
-npm run android
+We use **React Navigation (v6)** instead of a Router.
 
-# OR using Yarn
-yarn android
-```
+* **Stack Navigator:** Handles "pushing" screens (e.g., Chat Details, Edit Profile) so users can swipe back.  
+* **Tab Navigator:** The main bottom navigation bar.  
+* **Parity:** Route names (Home, Community, Messaging) match the Web View component names.
 
-### iOS
+## **Development & Build**
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### **Prerequisites**
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+* Node.js (v18+)  
+* CocoaPods (for iOS)  
+* Xcode (iOS) & Android Studio (Android)  
+* Watchman (brew install watchman)
 
-```sh
-bundle install
-```
+### **Installation**
 
-Then, and every time you update your native dependencies, run:
+1. **Install JS Dependencies:**  
+   npm install
 
-```sh
-bundle exec pod install
-```
+2. **Install Native Pods (iOS \- REQUIRED):**  
+   cd ios  
+   pod install  
+   cd ..
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### **Running the App**
 
-```sh
-# Using npm
-npm run ios
+* **Start Metro Bundler:**  
+  npm start
 
-# OR using Yarn
-yarn ios
-```
+* **Launch iOS Simulator:**  
+  npm run ios
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+* **Reset Cache (If strange errors occur):**  
+  npm start \-- \--reset-cache
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+### **Deployment (TestFlight)**
 
-## Step 3: Modify your app
+1. Open ios/mobile.xcworkspace in Xcode.  
+2. Select "Any iOS Device (arm64)" as the target.  
+3. **Product \-\> Archive**.  
+4. Once archived, click **Distribute App \-\> TestFlight & App Store**.  
+5. *Troubleshooting:* If you see "Upload Symbols Failed" for Hermes, you may uncheck "Upload Symbols" for Beta builds to bypass the error.
 
-Now that you have successfully run the app, let's make changes!
+## **Common Gotchas & Fixes**
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+1. **"Black Circle" Images:**  
+   * **Cause:** The \<Image\> component has a background color but no image loaded, or the image URL is invalid.  
+   * **Fix:** Ensure the URL is valid (no appended query params causing 403s) and that width/height are set. Use the Avatar component which handles loading states.  
+2. **"Undefined is not a function" (Images):**  
+   * **Cause:** Trying to use createImageBitmap or document.createElement (Web APIs).  
+   * **Fix:** Use mobile/src/utils/imageUtils.js which wraps react-native-image-resizer instead.  
+3. **Keyboard Covering Input:**  
+   * **Cause:** iOS keyboard slides up over the view.  
+   * **Fix:** Always wrap forms or chat inputs in a \<KeyboardAvoidingView\> with the correct behavior (padding for iOS, height for Android).
