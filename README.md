@@ -46,11 +46,11 @@ If you are an AI assistant helping to maintain this codebase, you **MUST** adher
 
 For specific setup instructions, build commands, and platform-unique constraints, refer to the dedicated READMEs:
 
-* [**Web App Documentation**](https://www.google.com/search?q=./web/README.md)  
+* **Web App Documentation** (./web/README.md)  
   * Browser constraints (CORS, DOM)  
   * CSS Modules & Responsive Design  
   * Deployment to Firebase Hosting  
-* [**Mobile App Documentation**](https://www.google.com/search?q=./mobile/README.md)  
+* **Mobile App Documentation** (./mobile/README.md)  
   * React Native Environment Setup  
   * Native Modules (Camera, Gallery, Safe Area)  
   * iOS/Android Build & TestFlight Deployment
