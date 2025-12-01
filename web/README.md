@@ -61,3 +61,29 @@ firebase deploy
 
 * **Favicons & Manifests:** Ensure public/manifest.json is updated if app icons change. This controls the PWA (Progressive Web App) appearance when users add the site to their home screen.  
 * **CORS:** If interacting with external APIs or Firebase Storage buckets, ensure CORS rules are configured to allow the hosting domain.
+
+## **✅ Maintenance & Deployment Routine**
+
+Follow this routine before every deploy to ensure the "Source of Truth" remains stable.
+
+### **1. Regression Testing (The Safety Check)**
+Before building, run the automated suite to catch broken logic.
+* **Command:** `npm run test:ci`
+* **Rule:** If this fails, **STOP**. Do not deploy. Fix the regression first.
+* **Scope:** This checks `src/App.test.js` and any unit tests for Hooks/Contexts.
+
+### **2. Architecture Checklist**
+* [ ] **Parity Check:** If I added a feature (e.g., `Views/Profile`), is the folder structure standard?
+* [ ] **Responsive Logic:** Did I verify the view on both Desktop (>768px) and Mobile (<768px)?
+* [ ] **Security:** If I added a write operation, did I verify `firestore.rules`?
+
+### **3. Pre-Deployment Verification**
+* [ ] **Assets:** If the logo changed, is `public/manifest.json` updated?
+* [ ] **Environment:** Is `.env` correctly configured?
+* [ ] **CORS:** Are external API headers set?
+
+### **4. Deployment Steps**
+1.  `npm run test:ci` (Must Pass)
+2.  `npm run build`
+3.  `firebase deploy`
+4.  **Verify:** Open the live URL and hard-refresh.
