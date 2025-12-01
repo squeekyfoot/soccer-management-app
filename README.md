@@ -36,12 +36,14 @@ Both apps utilize React Context to manage global domain state, avoiding the comp
 
 ## **Instructions for AI Collaborators**
 
-If you are an AI assistant helping to maintain this codebase, you **MUST** adhere to these directives to prevent regression:
+If you are an AI assistant helping to maintain this codebase, you **MUST** adhere to these directives to prevent regression and aid in effective collaboration:
 
 1. **Parity First:** Before generating code for a new feature, analyze the folder structure of the existing platform (Web/Mobile) and mirror it exactly on the target platform.  
 2. **Sub-Component Isolation:** If the Web version splits logic into sub-components (e.g., IncomingRequests.js, RosterList.js), the Mobile version **must** do the same. Do not inline complex logic into a single screen file.  
 3. **Context Awareness:** Always check AuthContext.js and ChatContext.js first. If a function exists there (like createRoster), use it. Do not re-implement API calls inside UI components.
 4. **Documentation Sync:** If you generate code for a new Feature, Role, or user Scenario (or modify an existing one), you MUST update docs/SCENARIOS.md. Add the new flow to the Matrix or the "Feature Brief" section to ensure our testing documentation remains the source of truth.
+5. **Provide Full Code:** The developers should not have to search for individual lines in existing files to update--this wastes too much time. If you generate or alter new code for existing files, please provide the full, complete code so that we can support a quick copy-and-paste action.
+6. **Avoid the Canvas Feature:** This is specific to Google Gemini. Please avoid using the Canvas feature as that decouples the visibility of code updates against the current conversation response. When Canvas is used, the developer is wasting time trying to locate the file that was updated so they can copy over the generated code. Instead, you are expected to generate complete code files inline to the conversation in a code block.
 
 ## **Platform Documentation**
 
