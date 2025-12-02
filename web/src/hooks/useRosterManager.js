@@ -10,7 +10,7 @@ export const useRosterManager = () => {
   const { loggedInUser } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  // --- FETCHING (Singular) ---
+  // --- FETCHING ---
   const fetchRosters = useCallback(async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "rosters"));
@@ -21,7 +21,7 @@ export const useRosterManager = () => {
     }
   }, []);
 
-  const fetchIncomingRequests = async () => {
+  const fetchIncomingRequests = useCallback(async () => {
     if (!loggedInUser) return [];
     try {
       const requestsRef = collection(db, "rosterRequests");
@@ -32,9 +32,9 @@ export const useRosterManager = () => {
       console.error("Error fetching incoming requests:", error);
       return [];
     }
-  };
+  }, [loggedInUser]);
 
-  const fetchUserRosters = async (uid) => {
+  const fetchUserRosters = useCallback(async (uid) => {
     try {
       const rostersRef = collection(db, "rosters");
       const q = query(rostersRef, where("playerIDs", "array-contains", uid));
@@ -44,16 +44,27 @@ export const useRosterManager = () => {
       console.error("Error fetching user rosters:", error);
       return [];
     }
-  };
+  }, []);
 
-  const fetchAllUserEvents = async (uid) => {
+  // --- EVENTS ---
+  const fetchAllUserEvents = useCallback(async (uid) => {
     try {
-      const rosters = await fetchUserRosters(uid);
+      // Note: We cannot call the memoized fetchUserRosters directly inside another useCallback easily 
+      // without adding it to deps, which is fine, but direct DB calls are often safer in complex hooks 
+      // to avoid circular deps. However, since we defined fetchUserRosters above, we can use it.
+      
+      // Re-implementing logic slightly to avoid dependency chain issues, 
+      // or simply calling the DB directly is safer for stable references.
+      const rostersRef = collection(db, "rosters");
+      const q = query(rostersRef, where("playerIDs", "array-contains", uid));
+      const rosterSnap = await getDocs(q);
+      const rosters = rosterSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
       let allEvents = [];
       for (const roster of rosters) {
         const eventsRef = collection(db, "rosters", roster.id, "events");
-        const q = query(eventsRef); 
-        const querySnapshot = await getDocs(q);
+        const qEvents = query(eventsRef); 
+        const querySnapshot = await getDocs(qEvents);
         const rosterEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
           rosterName: roster.name, 
@@ -67,10 +78,45 @@ export const useRosterManager = () => {
       console.error("Error fetching all events:", error);
       return [];
     }
+  }, []);
+
+  const createEvent = async (rosterId, eventData) => {
+    try {
+      await addDoc(collection(db, "rosters", rosterId, "events"), {
+        ...eventData,
+        createdAt: new Date()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating event:", error);
+      return false;
+    }
   };
 
-  // --- SUBSCRIPTIONS (Real-time) ---
-  const subscribeToIncomingRequests = (callback) => {
+  const fetchEvents = useCallback(async (rosterId) => {
+    try {
+      const eventsRef = collection(db, "rosters", rosterId, "events");
+      const q = query(eventsRef, orderBy("dateTime", "asc"));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      return [];
+    }
+  }, []);
+
+  const deleteEvent = async (rosterId, eventId) => {
+    try {
+      await deleteDoc(doc(db, "rosters", rosterId, "events", eventId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      return false;
+    }
+  };
+
+  // --- SUBSCRIPTIONS ---
+  const subscribeToIncomingRequests = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
     const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
@@ -78,9 +124,9 @@ export const useRosterManager = () => {
       const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(requests);
     });
-  };
+  }, [loggedInUser]);
 
-  const subscribeToUserRequests = (callback) => {
+  const subscribeToUserRequests = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
     const q = query(requestsRef, where("userId", "==", loggedInUser.uid));
@@ -88,18 +134,38 @@ export const useRosterManager = () => {
       const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(requests);
     });
-  };
+  }, [loggedInUser]);
 
-  const subscribeToDiscoverableRosters = (callback) => {
+  const subscribeToDiscoverableRosters = useCallback((callback) => {
     const rostersRef = collection(db, "rosters");
     const q = query(rostersRef, where("isDiscoverable", "==", true));
     return onSnapshot(q, (snapshot) => {
       const rosters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(rosters);
     });
+  }, []);
+
+  const submitJoinRequest = async (rosterId, rosterName, managerId) => {
+    if (!loggedInUser) return false;
+    try {
+       const requestsRef = collection(db, "rosterRequests");
+       const q = query(requestsRef, where("rosterId", "==", rosterId), where("userId", "==", loggedInUser.uid));
+       const existing = await getDocs(q);
+       if (!existing.empty) { alert("Already requested."); return false; }
+
+       await addDoc(requestsRef, {
+         rosterId, rosterName, managerId,
+         userId: loggedInUser.uid, userName: loggedInUser.playerName, userEmail: loggedInUser.email,
+         status: 'pending', createdAt: serverTimestamp()
+       });
+       return true;
+    } catch (error) {
+      console.error("Error submitting request:", error);
+      return false;
+    }
   };
 
-  // --- ACTIONS (Write) ---
+  // --- ACTIONS ---
   const createRoster = async (rosterData, addManagerAsPlayer = false) => {
     if (!loggedInUser) return false;
     setLoading(true);
@@ -212,29 +278,71 @@ export const useRosterManager = () => {
   };
 
   const addPlayerToRoster = async (rosterId, playerEmail) => {
-     // ... (Previous logic for adding player)
-     return true; 
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", playerEmail));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) { alert("No player found."); return false; }
+
+      const playerDoc = querySnapshot.docs[0];
+      const playerData = playerDoc.data();
+      const playerSummary = {
+        uid: playerDoc.id, playerName: playerData.playerName || "Unknown", email: playerData.email, photoURL: playerData.photoURL || ""
+      };
+
+      await updateDoc(doc(db, "rosters", rosterId), {
+        playerIDs: arrayUnion(playerDoc.id), players: arrayUnion(playerSummary) 
+      });
+
+      const chatsRef = collection(db, "chats");
+      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
+      const chatSnapshot = await getDocs(chatQ);
+
+      if (!chatSnapshot.empty) {
+        await setDoc(chatSnapshot.docs[0].ref, {
+          participants: arrayUnion(playerDoc.id), visibleTo: arrayUnion(playerDoc.id),
+          participantDetails: arrayUnion(playerSummary), [`unreadCounts.${playerDoc.id}`]: 0 
+        }, { merge: true });
+      }
+      return true;
+    } catch (error) {
+      console.error("Error adding player:", error);
+      return false;
+    }
   };
-  
+
   const removePlayerFromRoster = async (rosterId, playerSummary) => {
-     // ... (Previous logic for removing player)
-     return true;
+    try {
+      await updateDoc(doc(db, "rosters", rosterId), {
+        playerIDs: arrayRemove(playerSummary.uid), players: arrayRemove(playerSummary)
+      });
+
+      const chatsRef = collection(db, "chats");
+      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
+      const chatSnapshot = await getDocs(chatQ);
+
+      if (!chatSnapshot.empty) {
+        await updateDoc(chatSnapshot.docs[0].ref, {
+          participants: arrayRemove(playerSummary.uid), visibleTo: arrayRemove(playerSummary.uid), participantDetails: arrayRemove(playerSummary)
+        });
+      }
+      return true;
+    } catch (error) {
+      console.error("Error removing player:", error);
+      return false;
+    }
   };
 
   return {
     loading,
-    fetchRosters,
-    fetchIncomingRequests,
-    fetchUserRosters,
-    fetchAllUserEvents,
-    subscribeToIncomingRequests,
-    subscribeToUserRequests,
-    subscribeToDiscoverableRosters,
-    createRoster,
-    updateRoster,
-    deleteRoster,
+    fetchRosters, fetchIncomingRequests, fetchUserRosters,
+    createRoster, updateRoster, deleteRoster,
+    addPlayerToRoster, removePlayerFromRoster,
     createTeamChat,
-    addPlayerToRoster,
-    removePlayerFromRoster
+    // Events
+    fetchAllUserEvents, createEvent, fetchEvents, deleteEvent,
+    // Subscriptions
+    subscribeToIncomingRequests, subscribeToUserRequests, subscribeToDiscoverableRosters, submitJoinRequest
   };
 };

@@ -1,162 +1,93 @@
 import React, { useState } from 'react';
 import Modal from '../../../common/Modal';
 import Button from '../../../common/Button';
-import { useAuth } from '../../../../context/AuthContext';
+import Input from '../../../common/Input';
+import { useLeagueManager } from '../../../../hooks/useLeagueManager'; // NEW HOOK
 
 const CreateLeagueModal = ({ onClose }) => {
-    const { createLeague } = useAuth();
-    const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-        seasonStart: '',
-        seasonEnd: '',
-        gameFrequency: 'Weekly',
-        gameDays: [], // ['Sunday', 'Monday']
-        earliestGameTime: '08:00',
-        latestGameTime: '22:00',
-        registrationDeadline: ''
-    });
+  const { createLeague } = useLeagueManager();
+  
+  const [name, setName] = useState("");
+  const [seasonStart, setSeasonStart] = useState("");
+  const [seasonEnd, setSeasonEnd] = useState("");
+  const [description, setDescription] = useState("");
+  const [gameFrequency, setGameFrequency] = useState("Weekly");
+  const [gameDays, setGameDays] = useState([]);
+  const [deadline, setDeadline] = useState("");
 
-    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const daysOptions = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-    const handleChange = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+  const toggleDay = (day) => {
+    if (gameDays.includes(day)) setGameDays(prev => prev.filter(d => d !== day));
+    else setGameDays(prev => [...prev, day]);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name || !seasonStart) return alert("Name and Season Start are required.");
+
+    const leagueData = {
+        name,
+        seasonStart,
+        seasonEnd,
+        description,
+        gameFrequency,
+        gameDays,
+        registrationDeadline: deadline,
+        earliestGameTime: "18:00",
+        latestGameTime: "22:00"
     };
 
-    const toggleDay = (day) => {
-        setFormData(prev => {
-            const days = prev.gameDays.includes(day)
-                ? prev.gameDays.filter(d => d !== day)
-                : [...prev.gameDays, day];
-            return { ...prev, gameDays: days };
-        });
-    };
+    const success = await createLeague(leagueData);
+    if (success) {
+        alert("League Created!");
+        onClose();
+    }
+  };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const success = await createLeague(formData);
-        if (success) onClose();
-    };
-
-    return (
-        <Modal title="Create New League" onClose={onClose} actions={null}>
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '15px', textAlign: 'left' }}>
-                
-                {/* Basic Info */}
-                <div>
-                    <label style={styles.label}>League Name</label>
-                    <input 
-                        type="text" required 
-                        value={formData.name} onChange={e => handleChange('name', e.target.value)} 
-                        style={styles.input} 
-                    />
+  return (
+    <Modal title="Create New League" onClose={onClose} actions={<Button onClick={handleSubmit}>Create League</Button>}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
+            <Input label="League Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Metro City Sunday League" />
+            
+            <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                    <Input label="Season Start" type="date" value={seasonStart} onChange={(e) => setSeasonStart(e.target.value)} />
                 </div>
-                <div>
-                    <label style={styles.label}>Description</label>
-                    <textarea 
-                        value={formData.description} onChange={e => handleChange('description', e.target.value)} 
-                        style={{...styles.input, height: '80px'}} 
-                    />
+                <div style={{ flex: 1 }}>
+                    <Input label="Season End" type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} />
                 </div>
+            </div>
 
-                {/* Season Dates */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div>
-                        <label style={styles.label}>Season Start</label>
-                        <input 
-                            type="date" required 
-                            value={formData.seasonStart} onChange={e => handleChange('seasonStart', e.target.value)} 
-                            style={styles.input} 
-                        />
-                    </div>
-                    <div>
-                        <label style={styles.label}>Season End</label>
-                        <input 
-                            type="date" required 
-                            value={formData.seasonEnd} onChange={e => handleChange('seasonEnd', e.target.value)} 
-                            style={styles.input} 
-                        />
-                    </div>
+            <Input label="Description" multiline value={description} onChange={(e) => setDescription(e.target.value)} />
+
+            <div>
+                <label style={{ display: 'block', color: '#ccc', marginBottom: '5px', fontSize: '14px' }}>Game Days</label>
+                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {daysOptions.map(day => (
+                        <button
+                            key={day}
+                            type="button"
+                            onClick={() => toggleDay(day)}
+                            style={{
+                                padding: '5px 10px',
+                                borderRadius: '4px',
+                                border: '1px solid #555',
+                                cursor: 'pointer',
+                                backgroundColor: gameDays.includes(day) ? '#61dafb' : '#333',
+                                color: gameDays.includes(day) ? '#000' : '#fff'
+                            }}
+                        >
+                            {day}
+                        </button>
+                    ))}
                 </div>
+            </div>
 
-                {/* Registration */}
-                <div>
-                    <label style={styles.label}>Registration Deadline</label>
-                    <input 
-                        type="date" required 
-                        value={formData.registrationDeadline} onChange={e => handleChange('registrationDeadline', e.target.value)} 
-                        style={styles.input} 
-                    />
-                </div>
-
-                {/* Schedule Config */}
-                <div>
-                    <label style={styles.label}>Game Frequency</label>
-                    <select 
-                        value={formData.gameFrequency} onChange={e => handleChange('gameFrequency', e.target.value)} 
-                        style={styles.input}
-                    >
-                        <option>Weekly</option>
-                        <option>Bi-Weekly</option>
-                        <option>Monthly</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label style={styles.label}>Game Days</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                        {daysOfWeek.map(day => (
-                            <button 
-                                key={day} 
-                                type="button"
-                                onClick={() => toggleDay(day)}
-                                style={{
-                                    padding: '5px 10px',
-                                    borderRadius: '15px',
-                                    border: 'none',
-                                    fontSize: '12px',
-                                    cursor: 'pointer',
-                                    backgroundColor: formData.gameDays.includes(day) ? '#4caf50' : '#444',
-                                    color: 'white'
-                                }}
-                            >
-                                {day}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div>
-                        <label style={styles.label}>Earliest Time</label>
-                        <input 
-                            type="time" 
-                            value={formData.earliestGameTime} onChange={e => handleChange('earliestGameTime', e.target.value)} 
-                            style={styles.input} 
-                        />
-                    </div>
-                    <div>
-                        <label style={styles.label}>Latest Time</label>
-                        <input 
-                            type="time" 
-                            value={formData.latestGameTime} onChange={e => handleChange('latestGameTime', e.target.value)} 
-                            style={styles.input} 
-                        />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button type="submit">Create League</Button>
-                </div>
-            </form>
-        </Modal>
-    );
-};
-
-const styles = {
-    label: { display: 'block', color: '#888', marginBottom: '5px', fontSize: '12px' },
-    input: { width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '6px', color: 'white', boxSizing: 'border-box' }
+            <Input label="Registration Deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+        </form>
+    </Modal>
+  );
 };
 
 export default CreateLeagueModal;

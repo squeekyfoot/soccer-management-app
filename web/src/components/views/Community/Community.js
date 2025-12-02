@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; 
-import { useAuth } from '../../../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; 
 import { db } from "../../../lib/firebase";
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { Users, Search, UserPlus, Globe, Plus, X, ArrowRight } from 'lucide-react';
+
+// Context & Hooks
+import { useAuth } from '../../../context/AuthContext';
+import { useGroupManager } from '../../../hooks/useGroupManager';
+import { useRosterManager } from '../../../hooks/useRosterManager';
 
 import UserSearch from '../../shared/UserSearch';
 import Header from '../../common/Header'; 
@@ -19,19 +23,15 @@ import PublicRosterDetail from './components/PublicRosterDetail';
 function Community() {
   const { groupId } = useParams(); 
   const navigate = useNavigate();
-  const { 
-    fetchUserGroups, createGroup, createGroupPost, 
-    addGroupMembers, updateGroupMemberRole, transferGroupOwnership, removeGroupMember,
-    submitJoinRequest,
-    subscribeToUserRequests, subscribeToDiscoverableRosters,
-    loggedInUser 
-  } = useAuth();
+  const { loggedInUser } = useAuth();
+  
+  // Use New Hooks
+  const { createGroup, fetchUserGroups, addGroupMembers, createGroupPost, updateGroupMemberRole, transferGroupOwnership, removeGroupMember } = useGroupManager();
+  const { subscribeToDiscoverableRosters, subscribeToUserRequests, submitJoinRequest } = useRosterManager();
 
   const [currentView, setCurrentView] = useState('hub');
   const [myGroups, setMyGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
-  
-  // NEW: Selected Roster for Public Details
   const [selectedRoster, setSelectedRoster] = useState(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -105,7 +105,6 @@ function Community() {
       if (currentView === 'findTeams') {
           setIsLoading(true);
           const unsubRosters = subscribeToDiscoverableRosters((data) => { 
-              // Filter client-side for "Looking for Players"
               const recruiting = data.filter(t => t.lookingForPlayers);
               setDiscoverableTeams(recruiting); 
               setIsLoading(false); 
@@ -142,10 +141,8 @@ function Community() {
     if (success) { alert("Members added!"); setShowAddMember(false); setSelectedMemberEmails([]); refreshSelectedGroup(); }
   };
 
-  // --- JOIN LOGIC ---
   const handleJoinRequest = async (team) => { 
       await submitJoinRequest(team.id, team.name, team.createdBy); 
-      // Assuming subscribeToUserRequests updates 'myRequests' automatically
   };
   
   const getRequestStatus = (teamId) => { 
@@ -153,7 +150,6 @@ function Community() {
       return req ? req.status : null; 
   };
 
-  // --- GROUP ADMIN ACTIONS ---
   const handlePromote = async (uid) => { const success = await updateGroupMemberRole(selectedGroup.id, uid, 'admin', selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }};
   const handleDemote = async (uid) => { const success = await updateGroupMemberRole(selectedGroup.id, uid, 'member', selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }};
   const handleTransfer = async (uid) => { if (window.confirm("Transfer ownership?")) { const success = await transferGroupOwnership(selectedGroup.id, uid, selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }}};
@@ -172,15 +168,7 @@ function Community() {
   };
 
   const HubButton = ({ title, desc, icon: Icon, onClick, color = COLORS.primary }) => (
-    <Card 
-        onClick={onClick} 
-        hoverable 
-        style={{ 
-            display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', 
-            justifyContent: isMobile ? 'flex-start' : 'center', textAlign: isMobile ? 'left' : 'center',
-            minHeight: isMobile ? 'auto' : '220px', marginBottom: 0, padding: '20px', boxSizing: 'border-box' 
-        }}
-    >
+    <Card onClick={onClick} hoverable style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', textAlign: isMobile ? 'left' : 'center', minHeight: isMobile ? 'auto' : '220px', marginBottom: 0, padding: '20px', boxSizing: 'border-box' }}>
       <Icon size={isMobile ? 32 : 40} color={color} style={{ marginBottom: isMobile ? 0 : '15px', marginRight: isMobile ? '15px' : 0, flexShrink: 0 }} />
       <div>
         <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>{title}</div>
@@ -210,10 +198,7 @@ function Community() {
   if (currentView === 'myGroups') {
     return (
       <div className="view-container">
-        <Header 
-            title="My Groups" 
-            style={{ maxWidth: '1000px', margin: '0 auto' }} 
-            onBack={() => setCurrentView('hub')}
+        <Header title="My Groups" style={{ maxWidth: '1000px', margin: '0 auto' }} onBack={() => setCurrentView('hub')}
             actions={
               <Button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
                 {showCreateForm ? <X size={18} /> : <Plus size={18} />}
@@ -235,7 +220,12 @@ function Community() {
             {isLoading ? <p>Loading...</p> : myGroups.length === 0 ? <p style={{ color: '#888', fontStyle: 'italic' }}>You haven't joined any groups yet.</p> : (
               <div style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
                 {myGroups.map(group => (
-                  <Card key={group.id} onClick={() => setSelectedGroup(group)} hoverable>
+                  <Card 
+                    key={group.id} 
+                    // FIX: Ensure we switch view AND set the group
+                    onClick={() => { setSelectedGroup(group); setCurrentView('detail'); }} 
+                    hoverable
+                  >
                     <h3 style={{ margin: '0 0 10px 0', color: COLORS.primary }}>{group.name}</h3>
                     <p style={{ margin: 0, color: '#ccc', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.description}</p>
                     <div style={{ marginTop: '15px', fontSize: '12px', color: '#888' }}>{group.memberDetails?.length || 0} Members</div>
@@ -249,9 +239,7 @@ function Community() {
     );
   }
 
-  // --- FIND TEAMS VIEW ---
   if (currentView === 'findTeams') {
-      // 1. DETAIL SUB-VIEW
       if (selectedRoster) {
           const status = getRequestStatus(selectedRoster.id);
           return (
@@ -270,15 +258,9 @@ function Community() {
               </div>
           );
       }
-
-      // 2. LIST SUB-VIEW
       return (
         <div className="view-container">
-            <Header 
-                title="Find Teams" 
-                style={{ maxWidth: '1000px', margin: '0 auto' }} 
-                onBack={() => setCurrentView('hub')}
-            />
+            <Header title="Find Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} onBack={() => setCurrentView('hub')} />
             <div className="view-content">
               <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
                 {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams are currently recruiting.</p> : (
@@ -287,28 +269,17 @@ function Community() {
                             const status = getRequestStatus(team.id);
                             const alreadyJoined = team.playerIDs?.includes(loggedInUser.uid);
                             return (
-                                <Card 
-                                    key={team.id} 
-                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                                    hoverable
-                                    onClick={() => setSelectedRoster(team)} 
-                                >
+                                <Card key={team.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} hoverable onClick={() => setSelectedRoster(team)}>
                                     <div>
                                         <h3 style={{ margin: '0 0 5px 0', color: 'white' }}>{team.name}</h3>
                                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                             <span style={{ color: '#aaa', fontSize: '14px' }}>{team.season}</span>
-                                            {team.lookingForPlayers && (
-                                                <span style={{ backgroundColor: COLORS.success, color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
-                                                    RECRUITING
-                                                </span>
-                                            )}
+                                            {team.lookingForPlayers && <span style={{ backgroundColor: COLORS.success, color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>RECRUITING</span>}
                                             {alreadyJoined && <span style={{ color: COLORS.success, fontSize: '12px', fontWeight: 'bold' }}>Joined</span>}
                                             {status === 'pending' && <span style={{ color: '#ffc107', fontSize: '12px', fontWeight: 'bold' }}>Pending</span>}
                                         </div>
                                     </div>
-                                    <Button variant="secondary" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        Details <ArrowRight size={14} />
-                                    </Button>
+                                    <Button variant="secondary" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>Details <ArrowRight size={14} /></Button>
                                 </Card>
                             );
                         })}
@@ -369,11 +340,7 @@ function Community() {
 
       return (
       <div className="view-container">
-        <Header 
-            title={selectedGroup.name} 
-            style={{ maxWidth: '1000px', margin: '0 auto' }} 
-            onBack={handleBack}
-        />
+        <Header title={selectedGroup.name} style={{ maxWidth: '1000px', margin: '0 auto' }} onBack={handleBack} />
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
             <p style={{ color: '#ccc', marginTop: '5px' }}>{selectedGroup.description}</p>

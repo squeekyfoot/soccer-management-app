@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, arrayUnion, getDoc, getDocs, query, where, deleteField } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 export const useGroupManager = () => {
   const { loggedInUser } = useAuth();
 
-  const createGroup = async (groupData) => {
+  const createGroup = useCallback(async (groupData) => {
     if (!loggedInUser) return false;
     try {
       await addDoc(collection(db, "groups"), {
@@ -27,9 +27,15 @@ export const useGroupManager = () => {
       console.error("Error creating group:", error);
       return false;
     }
-  };
+  }, [loggedInUser]);
 
-  const fetchUserGroups = async (uid) => {
+  // FIX: Wrapped in useCallback to prevent infinite loops in Community.js
+  const fetchUserGroups = useCallback(async (uid = loggedInUser?.uid) => {
+    if (!uid) {
+        // Silent return or debug log if needed, but safe to return empty
+        return [];
+    }
+    
     try {
       const groupsRef = collection(db, "groups");
       const q = query(groupsRef, where("members", "array-contains", uid));
@@ -39,9 +45,9 @@ export const useGroupManager = () => {
       console.error("Error fetching groups:", error);
       return [];
     }
-  };
+  }, [loggedInUser]);
 
-  const linkGroupToRoster = async (groupId, rosterId) => {
+  const linkGroupToRoster = useCallback(async (groupId, rosterId) => {
       try {
           const groupRef = doc(db, "groups", groupId);
           await updateDoc(groupRef, { associatedRosterId: rosterId });
@@ -50,9 +56,9 @@ export const useGroupManager = () => {
           console.error(e);
           return false;
       }
-  };
+  }, []);
 
-  const unlinkGroupFromRoster = async (groupId) => {
+  const unlinkGroupFromRoster = useCallback(async (groupId) => {
       try {
           const groupRef = doc(db, "groups", groupId);
           await updateDoc(groupRef, { associatedRosterId: deleteField() });
@@ -61,9 +67,9 @@ export const useGroupManager = () => {
           console.error(e);
           return false;
       }
-  };
+  }, []);
 
-  const addGroupMembers = async (groupId, emails) => {
+  const addGroupMembers = useCallback(async (groupId, emails) => {
     try {
       const groupRef = doc(db, "groups", groupId);
       const groupSnap = await getDoc(groupRef);
@@ -105,7 +111,7 @@ export const useGroupManager = () => {
       console.error("Error adding group members:", error);
       return false;
     }
-  };
+  }, []);
 
   return {
       createGroup,

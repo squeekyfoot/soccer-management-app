@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -10,7 +10,7 @@ import {
   reauthenticateWithCredential,
   deleteUser
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, deleteField } from "firebase/firestore";
 import { auth, db } from "../lib/firebase"; 
 import { useStorage } from '../hooks/useStorage';
 
@@ -22,6 +22,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [soccerDetails, setSoccerDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
   const { upload, remove } = useStorage();
@@ -31,14 +32,25 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
+        
+        const soccerDocRef = doc(db, "users", user.uid, "sportsDetails", "soccer");
+        const soccerDoc = await getDoc(soccerDocRef);
 
         if (userDoc.exists()) {
-          setLoggedInUser(userDoc.data());
+          // CRITICAL FIX: Merge the UID from the auth object with the Firestore data
+          setLoggedInUser({ uid: user.uid, ...userDoc.data() });
         } else {
           setLoggedInUser(null);
         }
+
+        if (soccerDoc.exists()) {
+          setSoccerDetails(soccerDoc.data());
+        } else {
+          setSoccerDetails(null);
+        }
       } else {
         setLoggedInUser(null);
+        setSoccerDetails(null);
       }
       setIsLoading(false);
     });
@@ -59,7 +71,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signUp = async (formData) => {
-    if (formData.password.length < 6) return alert("Password must be 6+ chars.");
+    if (formData.password.length < 6) {
+        alert("Password must be 6+ chars.");
+        return;
+    }
     
     let userCredential;
     try {
@@ -68,7 +83,7 @@ export const AuthProvider = ({ children }) => {
       const displayName = `${formData.firstName} ${formData.lastName}`;
       
       const userProfileData = {
-        uid: user.uid,
+        uid: user.uid, // Explicitly save UID
         firstName: formData.firstName,
         lastName: formData.lastName,
         preferredName: formData.preferredName,
@@ -87,6 +102,7 @@ export const AuthProvider = ({ children }) => {
       };
       
       await setDoc(doc(db, "users", user.uid), userProfileData);
+      // Ensure local state has it immediately
       setLoggedInUser(userProfileData);
 
     } catch (error) {
@@ -100,12 +116,12 @@ export const AuthProvider = ({ children }) => {
     try {
       await signOut(auth);
       setLoggedInUser(null);
+      setSoccerDetails(null);
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
 
-  // Keep Profile Update Logic here as it touches Auth + DB + Chat denormalization
   const updateProfile = async (profileData, newImageFile = null, removeImage = false) => {
     if (!loggedInUser) return;
 
@@ -139,9 +155,10 @@ export const AuthProvider = ({ children }) => {
       await updateDoc(doc(db, "users", loggedInUser.uid), dataToUpdate);
       await firebaseUpdateProfile(auth.currentUser, { displayName, photoURL });
       
-      setLoggedInUser(prev => ({ ...prev, ...dataToUpdate }));
+      // Preserve UID in local state update
+      setLoggedInUser(prev => ({ ...prev, ...dataToUpdate, uid: loggedInUser.uid }));
 
-      // Denormalization Update (Chats)
+      // Denormalize updates to chats
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);
@@ -155,7 +172,6 @@ export const AuthProvider = ({ children }) => {
           await updateDoc(chatDoc.ref, { participantDetails: updatedDetails });
         }
       });
-      
       await Promise.all(batchPromises);
       alert("Profile successfully updated!");
       return true; 
@@ -182,8 +198,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateSoccerDetails = async (soccerData) => {
+    if (!loggedInUser) return;
+    try {
+      const data = {
+        ...soccerData,
+        currentRosters: typeof soccerData.currentRosters === 'string' ? soccerData.currentRosters.split(',') : soccerData.currentRosters,
+        rosterJerseysOwned: typeof soccerData.rosterJerseysOwned === 'string' ? soccerData.rosterJerseysOwned.split(',') : soccerData.rosterJerseysOwned,
+        playerNumber: Number(soccerData.playerNumber) || 0,
+      };
+      await setDoc(doc(db, "users", loggedInUser.uid, "sportsDetails", "soccer"), data);
+      setSoccerDetails(data);
+      return true; 
+    } catch (error) {
+      alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  // --- ROLE HELPERS ---
+  const isManager = useCallback(() => {
+    return loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
+  }, [loggedInUser]);
+
+  const isDeveloper = useCallback(() => {
+    return loggedInUser && loggedInUser.role === 'developer';
+  }, [loggedInUser]);
+
   const value = {
     loggedInUser,
+    soccerDetails,
     isLoading,
     needsReauth,
     setNeedsReauth,
@@ -192,6 +236,9 @@ export const AuthProvider = ({ children }) => {
     signOutUser,
     updateProfile,
     reauthenticate,
+    updateSoccerDetails,
+    isManager,   
+    isDeveloper  
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { doc, updateDoc } from 'firebase/firestore'; 
+import { db } from '../../../lib/firebase';
 import { useAuth } from '../../../context/AuthContext';
+import { useFeedback } from '../../../hooks/useFeedback'; // NEW HOOK
+
 import Header from '../../common/Header';
 import Button from '../../common/Button';
 import Card from '../../common/Card';
@@ -9,14 +13,18 @@ import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus, Trash2, ShieldAlert, Edit3, PlusCircle } from 'lucide-react';
 
 function Feedback() {
+  const { loggedInUser, isDeveloper } = useAuth();
+  
+  // Use new hook logic
   const { 
-    subscribeToFeedback, createFeedback, voteForFeedback, 
-    updateFeedback, deleteFeedback, addDeveloperNote, // New functions
-    loggedInUser, isDeveloper 
-  } = useAuth();
+      feedbackItems, // Live data from hook
+      createFeedback, 
+      voteForFeedback, 
+      addDeveloperNote, 
+      deleteFeedback 
+  } = useFeedback();
 
   // --- State ---
-  const [feedbackList, setFeedbackList] = useState([]);
   const [filteredList, setFilteredList] = useState([]);
   const [currentView, setCurrentView] = useState('list'); // 'list' | 'detail'
   const [selectedFeedback, setSelectedFeedback] = useState(null);
@@ -50,32 +58,28 @@ function Feedback() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // --- Data Subscription ---
+  // --- Data Sync ---
+  // The hook handles subscription, we just react to changes
   useEffect(() => {
-    const unsubscribe = subscribeToFeedback((data) => {
-      setFeedbackList(data);
-      
       // Calculate Counts
-      const active = data.filter(i => i.status !== 'Completed' && i.status !== 'Rejected').length;
-      const completed = data.filter(i => i.status === 'Completed').length;
-      const rejected = data.filter(i => i.status === 'Rejected').length;
+      const active = feedbackItems.filter(i => i.status !== 'Completed' && i.status !== 'Rejected').length;
+      const completed = feedbackItems.filter(i => i.status === 'Completed').length;
+      const rejected = feedbackItems.filter(i => i.status === 'Rejected').length;
       setCounts({ Active: active, Completed: completed, Rejected: rejected });
 
-      // If looking at detail, keep it fresh
+      // Keep detail view fresh
       if (selectedFeedback) {
-          const updated = data.find(i => i.id === selectedFeedback.id);
+          const updated = feedbackItems.find(i => i.id === selectedFeedback.id);
           if (updated) setSelectedFeedback(updated);
       }
-    });
-    return () => unsubscribe();
-  }, [subscribeToFeedback, selectedFeedback]);
+  }, [feedbackItems, selectedFeedback]);
 
   // --- Filtering & Sorting Logic ---
   useEffect(() => {
     let filtered = [];
     
     if (activeFilter === 'Active') {
-        filtered = feedbackList.filter(item => 
+        filtered = feedbackItems.filter(item => 
             item.status !== 'Completed' && item.status !== 'Rejected'
         );
         // Sort Active: Highest Votes -> Newest
@@ -85,7 +89,7 @@ function Feedback() {
         });
     } else {
         // Completed or Rejected
-        filtered = feedbackList.filter(item => item.status === activeFilter);
+        filtered = feedbackItems.filter(item => item.status === activeFilter);
         // Sort Completed/Rejected: Newest Status Update -> Newest Creation
         filtered.sort((a, b) => {
              const timeA = a.statusUpdatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
@@ -94,7 +98,7 @@ function Feedback() {
         });
     }
     setFilteredList(filtered);
-  }, [feedbackList, activeFilter]);
+  }, [feedbackItems, activeFilter]);
 
   // --- Handlers ---
   const handleVote = async (e, feedback) => {
@@ -113,10 +117,26 @@ function Feedback() {
     }
   };
 
+  // Generic Update (Implemented locally as the hook only has status update)
+  const handleUpdateFeedback = async (id, updates) => {
+      try {
+          const ref = doc(db, "feedback", id);
+          await updateDoc(ref, updates);
+          return true;
+      } catch (e) {
+          console.error("Update failed", e);
+          return false;
+      }
+  };
+
   // Developer Actions
   const handleDevSaveStatus = async () => {
     if (!selectedFeedback) return;
-    const success = await updateFeedback(selectedFeedback.id, { status: devStatus });
+    // We update timestamp manually here since we are using the local generic updater
+    const success = await handleUpdateFeedback(selectedFeedback.id, { 
+        status: devStatus,
+        statusUpdatedAt: new Date() 
+    });
     if (success) alert("Status updated.");
   };
 
@@ -131,7 +151,7 @@ function Feedback() {
 
   const handleDevOverrideSave = async () => {
       if (!selectedFeedback) return;
-      const success = await updateFeedback(selectedFeedback.id, {
+      const success = await handleUpdateFeedback(selectedFeedback.id, {
           title: overrideData.title,
           type: overrideData.type,
           description: overrideData.description
@@ -174,7 +194,6 @@ function Feedback() {
 
   const formatDate = (timestamp) => {
       if (!timestamp) return 'Unknown date';
-      // Handle Firestore Timestamp or millis
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
       return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -201,8 +220,6 @@ function Feedback() {
     const hasVoted = selectedFeedback.voters?.includes(loggedInUser.uid);
     const isClosed = selectedFeedback.status === 'Completed' || selectedFeedback.status === 'Rejected';
     
-    // Sort notes: Newest first (LIFO stack)
-    // FIX APPLIED HERE: Added Array.isArray check
     const sortedNotes = (Array.isArray(selectedFeedback.developerNotes) ? selectedFeedback.developerNotes : [])
         .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -246,7 +263,7 @@ function Feedback() {
                    </div>
                    <Button 
                      onClick={(e) => handleVote(e, selectedFeedback)} 
-                     disabled={isClosed} // Disable if closed
+                     disabled={isClosed}
                      style={{ 
                        backgroundColor: hasVoted ? COLORS.primary : (isClosed ? '#333' : '#555'),
                        color: hasVoted ? '#000' : (isClosed ? '#666' : 'white'),

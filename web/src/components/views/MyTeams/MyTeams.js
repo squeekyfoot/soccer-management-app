@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // ADDED
+import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../../common/Header';
 import Card from '../../common/Card';
 import Button from '../../common/Button';
 import Loading from '../../common/Loading';
 import { useAuth } from '../../../context/AuthContext';
+import { useRosterManager } from '../../../hooks/useRosterManager'; // NEW HOOK
 import { COLORS } from '../../../lib/constants';
 import RosterDetail from './components/RosterDetail';
 
 function MyTeams() {
-  const { rosterId } = useParams(); // GET ID FROM URL
+  const { rosterId } = useParams(); 
   const navigate = useNavigate();
-  const { loggedInUser, fetchUserRosters } = useAuth();
+  const { loggedInUser } = useAuth();
+  
+  // Use new hook
+  const { fetchUserRosters } = useRosterManager();
   
   const [rosters, setRosters] = useState([]);
   const [selectedRoster, setSelectedRoster] = useState(null);
@@ -22,6 +26,7 @@ function MyTeams() {
     const load = async () => {
       if (loggedInUser) {
         setLoading(true);
+        // Uses the hook function instead of Context
         const data = await fetchUserRosters(loggedInUser.uid);
         setRosters(data);
         setLoading(false);

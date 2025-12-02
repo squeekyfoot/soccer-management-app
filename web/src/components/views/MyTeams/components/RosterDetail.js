@@ -3,18 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../../common/Card';
 import Button from '../../../common/Button';
 import Modal from '../../../common/Modal';
-import Header from '../../../common/Header'; 
 import { COLORS } from '../../../../lib/constants';
-import { MessageSquare, Calendar, Clock, Trophy, Link, CheckCircle, AlertCircle, MessageCircle, Mail, Phone, User } from 'lucide-react';
+import { MessageSquare, Calendar, Clock, Trophy, Link, CheckCircle, MessageCircle, Mail, Phone, User } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { useChat } from '../../../../context/ChatContext';
 import { useDirectMessage } from '../../../../hooks/useDirectMessage';
+// NEW IMPORTS
+import { useLeagueManager } from '../../../../hooks/useLeagueManager';
+import { useGroupManager } from '../../../../hooks/useGroupManager';
 
 const RosterDetail = ({ roster, onBack }) => {
   const navigate = useNavigate();
-  const { fetchLeagues, fetchUserGroups, loggedInUser } = useAuth();
+  const { loggedInUser } = useAuth();
   const { myChats } = useChat();
   const { startDirectChat } = useDirectMessage();
+  
+  // Use new hooks for data fetching
+  const { fetchLeagues } = useLeagueManager();
+  const { fetchUserGroups } = useGroupManager();
 
   const [league, setLeague] = useState(null);
   const [linkedGroup, setLinkedGroup] = useState(null);
@@ -30,8 +36,10 @@ const RosterDetail = ({ roster, onBack }) => {
             setLeague(l);
         }
         
-        // 2. Group (Fix: Pass UID)
+        // 2. Group
         if (loggedInUser?.uid) {
+            // fetchUserGroups safely handles logic internally now, 
+            // but we pass uid for explicit clarity if needed, or rely on hook default
             const groups = await fetchUserGroups(loggedInUser.uid);
             const g = groups.find(grp => grp.associatedRosterId === roster.id);
             setLinkedGroup(g);
