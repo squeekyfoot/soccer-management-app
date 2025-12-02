@@ -1,11 +1,20 @@
 import React, { useEffect } from 'react';
-import './styles/App.css'; // CHANGED: Points to src/styles/
+import { Routes, Route, Navigate } from 'react-router-dom';
+import './styles/App.css';
 import { useAuth } from './context/AuthContext';
 
-// CHANGED: Point to new component structure
 import Layout from './components/layout/Layout';
 import AuthPage from './components/auth/AuthPage';
 import ReauthModal from './components/auth/ReauthModal';
+
+// View Imports
+import Home from './components/views/Home/Home';
+import Community from './components/views/Community/Community';
+import MyTeams from './components/views/MyTeams/MyTeams';
+import Messaging from './components/views/Messaging/Messaging';
+import MyProfile from './components/views/Profile/MyProfile';
+import Feedback from './components/views/Feedback/Feedback';
+import ManagerDashboard from './components/views/Manager/ManagerDashboard';
 
 function App() {
   const { loggedInUser, isLoading, needsReauth } = useAuth();
@@ -31,7 +40,36 @@ function App() {
   return (
     <div className="App">
       {needsReauth && <ReauthModal />}
-      {loggedInUser ? <Layout /> : <AuthPage />}
+      
+      <Routes>
+        {/* Public Route */}
+        <Route path="/login" element={!loggedInUser ? <AuthPage /> : <Navigate to="/" />} />
+
+        {/* Protected Routes */}
+        {loggedInUser ? (
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            
+            {/* Community Routes */}
+            <Route path="community" element={<Community />} />
+            <Route path="community/:groupId" element={<Community />} />
+
+            <Route path="myteams" element={<MyTeams />} />
+            
+            {/* Messaging Routes */}
+            <Route path="messages" element={<Messaging />} />
+            <Route path="messages/:chatId" element={<Messaging />} /> 
+
+            <Route path="profile" element={<MyProfile />} />
+            <Route path="feedback" element={<Feedback />} />
+            <Route path="manager" element={<ManagerDashboard />} />
+            
+            <Route path="*" element={<Navigate to="/" />} />
+          </Route>
+        ) : (
+          <Route path="*" element={<Navigate to="/login" />} />
+        )}
+      </Routes>
     </div>
   );
 }

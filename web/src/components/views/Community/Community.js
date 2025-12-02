@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-// FIX: Move up 3 levels to reach 'src'
+import { useParams, useNavigate } from 'react-router-dom'; // Added routing hooks
 import { useAuth } from '../../../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; 
 import { db } from "../../../lib/firebase";
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { Users, Search, UserPlus, Globe, Plus, X } from 'lucide-react';
 
-// FIX: Point to ../../shared and ../../common
 import UserSearch from '../../shared/UserSearch';
 import Header from '../../common/Header'; 
 import Button from '../../common/Button'; 
@@ -15,6 +14,8 @@ import Card from '../../common/Card';
 import Avatar from '../../common/Avatar';
 
 function Community() {
+  const { groupId } = useParams(); // Capture ID from URL
+  const navigate = useNavigate();
   const { 
     fetchUserGroups, createGroup, createGroupPost, 
     addGroupMembers, updateGroupMemberRole, transferGroupOwnership, removeGroupMember,
@@ -59,9 +60,39 @@ function Community() {
 
   useEffect(() => { if (loggedInUser) loadGroups(); }, [loggedInUser, loadGroups]);
 
+  // --- DEEP LINK LOGIC ---
+  useEffect(() => {
+    const fetchLinkedGroup = async () => {
+        if (!groupId) return;
+        
+        // 1. Check if already in myGroups
+        const existing = myGroups.find(g => g.id === groupId);
+        if (existing) {
+            setSelectedGroup(existing);
+            setCurrentView('detail');
+            return;
+        }
+
+        // 2. Fetch individually if not in list (e.g. direct link)
+        try {
+            const docRef = doc(db, "groups", groupId);
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                setSelectedGroup({ id: snap.id, ...snap.data() });
+                setCurrentView('detail');
+            }
+        } catch (error) {
+            console.error("Error fetching linked group", error);
+        }
+    };
+
+    if (groupId) {
+        fetchLinkedGroup();
+    }
+  }, [groupId, myGroups]);
+
   useEffect(() => {
     if (!selectedGroup) return;
-    setCurrentView('detail');
     const postsRef = collection(db, "groups", selectedGroup.id, "posts");
     const q = query(postsRef, orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -121,31 +152,23 @@ function Community() {
     return me ? (me.role || 'member') : 'member';
   };
 
+  const handleBack = () => {
+      setSelectedGroup(null); 
+      navigate('/community'); // Clear URL params
+      setCurrentView('myGroups');
+  };
+
   const HubButton = ({ title, desc, icon: Icon, onClick, color = COLORS.primary }) => (
     <Card 
         onClick={onClick} 
         hoverable 
         style={{ 
-            display: 'flex', 
-            flexDirection: isMobile ? 'row' : 'column', 
-            alignItems: 'center', 
-            justifyContent: isMobile ? 'flex-start' : 'center', 
-            textAlign: isMobile ? 'left' : 'center',
-            minHeight: isMobile ? 'auto' : '220px', 
-            marginBottom: 0,
-            padding: '20px',
-            boxSizing: 'border-box' 
+            display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', 
+            justifyContent: isMobile ? 'flex-start' : 'center', textAlign: isMobile ? 'left' : 'center',
+            minHeight: isMobile ? 'auto' : '220px', marginBottom: 0, padding: '20px', boxSizing: 'border-box' 
         }}
     >
-      <Icon 
-        size={isMobile ? 32 : 40} 
-        color={color} 
-        style={{ 
-            marginBottom: isMobile ? 0 : '15px', 
-            marginRight: isMobile ? '15px' : 0,
-            flexShrink: 0 
-        }} 
-      />
+      <Icon size={isMobile ? 32 : 40} color={color} style={{ marginBottom: isMobile ? 0 : '15px', marginRight: isMobile ? '15px' : 0, flexShrink: 0 }} />
       <div>
         <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>{title}</div>
         <div style={{ fontSize: '13px', color: '#aaa' }}>{desc}</div>
@@ -158,16 +181,7 @@ function Community() {
       <div className="view-container">
         <Header title="Community" style={{ maxWidth: '1000px', margin: '0 auto' }} />
         <div className="view-content">
-          <div style={{ 
-            maxWidth: '1000px', 
-            margin: '0 auto', 
-            width: '100%', 
-            display: 'grid', 
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
-            gridAutoRows: isMobile ? 'auto' : 'minmax(220px, auto)',
-            gap: '20px', 
-            minHeight: 0 
-          }}>
+          <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
             <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} />
             <HubButton title="Find Teams" desc="Search for local teams to join" icon={Search} onClick={() => setCurrentView('findTeams')} />
             <HubButton title="Find Players" desc="Connect with other players (Coming Soon)" icon={UserPlus} color="#888" onClick={() => alert("Feature coming soon!")} />
@@ -186,15 +200,7 @@ function Community() {
             style={{ maxWidth: '1000px', margin: '0 auto' }} 
             onBack={() => setCurrentView('hub')}
             actions={
-              <Button 
-                onClick={() => setShowCreateForm(!showCreateForm)} 
-                style={{ 
-                  padding: 0, 
-                  width: '32px', height: '32px', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                  borderRadius: '50%' 
-                }}
-              >
+              <Button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
                 {showCreateForm ? <X size={18} /> : <Plus size={18} />}
               </Button>
             } 
@@ -231,11 +237,7 @@ function Community() {
   if (currentView === 'findTeams') {
       return (
         <div className="view-container">
-            <Header 
-                title="Find Teams" 
-                style={{ maxWidth: '1000px', margin: '0 auto' }} 
-                onBack={() => setCurrentView('hub')}
-            />
+            <Header title="Find Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} onBack={() => setCurrentView('hub')} />
             <div className="view-content">
               <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
                 {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams found.</p> : (
@@ -315,7 +317,7 @@ function Community() {
         <Header 
             title={selectedGroup.name} 
             style={{ maxWidth: '1000px', margin: '0 auto' }} 
-            onBack={() => { setSelectedGroup(null); setCurrentView('myGroups'); }}
+            onBack={handleBack}
         />
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>

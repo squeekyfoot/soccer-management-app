@@ -1,166 +1,143 @@
-import React, { useState, useEffect } from 'react';
-// FIX: Move up 3 levels to reach 'src'
-import { useAuth } from '../../../context/AuthContext';
-import { Plus, X } from 'lucide-react';
-
-// FIX: Point to ../../common
-import Button from '../../common/Button';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../../common/Header';
-import Loading from '../../common/Loading';
-
-// FIX: Point to local ./components folder (Sub-components)
+import { useAuth } from '../../../context/AuthContext';
 import RosterList from './components/RosterList';
+import IncomingRequests from './components/IncomingRequests';
 import RosterDetail from './components/RosterDetail';
 import CreateRosterForm from './components/CreateRosterForm';
-import IncomingRequests from './components/IncomingRequests';
+import CreateLeagueModal from './components/CreateLeagueModal';
+import Button from '../../common/Button';
 
-function ManagerDashboard() {
+const ManagerDashboard = () => {
   const { 
-    fetchRosters, createRoster, deleteRoster, addPlayerToRoster, removePlayerFromRoster,
-    subscribeToIncomingRequests, respondToRequest, fetchUserGroups, addGroupMembers, loggedInUser
+    createRoster, 
+    fetchRosters, 
+    deleteRoster, 
+    addPlayerToRoster, 
+    removePlayerFromRoster, 
+    fetchIncomingRequests, 
+    addGroupMembers, 
+    fetchUserGroups,
+    loggedInUser
   } = useAuth();
 
-  // --- Data State ---
+  const [activeView, setActiveView] = useState('list'); 
   const [rosters, setRosters] = useState([]);
-  const [incomingRequests, setIncomingRequests] = useState([]); 
+  const [requests, setRequests] = useState([]);
   const [myGroups, setMyGroups] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // --- UI State ---
-  const [selectedRoster, setSelectedRoster] = useState(null); 
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedRoster, setSelectedRoster] = useState(null);
+  const [showLeagueModal, setShowLeagueModal] = useState(false);
 
-  // --- Initial Data Load ---
-  useEffect(() => {
-    const init = async () => {
-      setIsLoading(true);
-      const [rData, gData] = await Promise.all([
-        fetchRosters(),
-        loggedInUser ? fetchUserGroups(loggedInUser.uid) : []
-      ]);
-      setRosters(rData);
-      setMyGroups(gData);
-      setIsLoading(false);
-    };
-    init();
+  const loadData = useCallback(async () => {
+    const r = await fetchRosters();
+    const req = await fetchIncomingRequests();
+    setRosters(r);
+    setRequests(req);
 
-    const unsubRequests = subscribeToIncomingRequests(setIncomingRequests);
-    return () => { if (unsubRequests) unsubRequests(); };
-  }, [fetchRosters, fetchUserGroups, subscribeToIncomingRequests, loggedInUser]);
-
-  // --- Sync Selection ---
-  useEffect(() => {
-    if (selectedRoster) {
-      const updated = rosters.find(r => r.id === selectedRoster.id);
-      if (updated && updated !== selectedRoster) setSelectedRoster(updated);
+    if (loggedInUser?.uid) {
+        const g = await fetchUserGroups(loggedInUser.uid);
+        setMyGroups(g);
     }
-  }, [rosters, selectedRoster]);
+  }, [fetchRosters, fetchIncomingRequests, fetchUserGroups, loggedInUser]);
 
-  // --- Handlers ---
-  const handleCreateSubmit = async (name, season, capacity, isDiscoverable, groupOptions, addManager) => {
-    const success = await createRoster(name, season, capacity, isDiscoverable, groupOptions, addManager);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleCreateRoster = async (data, groupData, addManager) => {
+    const success = await createRoster(data, groupData, addManager);
     if (success) {
-      alert("Roster created!");
-      setShowCreateForm(false);
-      // Reload logic
-      const r = await fetchRosters();
-      const g = await fetchUserGroups(loggedInUser.uid);
-      setRosters(r); setMyGroups(g);
+      loadData();
+      setActiveView('list');
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Delete this roster?")) {
-      await deleteRoster(id);
-      setRosters(await fetchRosters());
-    }
+  const handleRosterClick = (roster) => {
+    setSelectedRoster(roster);
+    setActiveView('detail');
   };
 
-  const handleAddPlayers = async (rosterId, emails, groupId) => {
-      for (const email of emails) await addPlayerToRoster(rosterId, email);
-      if (groupId) await addGroupMembers(groupId, emails);
-      alert("Players added!");
-      setRosters(await fetchRosters());
-  };
-
-  const handleRemovePlayer = async (rosterId, player) => {
-      if (window.confirm(`Remove ${player.playerName}?`)) {
-          await removePlayerFromRoster(rosterId, player);
-          setRosters(await fetchRosters());
+  const handleAddPlayer = async (rosterId, emails, targetGroupId) => {
+      let allSuccess = true;
+      for (const email of emails) {
+          const success = await addPlayerToRoster(rosterId, email);
+          if (!success) allSuccess = false;
       }
+      
+      if (targetGroupId && emails.length > 0) {
+          await addGroupMembers(targetGroupId, emails);
+      }
+
+      if (allSuccess) alert("Players added!");
+      loadData();
+      
+      const freshRosters = await fetchRosters();
+      setRosters(freshRosters);
+      const freshSelected = freshRosters.find(r => r.id === rosterId);
+      if (freshSelected) setSelectedRoster(freshSelected);
   };
 
   const handleAddToGroup = async (groupId, emails) => {
       await addGroupMembers(groupId, emails);
-      alert("Added to group!");
+      alert("Added to group.");
   };
-
-  const handleApproveRequest = async (req, groupId) => {
-      await respondToRequest(req, 'approve', groupId);
-      setRosters(await fetchRosters());
-  };
-
-  const handleDenyRequest = async (req) => {
-      if (window.confirm("Deny request?")) await respondToRequest(req, 'deny');
-  };
-
-  // --- Render Views ---
-
-  if (selectedRoster) {
-    return (
-      <RosterDetail 
-        roster={selectedRoster}
-        onBack={() => setSelectedRoster(null)}
-        onRemovePlayer={handleRemovePlayer}
-        onAddPlayer={handleAddPlayers}
-        onAddToGroup={handleAddToGroup}
-        myGroups={myGroups}
-      />
-    );
-  }
 
   return (
     <div className="view-container">
-      <Header 
-        title="Manager Dashboard" 
-        style={{ maxWidth: '1000px', margin: '0 auto' }}
-        actions={
-           <Button onClick={() => setShowCreateForm(!showCreateForm)} style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
-            {showCreateForm ? <X size={18} /> : <Plus size={18} />}
-          </Button>
-        }
-      />
-
+      <Header title="Manager Dashboard" style={{ maxWidth: '1000px', margin: '0 auto' }} />
+      
       <div className="view-content">
         <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
           
-          <IncomingRequests 
-            requests={incomingRequests} 
-            onApprove={handleApproveRequest}
-            onDeny={handleDenyRequest}
-            myGroups={myGroups}
-          />
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+              <Button onClick={() => setActiveView('create')}>+ New Roster</Button>
+              <Button variant="secondary" onClick={() => setShowLeagueModal(true)}>+ New League</Button>
+          </div>
 
-          <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Current Rosters</h3>
-          
-          {showCreateForm && (
+          {activeView === 'list' && (
+            <>
+              <IncomingRequests requests={requests} onRefresh={loadData} />
+              <div style={{ height: '30px' }} />
+              <RosterList 
+                rosters={rosters} 
+                onDelete={async (id) => { await deleteRoster(id); loadData(); }} 
+                onSelect={handleRosterClick}
+              />
+            </>
+          )}
+
+          {activeView === 'create' && (
             <CreateRosterForm 
-              onSubmit={handleCreateSubmit} 
-              onCancel={() => setShowCreateForm(false)} 
+                onSubmit={handleCreateRoster} 
+                onCancel={() => setActiveView('list')} 
             />
           )}
 
-          {isLoading ? <Loading message="Loading rosters..." /> : (
-            <RosterList 
-              rosters={rosters} 
-              onSelect={setSelectedRoster} 
-              onDelete={handleDelete} 
+          {activeView === 'detail' && selectedRoster && (
+            <RosterDetail 
+                roster={selectedRoster} 
+                onBack={() => { setSelectedRoster(null); setActiveView('list'); loadData(); }}
+                onRefresh={loadData} // PASSING LOAD DATA DOWN
+                onRemovePlayer={async (rid, p) => { 
+                    await removePlayerFromRoster(rid, p); 
+                    loadData(); 
+                    setSelectedRoster(prev => ({
+                        ...prev, 
+                        players: prev.players ? prev.players.filter(pl => pl.uid !== p.uid) : []
+                    })); 
+                }}
+                onAddPlayer={handleAddPlayer}
+                myGroups={myGroups}
+                onAddToGroup={handleAddToGroup}
             />
           )}
+
         </div>
       </div>
-    </div> 
+
+      {showLeagueModal && <CreateLeagueModal onClose={() => setShowLeagueModal(false)} />}
+    </div>
   );
-}
+};
 
 export default ManagerDashboard;

@@ -4,7 +4,6 @@ import {
   query, where, orderBy, onSnapshot, serverTimestamp, increment, 
   getDocs, getDoc, arrayUnion, deleteField 
 } from "firebase/firestore"; 
-// CHANGED: Point to 'lib' instead of 'config'
 import { db } from "../lib/firebase"; 
 import { useAuth } from './AuthContext';
 
@@ -45,7 +44,7 @@ export const ChatProvider = ({ children }) => {
     return () => unsubscribe();
   }, [loggedInUser]);
 
-  // 2. MARK READ (Stabilized with useCallback)
+  // 2. MARK READ
   const markChatAsRead = useCallback(async (chatId) => {
     if (!loggedInUser) return;
     try {
@@ -58,7 +57,7 @@ export const ChatProvider = ({ children }) => {
     }
   }, [loggedInUser]);
 
-  // 3. CREATE CHAT
+  // 3. CREATE CHAT (Updated to fix Issue #1)
   const createChat = async (participantEmails, chatName = "") => {
     try {
       const usersRef = collection(db, "users");
@@ -97,8 +96,10 @@ export const ChatProvider = ({ children }) => {
         return false;
       }
 
-      // Check for existing
+      // Check for existing chat
+      // FIX: Ignore 'roster' chats so we can create independent groups with same members
       const existingChat = myChats.find(c => {
+        if (c.type === 'roster') return false; 
         if (c.participants.length !== participantIds.length) return false;
         return participantIds.every(id => c.participants.includes(id));
       });
@@ -241,7 +242,6 @@ export const ChatProvider = ({ children }) => {
             return false;
         }
 
-        // Basic Update
         let updateData = {
             participants: arrayUnion(newUser.uid),
             visibleTo: arrayUnion(newUser.uid),
@@ -250,17 +250,13 @@ export const ChatProvider = ({ children }) => {
         };
 
         if (!includeHistory) {
-             // Hide history -> Set timestamp
              updateData[`hiddenHistory.${newUser.uid}`] = serverTimestamp();
         } else {
-             // Show history -> EXPLICITLY DELETE any old restriction
              updateData[`hiddenHistory.${newUser.uid}`] = deleteField();
         }
 
-        // 1. Update Chat Doc
         await updateDoc(chatRef, updateData);
 
-        // 2. Add System Message
         const systemMsgText = `${loggedInUser.playerName} added ${newUser.name} to the group.`;
         await addDoc(collection(db, "chats", chatId, "messages"), {
             text: systemMsgText,
@@ -268,7 +264,6 @@ export const ChatProvider = ({ children }) => {
             createdAt: serverTimestamp()
         });
 
-        // 3. Update Last Message
         await updateDoc(chatRef, {
             lastMessage: systemMsgText,
             lastMessageTime: new Date()

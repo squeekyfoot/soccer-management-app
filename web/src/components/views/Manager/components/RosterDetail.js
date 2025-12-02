@@ -1,27 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 import Card from '../../../common/Card';
 import Button from '../../../common/Button';
 import Modal from '../../../common/Modal';
 import UserSearch from '../../../shared/UserSearch';
 import Header from '../../../common/Header';
 import { COLORS } from '../../../../lib/constants';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Edit2, Save, X, MessageCircle, Calendar, Clock, Trophy, Link, CheckCircle, AlertCircle, RefreshCw, Unlink } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
+import { useChat } from '../../../../context/ChatContext'; 
+import { useDirectMessage } from '../../../../hooks/useDirectMessage';
 
-const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, onAddToGroup }) => {
-  // Modal State local to this view
+const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, myGroups = [], onAddToGroup }) => {
+  const navigate = useNavigate();
+  const { updateRoster, fetchLeagues, createGroup, createTeamChat, linkGroupToRoster, unlinkGroupFromRoster, unlinkChatFromRoster } = useAuth();
+  const { myChats } = useChat(); 
+  const { startDirectChat } = useDirectMessage();
+
+  const [leagues, setLeagues] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  const [editForm, setEditForm] = useState({
+      name: roster.name || '',
+      season: roster.season || '',
+      maxCapacity: roster.maxCapacity || 20,
+      targetPlayerCount: roster.targetPlayerCount || 20,
+      isDiscoverable: roster.isDiscoverable || false,
+      leagueId: roster.leagueId || '',
+      lookingForPlayers: roster.lookingForPlayers || false,
+      pastSeasonsCount: roster.pastSeasonsCount || 0
+  });
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
-  
+  const [showGroupSelectModal, setShowGroupSelectModal] = useState(false); 
+  const [selectedPlayer, setSelectedPlayer] = useState(null); 
   const [selectedEmails, setSelectedEmails] = useState([]);
   const [targetGroupId, setTargetGroupId] = useState("");
   const [playerForGroup, setPlayerForGroup] = useState(null);
-  const [searchKey, setSearchKey] = useState(0); // For resetting search
+  const [searchKey, setSearchKey] = useState(0); 
+
+  const linkedChat = myChats.find(c => c.rosterId === roster.id);
+  const linkedGroup = myGroups.find(g => g.associatedRosterId === roster.id);
+
+  useEffect(() => {
+      const load = async () => {
+          const ls = await fetchLeagues();
+          setLeagues(ls);
+      };
+      load();
+  }, [fetchLeagues]);
+
+  const currentLeague = leagues.find(l => l.id === (isEditing ? editForm.leagueId : roster.leagueId));
+
+  const handleEditChange = (field, value) => {
+      setEditForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const saveRosterDetails = async () => {
+      const updates = { ...editForm };
+      if (updates.leagueId) {
+          const l = leagues.find(x => x.id === updates.leagueId);
+          if (l) updates.leagueName = l.name;
+      } else {
+          updates.leagueName = "";
+      }
+
+      const success = await updateRoster(roster.id, updates);
+      if (success) {
+          setIsEditing(false);
+          Object.assign(roster, updates); 
+      }
+  };
 
   const handleInitiateAdd = (e) => {
       e.preventDefault();
       if (selectedEmails.length === 0) return;
-      const associated = myGroups.find(g => g.associatedRosterId === roster.id);
+      const associated = myGroups ? myGroups.find(g => g.associatedRosterId === roster.id) : null;
       setTargetGroupId(associated ? associated.id : "");
       setShowAddModal(false);
       setShowConfirmModal(true);
@@ -34,40 +90,292 @@ const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, o
       setShowConfirmModal(false);
   };
 
+  // --- CONNECTION HANDLERS ---
+
+  // GROUP
+  const handleCreateGroup = async () => {
+      if (!window.confirm("Create a new community group for this roster?")) return;
+      const success = await createGroup({
+          name: roster.name,
+          description: `Official group for ${roster.name}`,
+          isPublic: false,
+          associatedRosterId: roster.id
+      });
+      if (success) { 
+          alert("Group Created!"); 
+          if (onRefresh) onRefresh(); 
+      }
+  };
+
+  const handleUnlinkGroup = async () => {
+      if (!linkedGroup) return;
+      if (window.confirm(`Unlink "${linkedGroup.name}" from this roster?`)) {
+          await unlinkGroupFromRoster(linkedGroup.id);
+          if (onRefresh) onRefresh();
+      }
+  };
+
+  const handleChangeGroup = async (newGroupId) => {
+      if (linkedGroup) await unlinkGroupFromRoster(linkedGroup.id);
+      await linkGroupToRoster(newGroupId, roster.id);
+      setShowGroupSelectModal(false);
+      if (onRefresh) onRefresh();
+  };
+
+  // CHAT
+  const handleCreateChat = async () => {
+      if (!window.confirm("Create a new team chat for this roster? All current players will be added.")) return;
+      const success = await createTeamChat(roster.id, roster.name, roster.season, roster.players);
+      if (success) alert("Chat Created!");
+  };
+
+  const handleUnlinkChat = async () => {
+      if (!linkedChat) return;
+      // COMBINED WORKFLOW: Archive Old -> Create New -> Notify
+      if (window.confirm("This will unlink the current chat (converting it to a normal group) and CREATE A NEW one for the team. Continue?")) {
+          // 1. Unlink Old
+          await unlinkChatFromRoster(linkedChat.id);
+          
+          // 2. Create New with Custom Message
+          const customMsg = `Manager has re-created a new chat for the team.`;
+          await createTeamChat(roster.id, roster.name, roster.season, roster.players, customMsg);
+          
+          alert("Team chat recreated.");
+      }
+  };
+
   return (
     <div className="view-container">
       <Header 
-        title={roster.name}
+        title={isEditing ? "Edit Roster Details" : roster.name}
         style={{ maxWidth: '1000px', margin: '0 auto' }}
         onBack={onBack}
         actions={
-           <Button onClick={() => setShowAddModal(true)} style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
-             <UserPlus size={18} />
-           </Button>
+           <div style={{ display: 'flex', gap: '10px' }}>
+               {!isEditing ? (
+                   <>
+                    <Button onClick={() => setIsEditing(true)} style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: '#444' }}>
+                        <Edit2 size={16} />
+                    </Button>
+                    <Button onClick={() => setShowAddModal(true)} style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+                        <UserPlus size={18} />
+                    </Button>
+                   </>
+               ) : (
+                   <Button onClick={() => setIsEditing(false)} variant="secondary" style={{ padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+                        <X size={18} />
+                   </Button>
+               )}
+           </div>
         }
       />
       <div className="view-content">
         <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
-          <p style={{ color: '#ccc', marginTop: 0 }}>
-             {roster.season} • {roster.players?.length || 0} / {roster.maxCapacity} Players
-             {roster.isDiscoverable && <span style={{ marginLeft: '10px', fontSize: '12px', backgroundColor: COLORS.success, padding: '2px 6px', borderRadius: '4px', color: 'white' }}>Discoverable</span>}
-          </p>
+          
+          <div style={{ background: '#1e1e1e', padding: '24px', borderRadius: '12px', marginBottom: '30px' }}>
+              {!isEditing ? (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                        <div>
+                            <h2 style={{ marginTop: 0, marginBottom: '5px', fontSize: '28px' }}>
+                                {roster.name}
+                            </h2>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                {roster.leagueName && <span style={styles.badge}>{roster.leagueName}</span>}
+                                {roster.season && <span style={{ color: '#aaa' }}>{roster.season}</span>}
+                                {roster.lookingForPlayers && <span style={{...styles.badge, background: COLORS.success}}>Recruiting</span>}
+                            </div>
+                        </div>
+                    </div>
 
-          <div style={{ marginTop: '30px' }}>
-              <h3 style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px' }}>Roster</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '20px', background: '#252525', padding: '15px', borderRadius: '8px' }}>
+                        <div>
+                            <div style={styles.statLabel}>Roster Status</div>
+                            <div style={styles.statValue}>{roster.players?.length || 0} / {roster.maxCapacity}</div>
+                            <div style={{ fontSize: '11px', color: '#666' }}>Target: {roster.targetPlayerCount || roster.maxCapacity}</div>
+                        </div>
+                        <div>
+                            <div style={styles.statLabel}>Visibility</div>
+                            <div style={styles.statValue}>{roster.isDiscoverable ? 'Public' : 'Private'}</div>
+                        </div>
+                        {currentLeague ? (
+                            <>
+                                <div>
+                                    <div style={styles.statLabel}>Frequency</div>
+                                    <div style={styles.statValue}>{currentLeague.gameFrequency}</div>
+                                    <div style={{ fontSize: '11px', color: '#666' }}>{currentLeague.gameDays?.join(', ')}</div>
+                                </div>
+                                <div>
+                                    <div style={styles.statLabel}>Deadline</div>
+                                    <div style={{...styles.statValue, color: '#ffab40'}}>{currentLeague.registrationDeadline}</div>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ color: '#666', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>No League Linked</div>
+                        )}
+                    </div>
+
+                    <div style={{ marginBottom: '20px', background: '#252525', padding: '15px', borderRadius: '8px', borderLeft: `4px solid ${COLORS.primary}` }}>
+                        <h4 style={{ margin: '0 0 15px 0', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Link size={16} /> Roster Connections
+                        </h4>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            <div>
+                                <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px' }}>COMMUNITY GROUP</div>
+                                {linkedGroup ? (
+                                    <div style={styles.connectionCard}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', marginBottom: '8px' }}>
+                                            <CheckCircle size={14} color={COLORS.success} />
+                                            <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{linkedGroup.name}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            <Button variant="secondary" onClick={() => navigate(`/community/${linkedGroup.id}`)} style={styles.xsBtn}>View</Button>
+                                            <Button variant="secondary" onClick={() => setShowGroupSelectModal(true)} style={styles.xsBtn}>Change</Button>
+                                            <Button variant="danger" onClick={handleUnlinkGroup} style={styles.xsBtn}><Unlink size={12} /></Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={styles.connectionCard}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#aaa', marginBottom: '8px' }}>
+                                            <AlertCircle size={14} />
+                                            <span>Not Linked</span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            <Button onClick={handleCreateGroup} style={styles.xsBtn}>Create New</Button>
+                                            <Button variant="secondary" onClick={() => setShowGroupSelectModal(true)} style={styles.xsBtn}>Link Existing</Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px' }}>ROSTER CHAT</div>
+                                {linkedChat ? (
+                                    <div style={styles.connectionCard}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', marginBottom: '8px' }}>
+                                            <CheckCircle size={14} color={COLORS.success} />
+                                            <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Active</span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            <Button variant="secondary" onClick={() => navigate(`/messages/${linkedChat.id}`)} style={styles.xsBtn}>Open</Button>
+                                            <Button variant="danger" onClick={handleUnlinkChat} style={styles.xsBtn}>Recreate</Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={styles.connectionCard}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#aaa', marginBottom: '8px' }}>
+                                            <AlertCircle size={14} />
+                                            <span>Not Linked</span>
+                                        </div>
+                                        <Button onClick={handleCreateChat} style={styles.xsBtn}>
+                                            <RefreshCw size={12} style={{ marginRight: '4px' }} /> Recreate Chat
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {currentLeague && (
+                        <div style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
+                            <h4 style={{ margin: '0 0 10px 0', color: '#aaa', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Trophy size={16} /> League Details
+                            </h4>
+                            <p style={{ color: '#ddd', fontSize: '14px', margin: 0 }}>{currentLeague.description}</p>
+                            <div style={{ display: 'flex', gap: '20px', marginTop: '10px', fontSize: '13px', color: '#888' }}>
+                                <span style={{ display: 'flex', gap: '5px', alignItems: 'center' }}><Calendar size={14}/> {currentLeague.seasonStart} - {currentLeague.seasonEnd}</span>
+                                <span style={{ display: 'flex', gap: '5px', alignItems: 'center' }}><Clock size={14}/> {currentLeague.earliestGameTime} - {currentLeague.latestGameTime}</span>
+                            </div>
+                        </div>
+                    )}
+                  </div>
+              ) : (
+                  <div style={{ display: 'grid', gap: '15px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
+                          <div>
+                              <label style={styles.label}>Roster Name</label>
+                              <input type="text" value={editForm.name} onChange={(e) => handleEditChange('name', e.target.value)} style={styles.input} />
+                          </div>
+                          <div>
+                              <label style={styles.label}>Season Label</label>
+                              <input type="text" value={editForm.season} onChange={(e) => handleEditChange('season', e.target.value)} style={styles.input} />
+                          </div>
+                      </div>
+
+                      <div>
+                          <label style={styles.label}>Associated League</label>
+                          <select value={editForm.leagueId} onChange={(e) => handleEditChange('leagueId', e.target.value)} style={styles.input}>
+                              <option value="">-- Independent Team (No League) --</option>
+                              {leagues.map(l => (
+                                  <option key={l.id} value={l.id}>{l.name} ({l.seasonStart})</option>
+                              ))}
+                          </select>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+                          <div>
+                            <label style={styles.label}>Max Capacity</label>
+                            <input type="number" value={editForm.maxCapacity} onChange={(e) => handleEditChange('maxCapacity', e.target.value)} style={styles.input} />
+                          </div>
+                          <div>
+                            <label style={styles.label}>Target Count</label>
+                            <input type="number" value={editForm.targetPlayerCount} onChange={(e) => handleEditChange('targetPlayerCount', e.target.value)} style={styles.input} />
+                          </div>
+                          <div>
+                            <label style={styles.label}>Past Seasons</label>
+                            <input type="number" value={editForm.pastSeasonsCount} onChange={(e) => handleEditChange('pastSeasonsCount', e.target.value)} style={styles.input} />
+                          </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '5px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <input type="checkbox" checked={editForm.isDiscoverable} onChange={(e) => handleEditChange('isDiscoverable', e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                              <label style={{ color: '#eee' }}>Publicly Discoverable</label>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <input type="checkbox" checked={editForm.lookingForPlayers} onChange={(e) => handleEditChange('lookingForPlayers', e.target.checked)} style={{ width: '18px', height: '18px' }} />
+                              <label style={{ color: '#eee' }}>Mark as "Looking for Players"</label>
+                          </div>
+                      </div>
+
+                      <Button onClick={saveRosterDetails} style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <Save size={16} /> Save Changes
+                      </Button>
+                  </div>
+              )}
+          </div>
+
+          <div>
+              <h3 style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px', marginBottom: '15px' }}>Active Roster</h3>
               {(!roster.players || roster.players.length === 0) ? (
                 <p style={{ fontStyle: 'italic', color: '#888' }}>No players yet.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {roster.players.map((player) => (
-                    <Card key={player.uid || player.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', marginBottom: 0 }}>
-                      <div>
-                        <span style={{ fontWeight: 'bold', display: 'block' }}>{player.playerName}</span>
-                        <span style={{ fontSize: '12px', color: '#aaa' }}>{player.email}</span>
+                    <Card 
+                        key={player.uid || player.email} 
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', marginBottom: 0, cursor: 'pointer' }}
+                        hoverable
+                        onClick={() => setSelectedPlayer(player)} 
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '20px', backgroundColor: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {player.photoURL ? (
+                                <img src={player.photoURL} alt={player.playerName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                <span style={{ color: '#aaa', fontWeight: 'bold' }}>{player.playerName.charAt(0)}</span>
+                            )}
+                        </div>
+                        <div>
+                            <span style={{ fontWeight: 'bold', display: 'block', fontSize: '16px' }}>{player.playerName}</span>
+                            <span style={{ fontSize: '13px', color: '#888' }}>{player.email}</span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '5px' }}>
-                          <Button variant="secondary" onClick={() => { setPlayerForGroup(player); setShowGroupModal(true); }} style={{ padding: '5px 10px', fontSize: '10px' }}>+ Group</Button>
-                          <Button variant="danger" onClick={() => onRemovePlayer(roster.id, player)} style={{ padding: '5px 10px', fontSize: '12px' }}>Remove</Button>
+                      
+                      <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                          <Button variant="secondary" onClick={() => { setPlayerForGroup(player); setShowGroupModal(true); }} style={{ padding: '6px 10px', fontSize: '12px' }}>+ Group</Button>
+                          <Button variant="danger" onClick={() => { if (window.confirm(`Remove ${player.playerName}?`)) onRemovePlayer(roster.id, player); }} style={{ padding: '6px', fontSize: '12px', minWidth: '32px' }}><X size={14} /></Button>
                       </div>
                     </Card>
                   ))}
@@ -75,11 +383,22 @@ const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, o
               )}
           </div>
 
-          {/* Add Player Modal */}
+          {selectedPlayer && (
+              <Modal title="Player Details" onClose={() => setSelectedPlayer(null)} actions={
+                    <Button onClick={() => { startDirectChat(selectedPlayer.email); setSelectedPlayer(null); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        <MessageCircle size={18} /> Message Player
+                    </Button>
+              }>
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                        <h2 style={{ margin: 0 }}>{selectedPlayer.playerName}</h2>
+                        <p style={{ color: '#aaa' }}>{selectedPlayer.email}</p>
+                  </div>
+              </Modal>
+          )}
+
           {showAddModal && (
             <Modal title="Add Players" onClose={() => setShowAddModal(false)} actions={null}>
                <div style={{ textAlign: 'left' }}>
-                 <p style={{ marginTop: 0, fontSize: '14px', marginBottom: '15px', color: '#ccc' }}>Search for users by name or email.</p>
                  <form onSubmit={handleInitiateAdd}>
                    <UserSearch key={searchKey} onSelectionChange={setSelectedEmails} />
                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
@@ -91,30 +410,43 @@ const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, o
             </Modal>
           )}
 
-          {/* Confirm Add Modal */}
           {showConfirmModal && (
               <Modal title="Confirm Add" onClose={() => setShowConfirmModal(false)} actions={<Button onClick={executeAdd}>Add Players</Button>}>
-                  <p style={{ color: '#ccc' }}>Adding <strong>{selectedEmails.length}</strong> player(s).</p>
-                  <div style={{ marginBottom: '20px' }}>
-                      <label style={{ display: 'block', marginBottom: '10px' }}>Add to Community Group:</label>
-                      <select value={targetGroupId} onChange={(e) => setTargetGroupId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px' }}>
-                          <option value="">-- No Group --</option>
-                          {myGroups.map(g => (<option key={g.id} value={g.id}>{g.name}</option>))}
-                      </select>
-                  </div>
+                  <p>Adding {selectedEmails.length} players.</p>
               </Modal>
           )}
 
-          {/* Add To Group Modal */}
           {showGroupModal && (
               <Modal title={`Add ${playerForGroup?.playerName} to Group`} onClose={() => { setShowGroupModal(false); setPlayerForGroup(null); }} actions={null}>
                   <p style={{ color: '#ccc' }}>Select a group:</p>
                   <div style={{ display: 'grid', gap: '10px' }}>
-                      {myGroups.map(group => (
-                          <Card key={group.id} onClick={() => { onAddToGroup(group.id, [playerForGroup.email]); setShowGroupModal(false); }} hoverable>
-                              <strong>{group.name}</strong>
-                          </Card>
-                      ))}
+                      {myGroups && myGroups.length > 0 ? (
+                          myGroups.map(group => (
+                              <Card key={group.id} onClick={() => { onAddToGroup(group.id, [playerForGroup.email]); setShowGroupModal(false); }} hoverable>
+                                  <strong>{group.name}</strong>
+                              </Card>
+                          ))
+                      ) : (
+                          <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center' }}>No groups found.</p>
+                      )}
+                  </div>
+              </Modal>
+          )}
+
+          {showGroupSelectModal && (
+              <Modal title="Link Roster to Group" onClose={() => setShowGroupSelectModal(false)} actions={null}>
+                  <p style={{ color: '#ccc' }}>Select a group to link to <strong>{roster.name}</strong>:</p>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                      {myGroups && myGroups.length > 0 ? (
+                          myGroups.map(group => (
+                              <Card key={group.id} onClick={() => handleChangeGroup(group.id)} hoverable>
+                                  <strong>{group.name}</strong>
+                                  {group.id === linkedGroup?.id && <span style={{ fontSize: '12px', color: COLORS.success, marginLeft: '10px' }}>(Current)</span>}
+                              </Card>
+                          ))
+                      ) : (
+                          <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center' }}>No groups found.</p>
+                      )}
                   </div>
               </Modal>
           )}
@@ -122,6 +454,16 @@ const RosterDetail = ({ roster, onBack, onRemovePlayer, onAddPlayer, myGroups, o
       </div>
     </div>
   );
+};
+
+const styles = {
+    label: { display: 'block', color: '#888', marginBottom: '5px', fontSize: '12px' },
+    input: { width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '6px', color: 'white', boxSizing: 'border-box' },
+    badge: { backgroundColor: '#333', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', border: '1px solid #555' },
+    statLabel: { fontSize: '11px', textTransform: 'uppercase', color: '#888', marginBottom: '4px' },
+    statValue: { fontSize: '16px', fontWeight: 'bold', color: '#eee' },
+    connectionCard: { background: '#333', padding: '12px', borderRadius: '6px', display: 'flex', flexDirection: 'column' },
+    xsBtn: { fontSize: '11px', padding: '4px 8px', display: 'flex', alignItems: 'center' }
 };
 
 export default RosterDetail;
