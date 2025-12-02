@@ -10,14 +10,9 @@ import {
   reauthenticateWithCredential,
   deleteUser
 } from "firebase/auth";
-import { 
-  doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, 
-  query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, 
-  deleteField, onSnapshot, increment 
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-
-import { auth, db, storage } from "../lib/firebase"; 
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { auth, db } from "../lib/firebase"; 
+import { useStorage } from '../hooks/useStorage';
 
 const AuthContext = createContext();
 
@@ -27,32 +22,23 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [loggedInUser, setLoggedInUser] = useState(null);
-  const [soccerDetails, setSoccerDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
+  const { upload, remove } = useStorage();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-        const soccerDocRef = doc(db, "users", user.uid, "sportsDetails", "soccer");
-        const soccerDoc = await getDoc(soccerDocRef);
 
         if (userDoc.exists()) {
           setLoggedInUser(userDoc.data());
         } else {
           setLoggedInUser(null);
         }
-
-        if (soccerDoc.exists()) {
-          setSoccerDetails(soccerDoc.data());
-        } else {
-          setSoccerDetails(null);
-        }
       } else {
         setLoggedInUser(null);
-        setSoccerDetails(null);
       }
       setIsLoading(false);
     });
@@ -73,16 +59,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signUp = async (formData) => {
-    if (formData.password.length < 6) {
-      alert("Password must be at least 6 characters long.");
-      return;
-    }
+    if (formData.password.length < 6) return alert("Password must be 6+ chars.");
     
     let userCredential;
     try {
       userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
-      
       const displayName = `${formData.firstName} ${formData.lastName}`;
       
       const userProfileData = {
@@ -110,14 +92,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Error signing up:", error);
       alert("Error: " + error.message);
-
-      if (userCredential && userCredential.user) {
-        try {
-          await deleteUser(userCredential.user);
-        } catch (cleanupError) {
-          console.error("Failed to cleanup user:", cleanupError);
-        }
-      }
+      if (userCredential?.user) await deleteUser(userCredential.user);
     }
   };
 
@@ -125,46 +100,12 @@ export const AuthProvider = ({ children }) => {
     try {
       await signOut(auth);
       setLoggedInUser(null);
-      setSoccerDetails(null);
     } catch (error) {
       console.error("Error signing out:", error);
-      alert("Error: " + error.message);
     }
   };
 
-  const uploadProfileImage = async (file, uid) => {
-    if (!file) return null;
-    try {
-      const storageRef = ref(storage, `users/${uid}/profile.jpg`);
-      await uploadBytes(storageRef, file);
-      return await getDownloadURL(storageRef);
-    } catch (error) {
-      console.error("Error uploading profile image:", error);
-      throw error;
-    }
-  };
-
-  const uploadImage = async (file, path) => {
-    if (!file) return null;
-    try {
-      const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      return await getDownloadURL(snapshot.ref);
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      throw error;
-    }
-  };
-
-  const deleteProfileImage = async (uid) => {
-    try {
-      const storageRef = ref(storage, `users/${uid}/profile.jpg`);
-      await deleteObject(storageRef);
-    } catch (error) {
-      console.warn("Error deleting image (might not exist):", error);
-    }
-  };
-
+  // Keep Profile Update Logic here as it touches Auth + DB + Chat denormalization
   const updateProfile = async (profileData, newImageFile = null, removeImage = false) => {
     if (!loggedInUser) return;
 
@@ -172,11 +113,8 @@ export const AuthProvider = ({ children }) => {
       try {
         await updateEmail(auth.currentUser, profileData.email);
       } catch (error) {
-        if (error.code === 'auth/requires-recent-login') {
-          setNeedsReauth(true); 
-        } else {
-          alert("Error: " + error.message);
-        }
+        if (error.code === 'auth/requires-recent-login') setNeedsReauth(true);
+        else alert("Error: " + error.message);
         return;
       }
     }
@@ -185,44 +123,25 @@ export const AuthProvider = ({ children }) => {
       let photoURL = loggedInUser.photoURL;
 
       if (removeImage) {
-        await deleteProfileImage(loggedInUser.uid);
+        await remove(`users/${loggedInUser.uid}/profile.jpg`);
         photoURL = "";
       } else if (newImageFile) {
-        photoURL = await uploadProfileImage(newImageFile, loggedInUser.uid);
+        photoURL = await upload(newImageFile, `users/${loggedInUser.uid}/profile.jpg`);
       }
 
       const displayName = `${profileData.firstName} ${profileData.lastName}`;
-
       const dataToUpdate = {
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-        preferredName: profileData.preferredName,
+        ...profileData,
         playerName: displayName,
-        phone: profileData.phone,
-        notificationPreference: profileData.notificationPreference,
-        emergencyContact: {
-            firstName: profileData.emergencyContactFirstName,
-            lastName: profileData.emergencyContactLastName,
-            phone: profileData.emergencyContactPhone,
-            relationship: profileData.emergencyContactRelationship
-        },
-        email: profileData.email,
         photoURL: photoURL || ""
       };
       
-      const userDocRef = doc(db, "users", loggedInUser.uid);
-      await updateDoc(userDocRef, dataToUpdate);
+      await updateDoc(doc(db, "users", loggedInUser.uid), dataToUpdate);
+      await firebaseUpdateProfile(auth.currentUser, { displayName, photoURL });
       
-      await firebaseUpdateProfile(auth.currentUser, {
-        displayName: displayName,
-        photoURL: photoURL
-      });
-      
-      setLoggedInUser(prevUser => ({
-        ...prevUser,
-        ...dataToUpdate
-      }));
+      setLoggedInUser(prev => ({ ...prev, ...dataToUpdate }));
 
+      // Denormalization Update (Chats)
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);
@@ -230,23 +149,14 @@ export const AuthProvider = ({ children }) => {
       const batchPromises = querySnapshot.docs.map(async (chatDoc) => {
         const chatData = chatDoc.data();
         if (chatData.participantDetails) {
-          const updatedDetails = chatData.participantDetails.map(p => {
-            if (p.uid === loggedInUser.uid) {
-              return { 
-                ...p, 
-                name: displayName, 
-                email: profileData.email,
-                photoURL: photoURL || "" 
-              };
-            }
-            return p;
-          });
+          const updatedDetails = chatData.participantDetails.map(p => 
+            p.uid === loggedInUser.uid ? { ...p, name: displayName, email: profileData.email, photoURL: photoURL || "" } : p
+          );
           await updateDoc(chatDoc.ref, { participantDetails: updatedDetails });
         }
       });
       
       await Promise.all(batchPromises);
-      
       alert("Profile successfully updated!");
       return true; 
     } catch (error) {
@@ -261,955 +171,19 @@ export const AuthProvider = ({ children }) => {
       const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
       await reauthenticateWithCredential(auth.currentUser, credential);
       await updateEmail(auth.currentUser, newEmail);
-      const userDocRef = doc(db, "users", loggedInUser.uid);
-      await updateDoc(userDocRef, { email: newEmail });
+      await updateDoc(doc(db, "users", loggedInUser.uid), { email: newEmail });
 
-      setLoggedInUser(prevUser => ({
-        ...prevUser,
-        email: newEmail
-      }));
-
-      alert("Email successfully updated!");
+      setLoggedInUser(prev => ({ ...prev, email: newEmail }));
       setNeedsReauth(false); 
       return true; 
     } catch (error) {
-      alert("Error: Incorrect password or another error occurred. " + error.message);
-      return false;
-    }
-  };
-
-  const updateSoccerDetails = async (soccerData) => {
-    if (!loggedInUser) return;
-    try {
-      const soccerDataToSave = {
-        ...soccerData,
-        currentRosters: soccerData.currentRosters.split(',').map(item => item.trim()),
-        rosterJerseysOwned: soccerData.rosterJerseysOwned.split(',').map(item => item.trim()),
-        playerNumber: Number(soccerData.playerNumber) || 0,
-      };
-      
-      const soccerDocRef = doc(db, "users", loggedInUser.uid, "sportsDetails", "soccer");
-      await setDoc(soccerDocRef, soccerDataToSave);
-      
-      setSoccerDetails(soccerDataToSave); 
-      alert("Soccer info saved!");
-      return true; 
-
-    } catch (error) {
       alert("Error: " + error.message);
       return false;
     }
   };
 
-  // --- ROLES ---
-  const isManager = () => loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
-  const isDeveloper = () => loggedInUser && loggedInUser.role === 'developer';
-
-  // --- LEAGUE LOGIC ---
-  const createLeague = async (leagueData) => {
-    if (!isManager()) return false;
-    try {
-      await addDoc(collection(db, "leagues"), {
-        ...leagueData,
-        createdBy: loggedInUser.uid,
-        createdAt: serverTimestamp()
-      });
-      return true;
-    } catch (error) {
-      console.error("Error creating league:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchLeagues = async () => {
-    try {
-      const q = query(collection(db, "leagues"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching leagues:", error);
-      return [];
-    }
-  };
-
-  // --- ROSTER & GROUP LOGIC ---
-  const createRoster = async (rosterData, groupCreationData = null, addManagerAsPlayer = false) => {
-    if (!isManager()) {
-      alert("Only managers can create rosters.");
-      return false;
-    }
-    try {
-      const initialPlayerIDs = [];
-      const initialPlayers = [];
-
-      if (addManagerAsPlayer) {
-          initialPlayerIDs.push(loggedInUser.uid);
-          initialPlayers.push({
-              uid: loggedInUser.uid,
-              playerName: loggedInUser.playerName,
-              email: loggedInUser.email,
-              photoURL: loggedInUser.photoURL || ""
-          });
-      }
-
-      // Allow rosterData to pass all fields including new ones
-      const rosterRef = await addDoc(collection(db, "rosters"), {
-        ...rosterData, 
-        managerName: loggedInUser.playerName, // SAVE MANAGER NAME AUTOMATICALLY
-        maxCapacity: Number(rosterData.maxCapacity),
-        targetPlayerCount: Number(rosterData.targetPlayerCount || rosterData.maxCapacity),
-        createdBy: loggedInUser.uid,
-        createdAt: new Date(),
-        playerIDs: initialPlayerIDs, 
-        players: initialPlayers       
-      });
-
-      // Create associated chat
-      await addDoc(collection(db, "chats"), {
-        type: 'roster', 
-        rosterId: rosterRef.id,
-        name: `${rosterData.name} (${rosterData.season || 'Season'})`,
-        participants: [loggedInUser.uid],
-        visibleTo: [loggedInUser.uid],
-        participantDetails: [{
-          uid: loggedInUser.uid,
-          name: loggedInUser.playerName,
-          email: loggedInUser.email,
-          photoURL: loggedInUser.photoURL || ""
-        }],
-        unreadCounts: { [loggedInUser.uid]: 0 }, 
-        createdAt: serverTimestamp(),
-        lastMessage: "Team chat created",
-        lastMessageTime: serverTimestamp()
-      });
-
-      if (groupCreationData && groupCreationData.createGroup) {
-          await addDoc(collection(db, "groups"), {
-            name: groupCreationData.groupName || rosterData.name,
-            description: `Official group for ${rosterData.name}`,
-            isPublic: false, 
-            createdBy: loggedInUser.uid,
-            associatedRosterId: rosterRef.id, 
-            createdAt: serverTimestamp(),
-            members: [loggedInUser.uid],
-            memberDetails: [{
-              uid: loggedInUser.uid,
-              name: loggedInUser.playerName,
-              email: loggedInUser.email,
-              photoURL: loggedInUser.photoURL || "",
-              role: 'owner' 
-            }]
-          });
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Error creating roster:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const updateRoster = async (rosterId, updates) => {
-    if (!isManager()) {
-      alert("Permission denied.");
-      return false;
-    }
-    try {
-      const rosterRef = doc(db, "rosters", rosterId);
-      
-      const cleanUpdates = { ...updates };
-      
-      if (cleanUpdates.maxCapacity) cleanUpdates.maxCapacity = Number(cleanUpdates.maxCapacity);
-      if (cleanUpdates.targetPlayerCount) cleanUpdates.targetPlayerCount = Number(cleanUpdates.targetPlayerCount);
-      if (cleanUpdates.pastSeasonsCount) cleanUpdates.pastSeasonsCount = Number(cleanUpdates.pastSeasonsCount);
-      if (typeof cleanUpdates.isDiscoverable === 'boolean') cleanUpdates.isDiscoverable = updates.isDiscoverable;
-      if (typeof cleanUpdates.lookingForPlayers === 'boolean') cleanUpdates.lookingForPlayers = updates.lookingForPlayers;
-
-      await updateDoc(rosterRef, cleanUpdates);
-      return true;
-    } catch (error) {
-      console.error("Error updating roster:", error);
-      alert("Error updating roster: " + error.message);
-      return false;
-    }
-  };
-
-  const createTeamChat = async (rosterId, rosterName, season, rosterPlayers = [], customMessage = null) => {
-    if (!isManager()) return false;
-    try {
-      const participantIds = [loggedInUser.uid];
-      const participantDetails = [{
-          uid: loggedInUser.uid,
-          name: loggedInUser.playerName,
-          email: loggedInUser.email,
-          photoURL: loggedInUser.photoURL || ""
-      }];
-      
-      const initialUnread = { [loggedInUser.uid]: 0 };
-
-      rosterPlayers.forEach(p => {
-          if (p.uid !== loggedInUser.uid) { 
-              participantIds.push(p.uid);
-              participantDetails.push({
-                  uid: p.uid,
-                  name: p.playerName,
-                  email: p.email,
-                  photoURL: p.photoURL || ""
-              });
-              initialUnread[p.uid] = 1; 
-          }
-      });
-
-      const initialText = customMessage || "Team chat created";
-
-      const chatRef = await addDoc(collection(db, "chats"), {
-        type: 'roster', 
-        rosterId: rosterId,
-        name: `${rosterName} (${season || 'Season'})`,
-        participants: participantIds,
-        visibleTo: participantIds,
-        participantDetails: participantDetails,
-        unreadCounts: initialUnread, 
-        createdAt: serverTimestamp(),
-        lastMessage: initialText,
-        lastMessageTime: serverTimestamp()
-      });
-
-      // Insert message into subcollection
-      await addDoc(collection(db, "chats", chatRef.id, "messages"), {
-          text: initialText,
-          type: 'system',
-          createdAt: serverTimestamp()
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Error creating team chat:", error);
-      alert("Error creating team chat: " + error.message);
-      return false;
-    }
-  };
-
-  const unlinkChatFromRoster = async (chatId) => {
-      if (!isManager()) return false;
-      try {
-          const chatRef = doc(db, "chats", chatId);
-          const chatSnap = await getDoc(chatRef);
-          
-          let newName = "Group Chat";
-          if (chatSnap.exists()) {
-              const currentName = chatSnap.data().name || "Team Chat";
-              newName = `${currentName} (Archived)`;
-          }
-
-          await updateDoc(chatRef, { 
-              rosterId: deleteField(),
-              type: 'group', 
-              name: newName
-          });
-          
-          await addDoc(collection(db, "chats", chatId, "messages"), {
-              text: "This chat has been unlinked from the roster by the manager.",
-              type: 'system',
-              createdAt: serverTimestamp()
-          });
-          return true;
-      } catch (e) {
-          console.error("Error unlinking chat:", e);
-          return false;
-      }
-  };
-
-  const linkGroupToRoster = async (groupId, rosterId) => {
-      if (!isManager()) return false;
-      try {
-          const groupRef = doc(db, "groups", groupId);
-          await updateDoc(groupRef, { associatedRosterId: rosterId });
-          return true;
-      } catch (e) {
-          console.error(e);
-          return false;
-      }
-  };
-
-  const unlinkGroupFromRoster = async (groupId) => {
-      if (!isManager()) return false;
-      try {
-          const groupRef = doc(db, "groups", groupId);
-          await updateDoc(groupRef, { associatedRosterId: deleteField() });
-          return true;
-      } catch (e) {
-          console.error(e);
-          return false;
-      }
-  };
-
-  const fetchRosters = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, "rosters"));
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching rosters:", error);
-      return [];
-    }
-  };
-
-  const deleteRoster = async (rosterId) => {
-    if (!isManager()) return false;
-    try {
-      await deleteDoc(doc(db, "rosters", rosterId));
-
-      const chatsRef = collection(db, "chats");
-      const q = query(chatsRef, where("rosterId", "==", rosterId));
-      const querySnapshot = await getDocs(q);
-
-      const batchPromises = querySnapshot.docs.map(async (chatDoc) => {
-          const systemMessage = "This team has been disbanded by the manager. This chat is now a regular group.";
-          
-          await addDoc(collection(db, "chats", chatDoc.id, "messages"), {
-              text: systemMessage,
-              type: 'system',
-              createdAt: serverTimestamp()
-          });
-
-          await updateDoc(chatDoc.ref, {
-              type: 'group',
-              rosterId: deleteField(),
-              lastMessage: systemMessage, 
-              lastMessageTime: serverTimestamp() 
-          });
-      });
-
-      await Promise.all(batchPromises);
-      return true;
-    } catch (error) {
-      console.error("Error deleting roster:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const addPlayerToRoster = async (rosterId, playerEmail) => {
-    if (!isManager()) return false;
-    try {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("email", "==", playerEmail));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        alert("No player found with that email address.");
-        return false;
-      }
-
-      const playerDoc = querySnapshot.docs[0];
-      const playerData = playerDoc.data();
-
-      const playerSummary = {
-        uid: playerDoc.id,
-        playerName: playerData.playerName || "Unknown",
-        email: playerData.email,
-        photoURL: playerData.photoURL || ""
-      };
-
-      const rosterRef = doc(db, "rosters", rosterId);
-      await updateDoc(rosterRef, {
-        playerIDs: arrayUnion(playerDoc.id),
-        players: arrayUnion(playerSummary) 
-      });
-
-      const chatsRef = collection(db, "chats");
-      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
-      const chatSnapshot = await getDocs(chatQ);
-
-      if (!chatSnapshot.empty) {
-        const chatDoc = chatSnapshot.docs[0];
-        await setDoc(chatDoc.ref, {
-          participants: arrayUnion(playerDoc.id),
-          visibleTo: arrayUnion(playerDoc.id),
-          participantDetails: arrayUnion(playerSummary),
-          unreadCounts: { [playerDoc.id]: 0 } 
-        }, { merge: true });
-      }
-      return true;
-
-    } catch (error) {
-      console.error("Error adding player:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const removePlayerFromRoster = async (rosterId, playerSummary) => {
-    if (!isManager()) return false;
-    try {
-      const rosterRef = doc(db, "rosters", rosterId);
-      await updateDoc(rosterRef, {
-        playerIDs: arrayRemove(playerSummary.uid),
-        players: arrayRemove(playerSummary)
-      });
-
-      const chatsRef = collection(db, "chats");
-      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
-      const chatSnapshot = await getDocs(chatQ);
-
-      if (!chatSnapshot.empty) {
-        const chatDoc = chatSnapshot.docs[0];
-        await updateDoc(chatDoc.ref, {
-          participants: arrayRemove(playerSummary.uid),
-          visibleTo: arrayRemove(playerSummary.uid),
-          participantDetails: arrayRemove(playerSummary)
-        });
-      }
-      return true;
-    } catch (error) {
-      console.error("Error removing player:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchUserRosters = async (uid) => {
-    try {
-      const rostersRef = collection(db, "rosters");
-      const q = query(rostersRef, where("playerIDs", "array-contains", uid));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching user rosters:", error);
-      return [];
-    }
-  };
-
-  const createEvent = async (rosterId, eventData) => {
-    try {
-      await addDoc(collection(db, "rosters", rosterId, "events"), {
-        ...eventData,
-        createdAt: new Date()
-      });
-      return true;
-    } catch (error) {
-      console.error("Error creating event:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchEvents = async (rosterId) => {
-    try {
-      const eventsRef = collection(db, "rosters", rosterId, "events");
-      const q = query(eventsRef, orderBy("dateTime", "asc"));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching events:", error);
-      return [];
-    }
-  };
-
-  const deleteEvent = async (rosterId, eventId) => {
-    if (!isManager()) return false;
-    try {
-      await deleteDoc(doc(db, "rosters", rosterId, "events", eventId));
-      return true;
-    } catch (error) {
-      console.error("Error deleting event:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchAllUserEvents = async (uid) => {
-    try {
-      const rosters = await fetchUserRosters(uid);
-      let allEvents = [];
-      for (const roster of rosters) {
-        const eventsRef = collection(db, "rosters", roster.id, "events");
-        const q = query(eventsRef); 
-        const querySnapshot = await getDocs(q);
-        const rosterEvents = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          rosterName: roster.name, 
-          ...doc.data()
-        }));
-        allEvents = [...allEvents, ...rosterEvents];
-      }
-      allEvents.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
-      return allEvents;
-    } catch (error) {
-      console.error("Error fetching all events:", error);
-      return [];
-    }
-  };
-
-  const createGroup = async (groupData) => {
-     try {
-      await addDoc(collection(db, "groups"), {
-        ...groupData,
-        createdBy: loggedInUser.uid,
-        createdAt: serverTimestamp(),
-        members: [loggedInUser.uid], 
-        memberDetails: [{
-          uid: loggedInUser.uid,
-          name: loggedInUser.playerName,
-          email: loggedInUser.email,
-          photoURL: loggedInUser.photoURL || "",
-          role: 'owner' 
-        }]
-      });
-      return true;
-    } catch (error) {
-      console.error("Error creating group:", error);
-      alert("Error: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchUserGroups = async (uid) => {
-    try {
-      const groupsRef = collection(db, "groups");
-      const q = query(groupsRef, where("members", "array-contains", uid));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching groups:", error);
-      return [];
-    }
-  };
-
-  const createGroupPost = async (groupId, text, imageUrl = null) => {
-     try {
-      await addDoc(collection(db, "groups", groupId, "posts"), {
-        text: text,
-        imageUrl: imageUrl,
-        authorId: loggedInUser.uid,
-        authorName: loggedInUser.playerName,
-        authorPhoto: loggedInUser.photoURL || "",
-        createdAt: serverTimestamp(),
-        replies: [] 
-      });
-      return true;
-    } catch (error) {
-      console.error("Error creating post:", error);
-      return false;
-    }
-  };
-
-  const addGroupMembers = async (groupId, emails) => {
-    try {
-      const groupRef = doc(db, "groups", groupId);
-      const groupSnap = await getDoc(groupRef);
-      if (!groupSnap.exists()) return false;
-      
-      const groupData = groupSnap.data();
-      const myMemberDetails = groupData.memberDetails.find(m => m.uid === loggedInUser.uid);
-      
-      if (!isDeveloper() && (!myMemberDetails || (myMemberDetails.role !== 'owner' && myMemberDetails.role !== 'admin'))) {
-        alert("Only Owners and Admins can add members.");
-        return false;
-      }
-
-      const usersRef = collection(db, "users");
-      const newMembers = [];
-      const newMemberIds = [];
-
-      for (const email of emails) {
-        const q = query(usersRef, where("email", "==", email));
-        const snapshot = await getDocs(q);
-        
-        if (!snapshot.empty) {
-          const userDoc = snapshot.docs[0];
-          const userData = userDoc.data();
-          if (!groupData.members.includes(userDoc.id)) {
-             newMemberIds.push(userDoc.id);
-             newMembers.push({
-               uid: userDoc.id,
-               name: userData.playerName || "Unknown",
-               email: userData.email,
-               photoURL: userData.photoURL || "",
-               role: 'member'
-             });
-          }
-        }
-      }
-
-      if (newMemberIds.length === 0) {
-        return true; 
-      }
-
-      await updateDoc(groupRef, {
-        members: arrayUnion(...newMemberIds),
-        memberDetails: arrayUnion(...newMembers)
-      });
-      return true;
-    } catch (error) {
-      console.error("Error adding group members:", error);
-      alert("Error adding members: " + error.message);
-      return false;
-    }
-  };
-
-  const updateGroupMemberRole = async (groupId, memberUid, newRole, currentMemberDetails) => {
-    try {
-      const groupRef = doc(db, "groups", groupId);
-      const updatedMemberDetails = currentMemberDetails.map(member => {
-        if (member.uid === memberUid) {
-          return { ...member, role: newRole };
-        }
-        return member;
-      });
-      await updateDoc(groupRef, { memberDetails: updatedMemberDetails });
-      return true;
-    } catch (error) {
-      console.error("Error updating role:", error);
-      alert("Error updating role: " + error.message);
-      return false;
-    }
-  };
-
-  const transferGroupOwnership = async (groupId, newOwnerUid, currentMemberDetails) => {
-    try {
-      const groupRef = doc(db, "groups", groupId);
-      const updatedMemberDetails = currentMemberDetails.map(member => {
-        if (member.uid === loggedInUser.uid) {
-          return { ...member, role: 'admin' }; 
-        }
-        if (member.uid === newOwnerUid) {
-          return { ...member, role: 'owner' };
-        }
-        return member;
-      });
-      await updateDoc(groupRef, { memberDetails: updatedMemberDetails });
-      return true;
-    } catch (error) {
-      console.error("Error transferring ownership:", error);
-      alert("Error transferring ownership: " + error.message);
-      return false;
-    }
-  };
-
-  const removeGroupMember = async (groupId, memberUid, currentMemberDetails, currentMembers) => {
-    try {
-      const groupRef = doc(db, "groups", groupId);
-      const updatedMemberDetails = currentMemberDetails.filter(m => m.uid !== memberUid);
-      const updatedMembers = currentMembers.filter(uid => uid !== memberUid);
-
-      await updateDoc(groupRef, {
-        memberDetails: updatedMemberDetails,
-        members: updatedMembers
-      });
-      return true;
-    } catch (error) {
-      console.error("Error removing member:", error);
-      alert("Error removing member: " + error.message);
-      return false;
-    }
-  };
-
-  const subscribeToIncomingRequests = (callback) => {
-    if (!isManager() && !isDeveloper()) return () => {};
-    const requestsRef = collection(db, "rosterRequests");
-    const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(requests);
-    });
-  };
-
-  const subscribeToUserRequests = (callback) => {
-    if (!loggedInUser) return () => {};
-    const requestsRef = collection(db, "rosterRequests");
-    const q = query(requestsRef, where("userId", "==", loggedInUser.uid));
-    return onSnapshot(q, (snapshot) => {
-      const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(requests);
-    });
-  };
-
-  const subscribeToDiscoverableRosters = (callback) => {
-    const rostersRef = collection(db, "rosters");
-    const q = query(rostersRef, where("isDiscoverable", "==", true));
-    return onSnapshot(q, (snapshot) => {
-      const rosters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(rosters);
-    });
-  };
-
-  const submitJoinRequest = async (rosterId, rosterName, managerId) => {
-    try {
-       const requestsRef = collection(db, "rosterRequests");
-       const q = query(
-         requestsRef, 
-         where("rosterId", "==", rosterId),
-         where("userId", "==", loggedInUser.uid)
-       );
-       const existing = await getDocs(q);
-       if (!existing.empty) {
-         alert("You have already sent a request for this team.");
-         return false;
-       }
-
-       await addDoc(requestsRef, {
-         rosterId,
-         rosterName,
-         managerId,
-         userId: loggedInUser.uid,
-         userName: loggedInUser.playerName,
-         userEmail: loggedInUser.email,
-         status: 'pending',
-         createdAt: serverTimestamp()
-       });
-       return true;
-    } catch (error) {
-      console.error("Error submitting request:", error);
-      alert("Failed to submit request: " + error.message);
-      return false;
-    }
-  };
-
-  const fetchIncomingRequests = async () => {
-    if (!isManager() && !isDeveloper()) return [];
-    try {
-      const requestsRef = collection(db, "rosterRequests");
-      const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching incoming requests:", error);
-      return [];
-    }
-  };
-
-  const fetchUserRequests = async () => {
-    try {
-      const requestsRef = collection(db, "rosterRequests");
-      const q = query(requestsRef, where("userId", "==", loggedInUser.uid));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching user requests:", error);
-      return [];
-    }
-  };
-  
-  const fetchDiscoverableRosters = async () => {
-    try {
-      const rostersRef = collection(db, "rosters");
-      const q = query(rostersRef, where("isDiscoverable", "==", true));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-      console.error("Error fetching discoverable rosters:", error);
-      return [];
-    }
-  };
-
-  const fetchPlayerDetails = async (uid) => {
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userDocRef);
-        
-        if (!userSnap.exists()) return null;
-
-        const soccerDocRef = doc(db, "users", uid, "sportsDetails", "soccer");
-        const soccerSnap = await getDoc(soccerDocRef);
-
-        return {
-            ...userSnap.data(),
-            soccerDetails: soccerSnap.exists() ? soccerSnap.data() : null
-        };
-    } catch (error) {
-        console.error("Error fetching player details:", error);
-        return null;
-    }
-  };
-
-  const respondToRequest = async (request, action, targetGroupId = null) => {
-      if (!isManager() && !isDeveloper()) return false;
-      
-      try {
-        if (action === 'approve') {
-            const userDocRef = doc(db, "users", request.userId);
-            const userSnap = await getDoc(userDocRef);
-            
-            if (!userSnap.exists()) {
-                alert("User no longer exists.");
-                await deleteDoc(doc(db, "rosterRequests", request.id));
-                return false;
-            }
-            
-            const userData = userSnap.data();
-            const playerSummary = {
-                uid: request.userId,
-                playerName: userData.playerName || "Unknown",
-                email: userData.email,
-                photoURL: userData.photoURL || ""
-            };
-
-            // 1. Add to Roster
-            const rosterRef = doc(db, "rosters", request.rosterId);
-            await updateDoc(rosterRef, {
-                playerIDs: arrayUnion(request.userId),
-                players: arrayUnion(playerSummary)
-            });
-
-            // 2. Add to Chat
-            const chatsRef = collection(db, "chats");
-            const chatQ = query(chatsRef, where("rosterId", "==", request.rosterId));
-            const chatSnapshot = await getDocs(chatQ);
-
-            if (!chatSnapshot.empty) {
-                const chatDoc = chatSnapshot.docs[0];
-                await setDoc(chatDoc.ref, {
-                participants: arrayUnion(request.userId),
-                visibleTo: arrayUnion(request.userId),
-                participantDetails: arrayUnion(playerSummary),
-                unreadCounts: { [request.userId]: 0 } 
-                }, { merge: true });
-            }
-
-            // 3. Add to Targeted Group (if selected)
-            if (targetGroupId) {
-                const groupRef = doc(db, "groups", targetGroupId);
-                const groupSnap = await getDoc(groupRef);
-                
-                if (groupSnap.exists()) {
-                    await updateDoc(groupRef, {
-                        members: arrayUnion(request.userId),
-                        memberDetails: arrayUnion({
-                            uid: request.userId,
-                            name: userData.playerName || "Unknown",
-                            email: userData.email,
-                            photoURL: userData.photoURL || "",
-                            role: 'member'
-                        })
-                    });
-                }
-            }
-        }
-        
-        await deleteDoc(doc(db, "rosterRequests", request.id));
-        return true;
-      } catch (error) {
-          console.error("Error responding to request:", error);
-          alert("Error: " + error.message);
-          return false;
-      }
-  };
-
-  // --- FEEDBACK FUNCTIONS ---
-  const createFeedback = async (data) => {
-    try {
-      await addDoc(collection(db, "feedback"), {
-        ...data,
-        authorId: loggedInUser.uid,
-        authorName: loggedInUser.playerName,
-        status: 'Proposed', 
-        developerNotes: [], 
-        votes: 0,
-        voters: [], 
-        createdAt: serverTimestamp()
-      });
-      return true;
-    } catch (error) {
-      console.error("Error creating feedback:", error);
-      alert("Error submitting feedback: " + error.message);
-      return false;
-    }
-  };
-
-  const subscribeToFeedback = (callback) => {
-    const feedbackRef = collection(db, "feedback");
-    const q = query(feedbackRef, orderBy("votes", "desc"));
-    return onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(items);
-    });
-  };
-
-  const voteForFeedback = async (feedbackId) => {
-    if (!loggedInUser) return;
-    try {
-      const feedbackRef = doc(db, "feedback", feedbackId);
-      const feedbackSnap = await getDoc(feedbackRef);
-      if (feedbackSnap.exists()) {
-        const data = feedbackSnap.data();
-        if (data.status === 'Completed' || data.status === 'Rejected') {
-          alert("Voting is closed for this item.");
-          return false;
-        }
-        if (data.voters && data.voters.includes(loggedInUser.uid)) {
-          await updateDoc(feedbackRef, {
-             votes: increment(-1),
-             voters: arrayRemove(loggedInUser.uid)
-          });
-        } else {
-          await updateDoc(feedbackRef, {
-            votes: increment(1),
-            voters: arrayUnion(loggedInUser.uid)
-          });
-        }
-        return true;
-      }
-    } catch (error) {
-      console.error("Error voting:", error);
-      return false;
-    }
-  };
-
-  const updateFeedback = async (feedbackId, updates) => {
-    if (!isDeveloper()) return false;
-    try {
-      const feedbackRef = doc(db, "feedback", feedbackId);
-      if (updates.status) {
-          updates.statusUpdatedAt = serverTimestamp();
-      }
-      await updateDoc(feedbackRef, updates);
-      return true;
-    } catch (error) {
-      console.error("Error updating feedback:", error);
-      alert("Error updating feedback: " + error.message);
-      return false;
-    }
-  };
-
-  const addDeveloperNote = async (feedbackId, noteText) => {
-      if (!isDeveloper()) return false;
-      try {
-          const feedbackRef = doc(db, "feedback", feedbackId);
-          const noteObject = {
-              text: noteText,
-              createdAt: Date.now(),
-              author: loggedInUser.playerName
-          };
-          await updateDoc(feedbackRef, {
-              developerNotes: arrayUnion(noteObject)
-          });
-          return true;
-      } catch (error) {
-          console.error("Error adding note:", error);
-          alert("Error adding note: " + error.message);
-          return false;
-      }
-  };
-
-  const deleteFeedback = async (feedbackId) => {
-    if (!isDeveloper()) return false;
-    try {
-      await deleteDoc(doc(db, "feedback", feedbackId));
-      return true;
-    } catch (error) {
-      console.error("Error deleting feedback:", error);
-      alert("Error deleting feedback: " + error.message);
-      return false;
-    }
-  };
-
-  // --- VALUE OBJECT ---
   const value = {
     loggedInUser,
-    soccerDetails,
     isLoading,
     needsReauth,
     setNeedsReauth,
@@ -1218,59 +192,7 @@ export const AuthProvider = ({ children }) => {
     signOutUser,
     updateProfile,
     reauthenticate,
-    updateSoccerDetails,
-    isManager,
-    isDeveloper, 
-    // League Exports
-    createLeague,
-    fetchLeagues,
-    // Roster Exports
-    createRoster,
-    updateRoster, 
-    fetchRosters,
-    deleteRoster,
-    addPlayerToRoster,
-    removePlayerFromRoster,
-    fetchUserRosters,
-    createEvent,
-    fetchEvents,
-    deleteEvent,
-    fetchAllUserEvents,
-    uploadImage,
-    // Group Exports
-    createGroup,
-    fetchUserGroups,
-    createGroupPost,
-    addGroupMembers,
-    updateGroupMemberRole,
-    transferGroupOwnership,
-    removeGroupMember,
-    linkGroupToRoster, // NEW
-    unlinkGroupFromRoster, // NEW
-    // Chat Exports
-    createTeamChat, // EXPORTED
-    unlinkChatFromRoster, // NEW
-    // Others
-    fetchDiscoverableRosters, 
-    submitJoinRequest,        
-    fetchIncomingRequests,    
-    fetchUserRequests,        
-    respondToRequest,
-    subscribeToIncomingRequests,
-    subscribeToUserRequests,
-    subscribeToDiscoverableRosters,
-    fetchPlayerDetails,
-    createFeedback,
-    subscribeToFeedback,
-    voteForFeedback,
-    updateFeedback, 
-    deleteFeedback,  
-    addDeveloperNote 
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

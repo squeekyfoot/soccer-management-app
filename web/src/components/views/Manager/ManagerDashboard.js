@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../../common/Header';
 import { useAuth } from '../../../context/AuthContext';
+import { useRosterManager } from '../../../hooks/useRosterManager'; // NEW HOOK
+
 import RosterList from './components/RosterList';
 import IncomingRequests from './components/IncomingRequests';
 import RosterDetail from './components/RosterDetail';
@@ -9,44 +11,48 @@ import CreateLeagueModal from './components/CreateLeagueModal';
 import Button from '../../common/Button';
 
 const ManagerDashboard = () => {
+  const { loggedInUser } = useAuth(); 
+  
+  // Use the new hook for high-level manager actions
+  // Note: Ensure deleteRoster and fetchIncomingRequests are exported from useRosterManager
+  // or imported from their respective hooks if you split them further.
   const { 
     createRoster, 
     fetchRosters, 
     deleteRoster, 
-    addPlayerToRoster, 
-    removePlayerFromRoster, 
-    fetchIncomingRequests, 
-    addGroupMembers, 
-    fetchUserGroups,
-    loggedInUser
-  } = useAuth();
+    fetchIncomingRequests 
+  } = useRosterManager();
 
   const [activeView, setActiveView] = useState('list'); 
   const [rosters, setRosters] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [myGroups, setMyGroups] = useState([]);
   const [selectedRoster, setSelectedRoster] = useState(null);
   const [showLeagueModal, setShowLeagueModal] = useState(false);
 
+  // Load List Data Only
   const loadData = useCallback(async () => {
     const r = await fetchRosters();
-    const req = await fetchIncomingRequests();
     setRosters(r);
-    setRequests(req);
-
-    if (loggedInUser?.uid) {
-        const g = await fetchUserGroups(loggedInUser.uid);
-        setMyGroups(g);
+    
+    // If you haven't moved this to a hook yet, check where it lives.
+    // Assuming it's available via the manager hook now.
+    if (fetchIncomingRequests) {
+        const req = await fetchIncomingRequests();
+        setRequests(req);
     }
-  }, [fetchRosters, fetchIncomingRequests, fetchUserGroups, loggedInUser]);
+  }, [fetchRosters, fetchIncomingRequests]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const handleCreateRoster = async (data, groupData, addManager) => {
-    const success = await createRoster(data, groupData, addManager);
-    if (success) {
+  const handleCreateRoster = async (name, season, capacity, isDiscoverable, groupData, addManager) => {
+    // The hook now handles the complex logic (creating chat, etc.)
+    const rosterId = await createRoster({
+        name, season, maxCapacity: capacity, isDiscoverable
+    }, addManager);
+
+    if (rosterId) {
       loadData();
       setActiveView('list');
     }
@@ -57,29 +63,11 @@ const ManagerDashboard = () => {
     setActiveView('detail');
   };
 
-  const handleAddPlayer = async (rosterId, emails, targetGroupId) => {
-      let allSuccess = true;
-      for (const email of emails) {
-          const success = await addPlayerToRoster(rosterId, email);
-          if (!success) allSuccess = false;
+  const handleDeleteRoster = async (id) => {
+      if (window.confirm("Are you sure? This will disband the team.")) {
+          await deleteRoster(id);
+          loadData();
       }
-      
-      if (targetGroupId && emails.length > 0) {
-          await addGroupMembers(targetGroupId, emails);
-      }
-
-      if (allSuccess) alert("Players added!");
-      loadData();
-      
-      const freshRosters = await fetchRosters();
-      setRosters(freshRosters);
-      const freshSelected = freshRosters.find(r => r.id === rosterId);
-      if (freshSelected) setSelectedRoster(freshSelected);
-  };
-
-  const handleAddToGroup = async (groupId, emails) => {
-      await addGroupMembers(groupId, emails);
-      alert("Added to group.");
   };
 
   return (
@@ -89,23 +77,26 @@ const ManagerDashboard = () => {
       <div className="view-content">
         <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
           
+          {/* Action Bar */}
           <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
               <Button onClick={() => setActiveView('create')}>+ New Roster</Button>
               <Button variant="secondary" onClick={() => setShowLeagueModal(true)}>+ New League</Button>
           </div>
 
+          {/* VIEW: LIST */}
           {activeView === 'list' && (
             <>
               <IncomingRequests requests={requests} onRefresh={loadData} />
               <div style={{ height: '30px' }} />
               <RosterList 
                 rosters={rosters} 
-                onDelete={async (id) => { await deleteRoster(id); loadData(); }} 
+                onDelete={handleDeleteRoster} 
                 onSelect={handleRosterClick}
               />
             </>
           )}
 
+          {/* VIEW: CREATE */}
           {activeView === 'create' && (
             <CreateRosterForm 
                 onSubmit={handleCreateRoster} 
@@ -113,22 +104,16 @@ const ManagerDashboard = () => {
             />
           )}
 
+          {/* VIEW: DETAIL */}
           {activeView === 'detail' && selectedRoster && (
             <RosterDetail 
-                roster={selectedRoster} 
-                onBack={() => { setSelectedRoster(null); setActiveView('list'); loadData(); }}
-                onRefresh={loadData} // PASSING LOAD DATA DOWN
-                onRemovePlayer={async (rid, p) => { 
-                    await removePlayerFromRoster(rid, p); 
-                    loadData(); 
-                    setSelectedRoster(prev => ({
-                        ...prev, 
-                        players: prev.players ? prev.players.filter(pl => pl.uid !== p.uid) : []
-                    })); 
+                // THE FIX: We only pass the ID. The component fetches its own live data.
+                rosterId={selectedRoster.id} 
+                onBack={() => { 
+                    setSelectedRoster(null); 
+                    setActiveView('list'); 
+                    loadData(); // Refresh list to see any changes (like player counts)
                 }}
-                onAddPlayer={handleAddPlayer}
-                myGroups={myGroups}
-                onAddToGroup={handleAddToGroup}
             />
           )}
 

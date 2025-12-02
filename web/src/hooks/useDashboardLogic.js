@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useRosterManager } from './useRosterManager'; // NEW IMPORT
 import { 
     calculateProfileTodos, 
     filterUpcomingEvents, 
@@ -9,13 +10,15 @@ import {
 } from '../utils/dashboardLogic';
 
 export const useDashboardLogic = () => {
+  const { loggedInUser } = useAuth();
+  
+  // Use the new manager hook for subscriptions and event data
   const { 
-    loggedInUser, 
-    subscribeToIncomingRequests, 
-    subscribeToUserRequests, 
-    fetchAllUserEvents,
-    subscribeToDiscoverableRosters 
-  } = useAuth();
+      subscribeToIncomingRequests, 
+      subscribeToUserRequests, 
+      subscribeToDiscoverableRosters,
+      fetchAllUserEvents 
+  } = useRosterManager();
 
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
@@ -32,6 +35,7 @@ export const useDashboardLogic = () => {
 
     setLoading(true);
 
+    // Subscriptions now come from useRosterManager
     const unsubIncoming = subscribeToIncomingRequests(setIncomingRequests);
     const unsubMyRequests = subscribeToUserRequests(setMyRequests);
     const unsubOpportunities = subscribeToDiscoverableRosters(setOpportunities);

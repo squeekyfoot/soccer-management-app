@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+
+// Contexts & Hooks
 import { useAuth } from '../../../context/AuthContext';
 import { useChat } from '../../../context/ChatContext'; 
-import { collection, onSnapshot } from "firebase/firestore"; 
-import { db } from "../../../lib/firebase";
+import { useUserDirectory } from '../../../hooks/useUserDirectory'; // NEW
+import { useStorage } from '../../../hooks/useStorage'; // NEW
+
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { SquarePen } from 'lucide-react';
 
@@ -13,19 +16,22 @@ import Button from '../../common/Button';
 
 // Sub-components
 import ChatList from './components/ChatList';
-import Conversation from './Conversation'; // Ensure you have this from the previous step
+import Conversation from './Conversation'; 
 import MessageInput from './components/MessageInput'; 
 
 function Messaging() {
   const { chatId } = useParams(); // URL Driver
   const navigate = useNavigate();
-  const { loggedInUser, uploadImage } = useAuth();
+  
+  // Use new hooks
+  const { loggedInUser } = useAuth();
+  const { upload } = useStorage(); // Replaces uploadImage from AuthContext
+  const { userProfiles } = useUserDirectory(); // Replaces manual useEffect fetch
   const { myChats, createChat, sendMessage, hideChat, leaveChat } = useChat(); 
   
   // -- UI STATE --
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
-  const [userProfiles, setUserProfiles] = useState({});
 
   // -- DRAFT STATE (Only for New Chat Screen) --
   const [selectedEmails, setSelectedEmails] = useState([]); 
@@ -40,18 +46,7 @@ function Messaging() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 2. Load Profiles (Shared Resource)
-  useEffect(() => {
-    const usersRef = collection(db, "users");
-    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
-      const profiles = {};
-      snapshot.docs.forEach(doc => profiles[doc.id] = doc.data());
-      setUserProfiles(profiles);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 3. Routing Sync
+  // 2. Routing Sync
   useEffect(() => {
     if (chatId) {
         setIsCreatingChat(false); // URL overrides manual creation mode
@@ -97,7 +92,10 @@ function Messaging() {
          const fileToUpload = selectedFile;
          
          let imageUrl = null;
-         if (fileToUpload) imageUrl = await uploadImage(fileToUpload, `chat_images/${chatResult.id}`);
+         // Use the new hook's upload function
+         if (fileToUpload) {
+             imageUrl = await upload(fileToUpload, `chat_images/${chatResult.id}/${Date.now()}_${fileToUpload.name}`);
+         }
          
          if (text || imageUrl) {
             await sendMessage(chatResult.id, text, chatResult.participants, imageUrl);
