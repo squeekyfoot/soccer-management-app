@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // Added routing hooks
+import { useParams, useNavigate } from 'react-router-dom'; 
 import { useAuth } from '../../../context/AuthContext';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; 
 import { db } from "../../../lib/firebase";
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
-import { Users, Search, UserPlus, Globe, Plus, X } from 'lucide-react';
+import { Users, Search, UserPlus, Globe, Plus, X, ArrowRight } from 'lucide-react';
 
 import UserSearch from '../../shared/UserSearch';
 import Header from '../../common/Header'; 
@@ -13,8 +13,11 @@ import Input from '../../common/Input';
 import Card from '../../common/Card';
 import Avatar from '../../common/Avatar';
 
+// New Component
+import PublicRosterDetail from './components/PublicRosterDetail';
+
 function Community() {
-  const { groupId } = useParams(); // Capture ID from URL
+  const { groupId } = useParams(); 
   const navigate = useNavigate();
   const { 
     fetchUserGroups, createGroup, createGroupPost, 
@@ -27,6 +30,10 @@ function Community() {
   const [currentView, setCurrentView] = useState('hub');
   const [myGroups, setMyGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  
+  // NEW: Selected Roster for Public Details
+  const [selectedRoster, setSelectedRoster] = useState(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
@@ -60,20 +67,15 @@ function Community() {
 
   useEffect(() => { if (loggedInUser) loadGroups(); }, [loggedInUser, loadGroups]);
 
-  // --- DEEP LINK LOGIC ---
   useEffect(() => {
     const fetchLinkedGroup = async () => {
         if (!groupId) return;
-        
-        // 1. Check if already in myGroups
         const existing = myGroups.find(g => g.id === groupId);
         if (existing) {
             setSelectedGroup(existing);
             setCurrentView('detail');
             return;
         }
-
-        // 2. Fetch individually if not in list (e.g. direct link)
         try {
             const docRef = doc(db, "groups", groupId);
             const snap = await getDoc(docRef);
@@ -85,10 +87,7 @@ function Community() {
             console.error("Error fetching linked group", error);
         }
     };
-
-    if (groupId) {
-        fetchLinkedGroup();
-    }
+    if (groupId) { fetchLinkedGroup(); }
   }, [groupId, myGroups]);
 
   useEffect(() => {
@@ -105,7 +104,12 @@ function Community() {
   useEffect(() => {
       if (currentView === 'findTeams') {
           setIsLoading(true);
-          const unsubRosters = subscribeToDiscoverableRosters((data) => { setDiscoverableTeams(data); setIsLoading(false); });
+          const unsubRosters = subscribeToDiscoverableRosters((data) => { 
+              // Filter client-side for "Looking for Players"
+              const recruiting = data.filter(t => t.lookingForPlayers);
+              setDiscoverableTeams(recruiting); 
+              setIsLoading(false); 
+          });
           const unsubRequests = subscribeToUserRequests((data) => { setMyRequests(data); });
           return () => { unsubRosters(); unsubRequests(); };
       }
@@ -138,9 +142,18 @@ function Community() {
     if (success) { alert("Members added!"); setShowAddMember(false); setSelectedMemberEmails([]); refreshSelectedGroup(); }
   };
 
-  const handleJoinRequest = async (team) => { await submitJoinRequest(team.id, team.name, team.createdBy); };
-  const getRequestStatus = (teamId) => { const req = myRequests.find(r => r.rosterId === teamId); return req ? req.status : null; };
+  // --- JOIN LOGIC ---
+  const handleJoinRequest = async (team) => { 
+      await submitJoinRequest(team.id, team.name, team.createdBy); 
+      // Assuming subscribeToUserRequests updates 'myRequests' automatically
+  };
+  
+  const getRequestStatus = (teamId) => { 
+      const req = myRequests.find(r => r.rosterId === teamId); 
+      return req ? req.status : null; 
+  };
 
+  // --- GROUP ADMIN ACTIONS ---
   const handlePromote = async (uid) => { const success = await updateGroupMemberRole(selectedGroup.id, uid, 'admin', selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }};
   const handleDemote = async (uid) => { const success = await updateGroupMemberRole(selectedGroup.id, uid, 'member', selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }};
   const handleTransfer = async (uid) => { if (window.confirm("Transfer ownership?")) { const success = await transferGroupOwnership(selectedGroup.id, uid, selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }}};
@@ -154,7 +167,7 @@ function Community() {
 
   const handleBack = () => {
       setSelectedGroup(null); 
-      navigate('/community'); // Clear URL params
+      navigate('/community'); 
       setCurrentView('myGroups');
   };
 
@@ -175,6 +188,8 @@ function Community() {
       </div>
     </Card>
   );
+
+  // --- VIEWS ---
 
   if (currentView === 'hub') {
     return (
@@ -234,26 +249,66 @@ function Community() {
     );
   }
 
+  // --- FIND TEAMS VIEW ---
   if (currentView === 'findTeams') {
+      // 1. DETAIL SUB-VIEW
+      if (selectedRoster) {
+          const status = getRequestStatus(selectedRoster.id);
+          return (
+              <div className="view-container">
+                  <Header title="Team Details" style={{ maxWidth: '1000px', margin: '0 auto' }} />
+                  <div className="view-content">
+                      <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
+                          <PublicRosterDetail 
+                              roster={selectedRoster} 
+                              onBack={() => setSelectedRoster(null)}
+                              onJoin={handleJoinRequest}
+                              joinStatus={status}
+                          />
+                      </div>
+                  </div>
+              </div>
+          );
+      }
+
+      // 2. LIST SUB-VIEW
       return (
         <div className="view-container">
-            <Header title="Find Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} onBack={() => setCurrentView('hub')} />
+            <Header 
+                title="Find Teams" 
+                style={{ maxWidth: '1000px', margin: '0 auto' }} 
+                onBack={() => setCurrentView('hub')}
+            />
             <div className="view-content">
               <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams found.</p> : (
+                {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams are currently recruiting.</p> : (
                     <div style={{ display: 'grid', gap: '15px' }}>
                         {discoverableTeams.map(team => {
                             const status = getRequestStatus(team.id);
                             const alreadyJoined = team.playerIDs?.includes(loggedInUser.uid);
                             return (
-                                <Card key={team.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Card 
+                                    key={team.id} 
+                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                    hoverable
+                                    onClick={() => setSelectedRoster(team)} 
+                                >
                                     <div>
                                         <h3 style={{ margin: '0 0 5px 0', color: 'white' }}>{team.name}</h3>
-                                        <p style={{ margin: 0, color: '#aaa', fontSize: '14px' }}>{team.season} • {team.players?.length || 0}/{team.maxCapacity} Players</p>
+                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                            <span style={{ color: '#aaa', fontSize: '14px' }}>{team.season}</span>
+                                            {team.lookingForPlayers && (
+                                                <span style={{ backgroundColor: COLORS.success, color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                                                    RECRUITING
+                                                </span>
+                                            )}
+                                            {alreadyJoined && <span style={{ color: COLORS.success, fontSize: '12px', fontWeight: 'bold' }}>Joined</span>}
+                                            {status === 'pending' && <span style={{ color: '#ffc107', fontSize: '12px', fontWeight: 'bold' }}>Pending</span>}
+                                        </div>
                                     </div>
-                                    <div>
-                                        {alreadyJoined ? <span style={{ color: COLORS.success, fontSize: '14px', fontWeight: 'bold' }}>Joined</span> : status === 'pending' ? <span style={{ color: '#ffc107', fontSize: '14px', fontWeight: 'bold' }}>Pending</span> : <Button onClick={() => handleJoinRequest(team)}>Request to Join</Button>}
-                                    </div>
+                                    <Button variant="secondary" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        Details <ArrowRight size={14} />
+                                    </Button>
                                 </Card>
                             );
                         })}

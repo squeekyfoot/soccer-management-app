@@ -356,6 +356,7 @@ export const AuthProvider = ({ children }) => {
       // Allow rosterData to pass all fields including new ones
       const rosterRef = await addDoc(collection(db, "rosters"), {
         ...rosterData, 
+        managerName: loggedInUser.playerName, // SAVE MANAGER NAME AUTOMATICALLY
         maxCapacity: Number(rosterData.maxCapacity),
         targetPlayerCount: Number(rosterData.targetPlayerCount || rosterData.maxCapacity),
         createdBy: loggedInUser.uid,
@@ -365,8 +366,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       // Create associated chat
-      const initialText = "Team chat created";
-      const chatRef = await addDoc(collection(db, "chats"), {
+      await addDoc(collection(db, "chats"), {
         type: 'roster', 
         rosterId: rosterRef.id,
         name: `${rosterData.name} (${rosterData.season || 'Season'})`,
@@ -380,14 +380,8 @@ export const AuthProvider = ({ children }) => {
         }],
         unreadCounts: { [loggedInUser.uid]: 0 }, 
         createdAt: serverTimestamp(),
-        lastMessage: initialText,
+        lastMessage: "Team chat created",
         lastMessageTime: serverTimestamp()
-      });
-
-      await addDoc(collection(db, "chats", chatRef.id, "messages"), {
-          text: initialText,
-          type: 'system',
-          createdAt: serverTimestamp()
       });
 
       if (groupCreationData && groupCreationData.createGroup) {
@@ -442,7 +436,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ** UPDATED: Team Chat Creation (Standalone) **
   const createTeamChat = async (rosterId, rosterName, season, rosterPlayers = [], customMessage = null) => {
     if (!isManager()) return false;
     try {
@@ -499,7 +492,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ** FIX: Unlink Chat (Atomic Update Logic) **
   const unlinkChatFromRoster = async (chatId) => {
       if (!isManager()) return false;
       try {
@@ -530,7 +522,6 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
-  // ** Link Group **
   const linkGroupToRoster = async (groupId, rosterId) => {
       if (!isManager()) return false;
       try {
@@ -543,7 +534,6 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
-  // ** Unlink Group **
   const unlinkGroupFromRoster = async (groupId) => {
       if (!isManager()) return false;
       try {
@@ -738,7 +728,6 @@ export const AuthProvider = ({ children }) => {
         const eventsRef = collection(db, "rosters", roster.id, "events");
         const q = query(eventsRef); 
         const querySnapshot = await getDocs(q);
-        
         const rosterEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
           rosterName: roster.name, 
@@ -1248,6 +1237,7 @@ export const AuthProvider = ({ children }) => {
     deleteEvent,
     fetchAllUserEvents,
     uploadImage,
+    // Group Exports
     createGroup,
     fetchUserGroups,
     createGroupPost,
@@ -1257,8 +1247,10 @@ export const AuthProvider = ({ children }) => {
     removeGroupMember,
     linkGroupToRoster, // NEW
     unlinkGroupFromRoster, // NEW
-    createTeamChat, // NEW
+    // Chat Exports
+    createTeamChat, // EXPORTED
     unlinkChatFromRoster, // NEW
+    // Others
     fetchDiscoverableRosters, 
     submitJoinRequest,        
     fetchIncomingRequests,    

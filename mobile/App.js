@@ -1,12 +1,14 @@
 import React from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react-native';
+
+// --- CONTEXTS ---
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ChatProvider } from './src/context/ChatContext';
 import { COLORS } from './src/lib/constants';
-import { House, Users, MessageSquare, User, Settings, Dribbble, Lightbulb } from 'lucide-react-native';
-import { View, ActivityIndicator } from 'react-native';
 
 // --- SCREENS ---
 import AuthPage from './src/components/auth/AuthPage';
@@ -18,17 +20,19 @@ import Conversation from './src/components/views/Messaging/Conversation';
 import MyProfile from './src/components/views/Profile/MyProfile';
 import Feedback from './src/components/views/Feedback/Feedback';
 
+// Detail Screens
+import GroupDetail from './src/components/views/Community/GroupDetail';
+import RosterDetailReadOnly from './src/components/views/MyTeams/RosterDetail';
+
 // Manager Screens
 import ManagerDashboard from './src/components/views/Manager/ManagerDashboard';
 import RosterDetail from './src/components/views/Manager/components/RosterDetail';
 import CreateRoster from './src/components/views/Manager/CreateRoster';
-// Note: CreateLeagueModal is used internally by ManagerDashboard, so it doesn't need a route if implemented as a component modal. 
-// If implemented as a screen modal, register it here.
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- TAB NAVIGATOR (The "Layout") ---
+// --- TAB NAVIGATOR (Main Layout) ---
 function MainTabs() {
   const { isManager } = useAuth();
 
@@ -72,7 +76,7 @@ function MainTabs() {
         options={{ tabBarIcon: ({ color }) => <User color={color} size={24} /> }} 
       />
       
-      {/* Conditionally Render Manager Tab if User is Manager */}
+      {/* Manager Tab (Conditional) */}
       {isManager() && (
         <Tab.Screen 
           name="Manager" 
@@ -84,7 +88,7 @@ function MainTabs() {
   );
 }
 
-// --- ROOT NAVIGATOR ---
+// --- ROOT STACK NAVIGATOR ---
 function RootNavigator() {
   const { loggedInUser, isLoading } = useAuth();
 
@@ -102,26 +106,29 @@ function RootNavigator() {
         // Auth Stack
         <Stack.Screen name="Auth" component={AuthPage} />
       ) : (
-        // App Stack
+        // Main App Stack
         <>
+          {/* Main Tabs */}
           <Stack.Screen name="Main" component={MainTabs} />
           
-          {/* Drill-down Screens (cover the tabs) */}
+          {/* Global Screens (Drill-downs) */}
           <Stack.Screen name="Conversation" component={Conversation} />
           <Stack.Screen name="Feedback" component={Feedback} />
+          <Stack.Screen name="GroupDetail" component={GroupDetail} />
           
-          {/* Manager Specific Routes */}
+          {/* My Teams Detail (Read Only) */}
+          <Stack.Screen name="RosterDetailReadOnly" component={RosterDetailReadOnly} />
+
+          {/* Manager Specific Screens */}
           <Stack.Screen name="RosterDetail" component={RosterDetail} />
           <Stack.Screen name="CreateRoster" component={CreateRoster} />
-          
-          {/* Add other detail screens here (e.g. GroupDetail, etc.) */}
         </>
       )}
     </Stack.Navigator>
   );
 }
 
-// --- APP ENTRY ---
+// --- APP ENTRY POINT ---
 export default function App() {
   return (
     <AuthProvider>

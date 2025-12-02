@@ -54,7 +54,9 @@ function App() {
             <Route path="community" element={<Community />} />
             <Route path="community/:groupId" element={<Community />} />
 
+            {/* My Teams Routes */}
             <Route path="myteams" element={<MyTeams />} />
+            <Route path="myteams/:rosterId" element={<MyTeams />} />
             
             {/* Messaging Routes */}
             <Route path="messages" element={<Messaging />} />

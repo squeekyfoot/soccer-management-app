@@ -17,6 +17,7 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
   const { myChats } = useChat(); 
   const { startDirectChat } = useDirectMessage();
 
+  // --- STATE ---
   const [leagues, setLeagues] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   
@@ -28,7 +29,8 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
       isDiscoverable: roster.isDiscoverable || false,
       leagueId: roster.leagueId || '',
       lookingForPlayers: roster.lookingForPlayers || false,
-      pastSeasonsCount: roster.pastSeasonsCount || 0
+      pastSeasonsCount: roster.pastSeasonsCount || 0,
+      managerName: roster.managerName || ''
   });
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,9 +43,15 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
   const [playerForGroup, setPlayerForGroup] = useState(null);
   const [searchKey, setSearchKey] = useState(0); 
 
+  // --- DERIVED DATA ---
+  
+  // 1. Find Linked Chat
   const linkedChat = myChats.find(c => c.rosterId === roster.id);
+
+  // 2. Find Linked Group
   const linkedGroup = myGroups.find(g => g.associatedRosterId === roster.id);
 
+  // 3. Current League
   useEffect(() => {
       const load = async () => {
           const ls = await fetchLeagues();
@@ -53,6 +61,8 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
   }, [fetchLeagues]);
 
   const currentLeague = leagues.find(l => l.id === (isEditing ? editForm.leagueId : roster.leagueId));
+
+  // --- HANDLERS ---
 
   const handleEditChange = (field, value) => {
       setEditForm(prev => ({ ...prev, [field]: value }));
@@ -131,7 +141,6 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
 
   const handleUnlinkChat = async () => {
       if (!linkedChat) return;
-      // COMBINED WORKFLOW: Archive Old -> Create New -> Notify
       if (window.confirm("This will unlink the current chat (converting it to a normal group) and CREATE A NEW one for the team. Continue?")) {
           // 1. Unlink Old
           await unlinkChatFromRoster(linkedChat.id);
@@ -174,6 +183,7 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
           
           <div style={{ background: '#1e1e1e', padding: '24px', borderRadius: '12px', marginBottom: '30px' }}>
               {!isEditing ? (
+                  // --- VIEW MODE ---
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                         <div>
@@ -195,8 +205,8 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
                             <div style={{ fontSize: '11px', color: '#666' }}>Target: {roster.targetPlayerCount || roster.maxCapacity}</div>
                         </div>
                         <div>
-                            <div style={styles.statLabel}>Visibility</div>
-                            <div style={styles.statValue}>{roster.isDiscoverable ? 'Public' : 'Private'}</div>
+                            <div style={styles.statLabel}>Manager</div>
+                            <div style={styles.statValue}>{roster.managerName || "Unknown"}</div>
                         </div>
                         {currentLeague ? (
                             <>
@@ -215,12 +225,14 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
                         )}
                     </div>
 
+                    {/* --- ROSTER CONNECTIONS SECTION --- */}
                     <div style={{ marginBottom: '20px', background: '#252525', padding: '15px', borderRadius: '8px', borderLeft: `4px solid ${COLORS.primary}` }}>
                         <h4 style={{ margin: '0 0 15px 0', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Link size={16} /> Roster Connections
                         </h4>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            {/* 1. Community Group */}
                             <div>
                                 <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px' }}>COMMUNITY GROUP</div>
                                 {linkedGroup ? (
@@ -249,6 +261,7 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
                                 )}
                             </div>
 
+                            {/* 2. Team Chat */}
                             <div>
                                 <div style={{ fontSize: '12px', color: '#888', marginBottom: '5px' }}>ROSTER CHAT</div>
                                 {linkedChat ? (
@@ -277,20 +290,33 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
                         </div>
                     </div>
 
+                    {/* League Details Expansion */}
                     {currentLeague && (
                         <div style={{ borderTop: '1px solid #333', paddingTop: '15px' }}>
                             <h4 style={{ margin: '0 0 10px 0', color: '#aaa', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Trophy size={16} /> League Details
                             </h4>
                             <p style={{ color: '#ddd', fontSize: '14px', margin: 0 }}>{currentLeague.description}</p>
-                            <div style={{ display: 'flex', gap: '20px', marginTop: '10px', fontSize: '13px', color: '#888' }}>
-                                <span style={{ display: 'flex', gap: '5px', alignItems: 'center' }}><Calendar size={14}/> {currentLeague.seasonStart} - {currentLeague.seasonEnd}</span>
-                                <span style={{ display: 'flex', gap: '5px', alignItems: 'center' }}><Clock size={14}/> {currentLeague.earliestGameTime} - {currentLeague.latestGameTime}</span>
+                            
+                            <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                <div>
+                                    <div style={styles.subLabel}>Season Duration</div>
+                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center', color: '#eee', fontSize: '13px' }}>
+                                        <Calendar size={14}/> {currentLeague.seasonStart} - {currentLeague.seasonEnd}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style={styles.subLabel}>Game Time Window</div>
+                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center', color: '#eee', fontSize: '13px' }}>
+                                        <Clock size={14}/> {currentLeague.earliestGameTime} - {currentLeague.latestGameTime}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
                   </div>
               ) : (
+                  // --- EDIT MODE ---
                   <div style={{ display: 'grid', gap: '15px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
                           <div>
@@ -301,6 +327,12 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
                               <label style={styles.label}>Season Label</label>
                               <input type="text" value={editForm.season} onChange={(e) => handleEditChange('season', e.target.value)} style={styles.input} />
                           </div>
+                      </div>
+
+                      {/* Manager Name & League */}
+                      <div>
+                          <label style={styles.label}>Manager Display Name</label>
+                          <input type="text" value={editForm.managerName} onChange={(e) => handleEditChange('managerName', e.target.value)} style={styles.input} placeholder="e.g. Coach Ted" />
                       </div>
 
                       <div>
@@ -346,6 +378,7 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
               )}
           </div>
 
+          {/* --- ROSTER LIST --- */}
           <div>
               <h3 style={{ borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px', marginBottom: '15px' }}>Active Roster</h3>
               {(!roster.players || roster.players.length === 0) ? (
@@ -374,8 +407,20 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
                       </div>
                       
                       <div style={{ display: 'flex', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                          <Button variant="secondary" onClick={() => { setPlayerForGroup(player); setShowGroupModal(true); }} style={{ padding: '6px 10px', fontSize: '12px' }}>+ Group</Button>
-                          <Button variant="danger" onClick={() => { if (window.confirm(`Remove ${player.playerName}?`)) onRemovePlayer(roster.id, player); }} style={{ padding: '6px', fontSize: '12px', minWidth: '32px' }}><X size={14} /></Button>
+                          <Button 
+                            variant="secondary" 
+                            onClick={() => { setPlayerForGroup(player); setShowGroupModal(true); }} 
+                            style={{ padding: '6px 10px', fontSize: '12px' }}
+                          >
+                            + Group
+                          </Button>
+                          <Button 
+                            variant="danger" 
+                            onClick={() => { if (window.confirm(`Remove ${player.playerName}?`)) onRemovePlayer(roster.id, player); }} 
+                            style={{ padding: '6px', fontSize: '12px', minWidth: '32px' }}
+                          >
+                            <X size={14} />
+                          </Button>
                       </div>
                     </Card>
                   ))}
@@ -383,6 +428,7 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
               )}
           </div>
 
+          {/* --- MODALS --- */}
           {selectedPlayer && (
               <Modal title="Player Details" onClose={() => setSelectedPlayer(null)} actions={
                     <Button onClick={() => { startDirectChat(selectedPlayer.email); setSelectedPlayer(null); }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -458,6 +504,7 @@ const RosterDetail = ({ roster, onBack, onRefresh, onRemovePlayer, onAddPlayer, 
 
 const styles = {
     label: { display: 'block', color: '#888', marginBottom: '5px', fontSize: '12px' },
+    subLabel: { fontSize: '11px', textTransform: 'uppercase', color: '#888', marginBottom: '6px' },
     input: { width: '100%', padding: '10px', background: '#333', border: '1px solid #555', borderRadius: '6px', color: 'white', boxSizing: 'border-box' },
     badge: { backgroundColor: '#333', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', border: '1px solid #555' },
     statLabel: { fontSize: '11px', textTransform: 'uppercase', color: '#888', marginBottom: '4px' },
