@@ -1,107 +1,104 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
-import { useAuth } from '../../../context/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import Header from '../../common/Header';
-import { COLORS } from '../../../lib/constants';
-import { Plus } from 'lucide-react-native';
-
-// Imported Sub-Components
-import IncomingRequests from './components/IncomingRequests';
+import { useAuth } from '../../../context/AuthContext';
 import RosterList from './components/RosterList';
+import IncomingRequests from './components/IncomingRequests';
+import CreateLeagueModal from './components/CreateLeagueModal';
+import { Plus } from 'lucide-react-native';
+import { COLORS } from '../../../lib/constants';
 
-export default function ManagerDashboard({ navigation }) {
+const ManagerDashboard = ({ navigation }) => {
   const { 
     fetchRosters, 
-    deleteRoster, 
-    subscribeToIncomingRequests, 
-    respondToRequest,
-    loggedInUser 
+    fetchIncomingRequests, 
+    deleteRoster,
+    loggedInUser,
+    fetchUserGroups 
   } = useAuth();
 
   const [rosters, setRosters] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const [myGroups, setMyGroups] = useState([]);
+  const [showLeagueModal, setShowLeagueModal] = useState(false);
 
-  // 1. Subscribe to Requests
-  useEffect(() => {
-    const unsub = subscribeToIncomingRequests(setRequests);
-    return () => unsub && unsub();
-  }, [subscribeToIncomingRequests]);
-
-  // 2. Load Rosters
-  const loadRosters = async () => {
-    setRefreshing(true);
-    const data = await fetchRosters();
-    const myRosters = data.filter(r => r.createdBy === loggedInUser?.uid);
-    setRosters(myRosters);
-    setRefreshing(false);
-  };
-
-  useEffect(() => {
-    loadRosters();
-    const unsubscribe = navigation.addListener('focus', loadRosters);
-    return unsubscribe;
-  }, [navigation, loggedInUser]);
-
-  // --- Handlers ---
-
-  const handleDeleteRoster = (rosterId) => {
-    Alert.alert("Delete Team", "Are you sure? This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
-          await deleteRoster(rosterId);
-          loadRosters();
-      }}
-    ]);
-  };
-
-  const handleRequest = async (req, action) => {
-    if (action === 'deny') {
-        Alert.alert("Deny Request", "Are you sure?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Deny", style: "destructive", onPress: async () => {
-                await respondToRequest(req, 'deny');
-            }}
-        ]);
-    } else {
-        const success = await respondToRequest(req, 'approve');
-        if (success) Alert.alert("Success", "Player added to roster.");
+  const loadData = useCallback(async () => {
+    const r = await fetchRosters();
+    const req = await fetchIncomingRequests();
+    setRosters(r);
+    setRequests(req);
+    
+    if (loggedInUser?.uid) {
+        const g = await fetchUserGroups(loggedInUser.uid);
+        setMyGroups(g);
     }
-  };
+  }, [fetchRosters, fetchIncomingRequests, fetchUserGroups, loggedInUser]);
+
+  useEffect(() => {
+    // Reload on focus to catch updates from detail screens
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+    return unsubscribe;
+  }, [navigation, loadData]);
 
   return (
     <View style={styles.container}>
-      <Header 
-        title="Manager Dashboard" 
-        actions={
-          <TouchableOpacity onPress={() => navigation.navigate("CreateRoster")} style={{ padding: 5 }}>
-            <Plus color={COLORS.primary} size={24} />
-          </TouchableOpacity>
-        }
-      />
+      <Header title="Manager Dashboard" />
+      
+      <ScrollView contentContainerStyle={styles.content}>
+        
+        {/* Action Bar */}
+        <View style={styles.actionBar}>
+            <TouchableOpacity 
+                style={styles.actionButton} 
+                onPress={() => navigation.navigate('CreateRoster')}
+            >
+                <Plus size={18} color="white" />
+                <Text style={styles.actionText}>New Roster</Text>
+            </TouchableOpacity>
 
-      <ScrollView 
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadRosters} tintColor={COLORS.primary} />}
-      >
-        <IncomingRequests 
-            requests={requests} 
-            onApprove={(item) => handleRequest(item, 'approve')} 
-            onDeny={(item) => handleRequest(item, 'deny')} 
-        />
+            <TouchableOpacity 
+                style={[styles.actionButton, styles.secondaryButton]} 
+                onPress={() => setShowLeagueModal(true)}
+            >
+                <Plus size={18} color="white" />
+                <Text style={styles.actionText}>New League</Text>
+            </TouchableOpacity>
+        </View>
 
+        {/* Requests */}
+        <IncomingRequests requests={requests} onRefresh={loadData} />
+        
+        <View style={styles.spacer} />
+
+        {/* Rosters */}
         <RosterList 
-            rosters={rosters}
-            onManage={(id) => navigation.navigate("ManageRoster", { rosterId: id })}
-            onDelete={handleDeleteRoster}
-            onCreate={() => navigation.navigate("CreateRoster")}
+            rosters={rosters} 
+            onDelete={async (id) => { await deleteRoster(id); loadData(); }}
+            onSelect={(roster) => navigation.navigate('RosterDetail', { rosterId: roster.id })}
         />
+
       </ScrollView>
+
+      {showLeagueModal && (
+          <CreateLeagueModal onClose={() => setShowLeagueModal(false)} />
+      )}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   content: { padding: 16 },
+  actionBar: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  actionButton: { 
+      flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, 
+      paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, gap: 5 
+  },
+  secondaryButton: { backgroundColor: '#444' },
+  actionText: { color: 'white', fontWeight: 'bold' },
+  spacer: { height: 20 }
 });
+
+export default ManagerDashboard;

@@ -60,6 +60,7 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []); 
 
+  // --- AUTH & PROFILE ---
   const signIn = async (email, password) => {
     setIsLoading(true);
     try {
@@ -136,15 +137,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const storageRef = ref(storage, `users/${uid}/profile.jpg`);
       
+      // React Native specific blob handling
       const blob = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.onload = function () {
-          resolve(xhr.response);
-        };
-        xhr.onerror = function (e) {
-          console.log(e);
-          reject(new TypeError("Network request failed"));
-        };
+        xhr.onload = function () { resolve(xhr.response); };
+        xhr.onerror = function (e) { reject(new TypeError("Network request failed")); };
         xhr.responseType = "blob";
         xhr.open("GET", file.uri, true);
         xhr.send(null);
@@ -169,12 +166,8 @@ export const AuthProvider = ({ children }) => {
       
       const blob = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.onload = function () {
-          resolve(xhr.response);
-        };
-        xhr.onerror = function (e) {
-          reject(new TypeError("Network request failed"));
-        };
+        xhr.onload = function () { resolve(xhr.response); };
+        xhr.onerror = function (e) { reject(new TypeError("Network request failed")); };
         xhr.responseType = "blob";
         xhr.open("GET", file.uri, true);
         xhr.send(null);
@@ -183,8 +176,7 @@ export const AuthProvider = ({ children }) => {
       const snapshot = await uploadBytes(storageRef, blob);
       blob.close();
 
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      return downloadURL;
+      return await getDownloadURL(snapshot.ref);
     } catch (error) {
       console.error("Error uploading image:", error);
       throw error;
@@ -258,6 +250,7 @@ export const AuthProvider = ({ children }) => {
         ...dataToUpdate
       }));
 
+      // Update in Chats
       const chatsRef = collection(db, "chats");
       const q = query(chatsRef, where("participants", "array-contains", loggedInUser.uid));
       const querySnapshot = await getDocs(q);
@@ -338,124 +331,36 @@ export const AuthProvider = ({ children }) => {
   const isManager = () => loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
   const isDeveloper = () => loggedInUser && loggedInUser.role === 'developer';
 
-  // --- FEEDBACK FUNCTIONS ---
-
-  const createFeedback = async (data) => {
+  // --- LEAGUE LOGIC (NEW) ---
+  const createLeague = async (leagueData) => {
+    if (!isManager()) return false;
     try {
-      await addDoc(collection(db, "feedback"), {
-        ...data,
-        authorId: loggedInUser.uid,
-        authorName: loggedInUser.playerName,
-        status: 'Proposed', 
-        developerNotes: [], 
-        // FIX: Removed 'votes' and 'voters' to comply with Firestore allow-create rule
+      await addDoc(collection(db, "leagues"), {
+        ...leagueData,
+        createdBy: loggedInUser.uid,
         createdAt: serverTimestamp()
       });
       return true;
     } catch (error) {
-      console.error("Error creating feedback:", error);
-      alert("Error submitting feedback: " + error.message);
+      console.error("Error creating league:", error);
+      alert("Error: " + error.message);
       return false;
     }
   };
 
-  const subscribeToFeedback = (callback) => {
-    const feedbackRef = collection(db, "feedback");
-    // Sort logic handled client-side in FeedbackScreen if votes are missing initially
-    const q = query(feedbackRef); 
-    
-    return onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(items);
-    });
-  };
-
-  const voteForFeedback = async (feedbackId) => {
-    if (!loggedInUser) return;
+  const fetchLeagues = async () => {
     try {
-      const feedbackRef = doc(db, "feedback", feedbackId);
-      const feedbackSnap = await getDoc(feedbackRef);
-      
-      if (feedbackSnap.exists()) {
-        const data = feedbackSnap.data();
-        
-        if (data.status === 'Completed' || data.status === 'Rejected') {
-          alert("Voting is closed for this item.");
-          return false;
-        }
-
-        // Safe vote toggle even if voters array doesn't exist yet
-        if (data.voters && data.voters.includes(loggedInUser.uid)) {
-          await updateDoc(feedbackRef, {
-             votes: increment(-1),
-             voters: arrayRemove(loggedInUser.uid)
-          });
-        } else {
-          await updateDoc(feedbackRef, {
-            votes: increment(1),
-            voters: arrayUnion(loggedInUser.uid)
-          });
-        }
-        return true;
-      }
+      const q = query(collection(db, "leagues"), orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-      console.error("Error voting:", error);
-      return false;
+      console.error("Error fetching leagues:", error);
+      return [];
     }
   };
 
-  const updateFeedback = async (feedbackId, updates) => {
-    if (!isDeveloper()) return false;
-    try {
-      const feedbackRef = doc(db, "feedback", feedbackId);
-      if (updates.status) {
-          updates.statusUpdatedAt = serverTimestamp();
-      }
-      await updateDoc(feedbackRef, updates);
-      return true;
-    } catch (error) {
-      console.error("Error updating feedback:", error);
-      alert("Error updating feedback: " + error.message);
-      return false;
-    }
-  };
-
-  const addDeveloperNote = async (feedbackId, noteText) => {
-      if (!isDeveloper()) return false;
-      try {
-          const feedbackRef = doc(db, "feedback", feedbackId);
-          const noteObject = {
-              text: noteText,
-              createdAt: Date.now(),
-              author: loggedInUser.playerName
-          };
-          await updateDoc(feedbackRef, {
-              developerNotes: arrayUnion(noteObject)
-          });
-          return true;
-      } catch (error) {
-          console.error("Error adding note:", error);
-          alert("Error adding note: " + error.message);
-          return false;
-      }
-  };
-
-  const deleteFeedback = async (feedbackId) => {
-    if (!isDeveloper()) return false;
-    try {
-      await deleteDoc(doc(db, "feedback", feedbackId));
-      return true;
-    } catch (error) {
-      console.error("Error deleting feedback:", error);
-      alert("Error deleting feedback: " + error.message);
-      return false;
-    }
-  };
-
-  // --- Other existing functions (createRoster, etc.) ---
-  // (Keeping these included to maintain full file context)
-  
-  const createRoster = async (rosterName, season, maxCapacity, isDiscoverable = false, groupCreationData = null, addManagerAsPlayer = false) => {
+  // --- ROSTER LOGIC ---
+  const createRoster = async (rosterData, groupCreationData = null, addManagerAsPlayer = false) => {
     if (!isManager()) {
       alert("Only managers can create rosters.");
       return false;
@@ -474,21 +379,23 @@ export const AuthProvider = ({ children }) => {
           });
       }
 
+      // Allow rosterData to pass all fields including new ones
       const rosterRef = await addDoc(collection(db, "rosters"), {
-        name: rosterName,
-        season: season,
-        maxCapacity: Number(maxCapacity),
+        ...rosterData, 
+        maxCapacity: Number(rosterData.maxCapacity),
+        targetPlayerCount: Number(rosterData.targetPlayerCount || rosterData.maxCapacity),
         createdBy: loggedInUser.uid,
-        isDiscoverable: isDiscoverable,
         createdAt: new Date(),
         playerIDs: initialPlayerIDs, 
         players: initialPlayers       
       });
 
-      await addDoc(collection(db, "chats"), {
+      // Create associated chat
+      const initialText = "Team chat created";
+      const chatRef = await addDoc(collection(db, "chats"), {
         type: 'roster', 
         rosterId: rosterRef.id,
-        name: `${rosterName} (${season})`,
+        name: `${rosterData.name} (${rosterData.season || 'Season'})`,
         participants: [loggedInUser.uid],
         visibleTo: [loggedInUser.uid],
         participantDetails: [{
@@ -499,14 +406,21 @@ export const AuthProvider = ({ children }) => {
         }],
         unreadCounts: { [loggedInUser.uid]: 0 }, 
         createdAt: serverTimestamp(),
-        lastMessage: "Team chat created",
+        lastMessage: initialText,
         lastMessageTime: serverTimestamp()
+      });
+
+      // Insert message
+      await addDoc(collection(db, "chats", chatRef.id, "messages"), {
+          text: initialText,
+          type: 'system',
+          createdAt: serverTimestamp()
       });
 
       if (groupCreationData && groupCreationData.createGroup) {
           await addDoc(collection(db, "groups"), {
-            name: groupCreationData.groupName || rosterName,
-            description: `Official group for ${rosterName} (${season})`,
+            name: groupCreationData.groupName || rosterData.name,
+            description: `Official group for ${rosterData.name}`,
             isPublic: false, 
             createdBy: loggedInUser.uid,
             associatedRosterId: rosterRef.id, 
@@ -526,6 +440,31 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Error creating roster:", error);
       alert("Error: " + error.message);
+      return false;
+    }
+  };
+
+  const updateRoster = async (rosterId, updates) => {
+    if (!isManager()) {
+      alert("Permission denied.");
+      return false;
+    }
+    try {
+      const rosterRef = doc(db, "rosters", rosterId);
+      
+      const cleanUpdates = { ...updates };
+      
+      if (cleanUpdates.maxCapacity) cleanUpdates.maxCapacity = Number(cleanUpdates.maxCapacity);
+      if (cleanUpdates.targetPlayerCount) cleanUpdates.targetPlayerCount = Number(cleanUpdates.targetPlayerCount);
+      if (cleanUpdates.pastSeasonsCount) cleanUpdates.pastSeasonsCount = Number(cleanUpdates.pastSeasonsCount);
+      if (typeof cleanUpdates.isDiscoverable === 'boolean') cleanUpdates.isDiscoverable = updates.isDiscoverable;
+      if (typeof cleanUpdates.lookingForPlayers === 'boolean') cleanUpdates.lookingForPlayers = updates.lookingForPlayers;
+
+      await updateDoc(rosterRef, cleanUpdates);
+      return true;
+    } catch (error) {
+      console.error("Error updating roster:", error);
+      alert("Error updating roster: " + error.message);
       return false;
     }
   };
@@ -551,11 +490,13 @@ export const AuthProvider = ({ children }) => {
 
       const batchPromises = querySnapshot.docs.map(async (chatDoc) => {
           const systemMessage = "This team has been disbanded by the manager. This chat is now a regular group.";
+          
           await addDoc(collection(db, "chats", chatDoc.id, "messages"), {
               text: systemMessage,
               type: 'system',
               createdAt: serverTimestamp()
           });
+
           await updateDoc(chatDoc.ref, {
               type: 'group',
               rosterId: deleteField(),
@@ -1080,6 +1021,233 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
+  // --- NEW: CHAT/GROUP CONNECTION LOGIC ---
+  
+  // ** UPDATED FUNCTION: Team Chat Creation **
+  // Now accepts optional 'customMessage' to notify about recreation
+  const createTeamChat = async (rosterId, rosterName, season, rosterPlayers = [], customMessage = null) => {
+    if (!isManager()) return false;
+    try {
+      // 1. Build Participant Lists (Manager + Players)
+      const participantIds = [loggedInUser.uid];
+      const participantDetails = [{
+          uid: loggedInUser.uid,
+          name: loggedInUser.playerName,
+          email: loggedInUser.email,
+          photoURL: loggedInUser.photoURL || ""
+      }];
+      
+      const initialUnread = { [loggedInUser.uid]: 0 };
+
+      rosterPlayers.forEach(p => {
+          if (p.uid !== loggedInUser.uid) { // Avoid dupe if manager is in roster
+              participantIds.push(p.uid);
+              participantDetails.push({
+                  uid: p.uid,
+                  name: p.playerName,
+                  email: p.email,
+                  photoURL: p.photoURL || ""
+              });
+              initialUnread[p.uid] = 1; // Mark unread for them
+          }
+      });
+
+      const initialText = customMessage || "Team chat created";
+
+      // 2. Create Chat Doc
+      const chatRef = await addDoc(collection(db, "chats"), {
+        type: 'roster', 
+        rosterId: rosterId,
+        name: `${rosterName} (${season || 'Season'})`,
+        participants: participantIds,
+        visibleTo: participantIds,
+        participantDetails: participantDetails,
+        unreadCounts: initialUnread, 
+        createdAt: serverTimestamp(),
+        lastMessage: initialText,
+        lastMessageTime: serverTimestamp()
+      });
+
+      // 3. INSERT MESSAGE
+      await addDoc(collection(db, "chats", chatRef.id, "messages"), {
+          text: initialText,
+          type: 'system',
+          createdAt: serverTimestamp()
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error creating team chat:", error);
+      alert("Error creating team chat: " + error.message);
+      return false;
+    }
+  };
+
+  // ** NEW: Unlink Chat **
+  const unlinkChatFromRoster = async (chatId) => {
+      if (!isManager()) return false;
+      try {
+          const chatRef = doc(db, "chats", chatId);
+          // Fetch current name to append Archived
+          const chatSnap = await getDoc(chatRef);
+          let newName = "Group Chat";
+          if (chatSnap.exists()) {
+              const currentName = chatSnap.data().name || "Team Chat";
+              newName = `${currentName} (Archived)`;
+          }
+
+          await updateDoc(chatRef, { 
+              rosterId: deleteField(),
+              type: 'group', // Convert to regular group so history is preserved
+              name: newName
+          });
+          
+          await addDoc(collection(db, "chats", chatId, "messages"), {
+              text: "This chat has been unlinked from the roster by the manager.",
+              type: 'system',
+              createdAt: serverTimestamp()
+          });
+          return true;
+      } catch (e) {
+          console.error("Error unlinking chat:", e);
+          return false;
+      }
+  };
+
+  // ** NEW: Link Group **
+  const linkGroupToRoster = async (groupId, rosterId) => {
+      if (!isManager()) return false;
+      try {
+          const groupRef = doc(db, "groups", groupId);
+          await updateDoc(groupRef, { associatedRosterId: rosterId });
+          return true;
+      } catch (e) {
+          console.error(e);
+          return false;
+      }
+  };
+
+  // ** NEW: Unlink Group **
+  const unlinkGroupFromRoster = async (groupId) => {
+      if (!isManager()) return false;
+      try {
+          const groupRef = doc(db, "groups", groupId);
+          await updateDoc(groupRef, { associatedRosterId: deleteField() });
+          return true;
+      } catch (e) {
+          console.error(e);
+          return false;
+      }
+  };
+
+  // --- FEEDBACK FUNCTIONS ---
+  const createFeedback = async (data) => {
+    try {
+      await addDoc(collection(db, "feedback"), {
+        ...data,
+        authorId: loggedInUser.uid,
+        authorName: loggedInUser.playerName,
+        status: 'Proposed', 
+        developerNotes: [], 
+        votes: 0,
+        voters: [], 
+        createdAt: serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      console.error("Error creating feedback:", error);
+      alert("Error submitting feedback: " + error.message);
+      return false;
+    }
+  };
+
+  const subscribeToFeedback = (callback) => {
+    const feedbackRef = collection(db, "feedback");
+    const q = query(feedbackRef, orderBy("votes", "desc"));
+    return onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(items);
+    });
+  };
+
+  const voteForFeedback = async (feedbackId) => {
+    if (!loggedInUser) return;
+    try {
+      const feedbackRef = doc(db, "feedback", feedbackId);
+      const feedbackSnap = await getDoc(feedbackRef);
+      if (feedbackSnap.exists()) {
+        const data = feedbackSnap.data();
+        if (data.status === 'Completed' || data.status === 'Rejected') {
+          alert("Voting is closed for this item.");
+          return false;
+        }
+        if (data.voters && data.voters.includes(loggedInUser.uid)) {
+          await updateDoc(feedbackRef, {
+             votes: increment(-1),
+             voters: arrayRemove(loggedInUser.uid)
+          });
+        } else {
+          await updateDoc(feedbackRef, {
+            votes: increment(1),
+            voters: arrayUnion(loggedInUser.uid)
+          });
+        }
+        return true;
+      }
+    } catch (error) {
+      console.error("Error voting:", error);
+      return false;
+    }
+  };
+
+  const updateFeedback = async (feedbackId, updates) => {
+    if (!isDeveloper()) return false;
+    try {
+      const feedbackRef = doc(db, "feedback", feedbackId);
+      if (updates.status) {
+          updates.statusUpdatedAt = serverTimestamp();
+      }
+      await updateDoc(feedbackRef, updates);
+      return true;
+    } catch (error) {
+      console.error("Error updating feedback:", error);
+      alert("Error updating feedback: " + error.message);
+      return false;
+    }
+  };
+
+  const addDeveloperNote = async (feedbackId, noteText) => {
+      if (!isDeveloper()) return false;
+      try {
+          const feedbackRef = doc(db, "feedback", feedbackId);
+          const noteObject = {
+              text: noteText,
+              createdAt: Date.now(),
+              author: loggedInUser.playerName
+          };
+          await updateDoc(feedbackRef, {
+              developerNotes: arrayUnion(noteObject)
+          });
+          return true;
+      } catch (error) {
+          console.error("Error adding note:", error);
+          alert("Error adding note: " + error.message);
+          return false;
+      }
+  };
+
+  const deleteFeedback = async (feedbackId) => {
+    if (!isDeveloper()) return false;
+    try {
+      await deleteDoc(doc(db, "feedback", feedbackId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting feedback:", error);
+      alert("Error deleting feedback: " + error.message);
+      return false;
+    }
+  };
+
   // --- VALUE OBJECT ---
   const value = {
     loggedInUser,
@@ -1095,7 +1263,12 @@ export const AuthProvider = ({ children }) => {
     updateSoccerDetails,
     isManager,
     isDeveloper, 
+    // League Exports
+    createLeague,
+    fetchLeagues,
+    // Roster Exports
     createRoster,
+    updateRoster, 
     fetchRosters,
     deleteRoster,
     addPlayerToRoster,
@@ -1106,6 +1279,7 @@ export const AuthProvider = ({ children }) => {
     deleteEvent,
     fetchAllUserEvents,
     uploadImage,
+    // Groups
     createGroup,
     fetchUserGroups,
     createGroupPost,
@@ -1113,6 +1287,12 @@ export const AuthProvider = ({ children }) => {
     updateGroupMemberRole,
     transferGroupOwnership,
     removeGroupMember,
+    linkGroupToRoster,
+    unlinkGroupFromRoster,
+    // Chats
+    createTeamChat,
+    unlinkChatFromRoster,
+    // Others
     fetchDiscoverableRosters, 
     submitJoinRequest,        
     fetchIncomingRequests,    
