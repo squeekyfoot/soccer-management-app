@@ -22,10 +22,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth != null;
       // Developers can create/update any user profile if needed
-      allow create: if (isOwner(userId) && request.resource.data.role == 'player') || isDeveloper();
+      allow create: if (isOwner(userId) && request.resource.data.role == 'player') ||
+                       isDeveloper();
       
       // Allow updates if Owner (restricted) OR if Developer (unrestricted)
-      allow update: if isDeveloper() || (
+      allow update: if isDeveloper() ||
+                   (
                     isOwner(userId) 
                    && (!request.resource.data.keys().hasAny(['role']) 
                        || request.resource.data.role == resource.data.role)
@@ -44,12 +46,15 @@ service cloud.firestore {
       match /events/{eventId} {
         allow read: if request.auth != null;
         allow write: if isManager() || isDeveloper()
-                     || request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
+                     ||
+                     request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
       }
 
       match /messages/{messageId} {
-        allow read, write: if isManager() || isDeveloper()
-                     || request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
+        allow read, write: if isManager() ||
+                     isDeveloper()
+                     ||
+                     request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
       }
     }
 
@@ -81,7 +86,8 @@ service cloud.firestore {
       allow read: if (request.auth != null && request.auth.uid in resource.data.members) || isManager() || isDeveloper();
       allow update: if (request.auth != null && request.auth.uid in resource.data.members) || isManager() || isDeveloper();
       match /posts/{postId} {
-        allow read, write: if (request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members) || isManager() || isDeveloper();
+        allow read, write: if (request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members) ||
+                              isManager() || isDeveloper();
       }
     }
 
@@ -98,15 +104,20 @@ service cloud.firestore {
     // 6. Feedback Collection
     match /feedback/{feedbackId} {
       allow read: if request.auth != null;
-      // Standard user creation (cannot set votes/voters)
+      
+      // FIX: Allow creation ONLY if votes starts at 0 and voters is empty
+      // This prevents rigging but allows fields to exist for orderBy queries
       allow create: if request.auth != null
-                    && !request.resource.data.keys().hasAny(['votes', 'voters']);
+                    && request.resource.data.votes == 0
+                    && request.resource.data.voters.size() == 0;
+
       // Update Logic:
       // 1. Developers can update anything.
       // 2. Regular users can ONLY update 'votes' and 'voters' (Toggle vote).
       allow update: if isDeveloper() 
                     || (request.auth != null 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'voters']));
+      
       allow delete: if isDeveloper();
     }
 
@@ -115,7 +126,8 @@ service cloud.firestore {
       // Anyone logged in can read leagues (to see them in dropdowns/details)
       allow read: if request.auth != null;
       // Only Managers and Developers can create or edit leagues
-      allow write: if isManager() || isDeveloper();
+      allow write: if isManager() ||
+                      isDeveloper();
     }
   }
 }

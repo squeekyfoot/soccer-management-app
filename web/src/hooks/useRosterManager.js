@@ -5,9 +5,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
+import { useGroupManager } from './useGroupManager'; // Import Group Manager
 
 export const useRosterManager = () => {
   const { loggedInUser } = useAuth();
+  const { createGroup } = useGroupManager(); // Access Group Logic
   const [loading, setLoading] = useState(false);
 
   // --- FETCHING ---
@@ -49,12 +51,6 @@ export const useRosterManager = () => {
   // --- EVENTS ---
   const fetchAllUserEvents = useCallback(async (uid) => {
     try {
-      // Note: We cannot call the memoized fetchUserRosters directly inside another useCallback easily 
-      // without adding it to deps, which is fine, but direct DB calls are often safer in complex hooks 
-      // to avoid circular deps. However, since we defined fetchUserRosters above, we can use it.
-      
-      // Re-implementing logic slightly to avoid dependency chain issues, 
-      // or simply calling the DB directly is safer for stable references.
       const rostersRef = collection(db, "rosters");
       const q = query(rostersRef, where("playerIDs", "array-contains", uid));
       const rosterSnap = await getDocs(q);
@@ -166,7 +162,8 @@ export const useRosterManager = () => {
   };
 
   // --- ACTIONS ---
-  const createRoster = async (rosterData, addManagerAsPlayer = false) => {
+  // UPDATE: Now accepts groupCreationData
+  const createRoster = async (rosterData, groupCreationData = null, addManagerAsPlayer = false) => {
     if (!loggedInUser) return false;
     setLoading(true);
     try {
@@ -194,7 +191,19 @@ export const useRosterManager = () => {
         players: initialPlayers       
       });
 
+      // 1. Create Chat
       await createTeamChat(rosterRef.id, rosterData.name, rosterData.season, initialPlayers);
+
+      // 2. Create Group (Fixed)
+      if (groupCreationData && groupCreationData.createGroup) {
+          await createGroup({
+              name: groupCreationData.groupName || rosterData.name,
+              description: `Official group for ${rosterData.name}`,
+              isPublic: false,
+              associatedRosterId: rosterRef.id
+          });
+      }
+      
       return rosterRef.id;
     } catch (error) {
       console.error("Error creating roster:", error);

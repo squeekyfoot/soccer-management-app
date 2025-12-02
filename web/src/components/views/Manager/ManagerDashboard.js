@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../../common/Header';
 import { useAuth } from '../../../context/AuthContext';
-import { useRosterManager } from '../../../hooks/useRosterManager'; // NEW HOOK
+import { useRosterManager } from '../../../hooks/useRosterManager'; 
 
 import RosterList from './components/RosterList';
 import IncomingRequests from './components/IncomingRequests';
@@ -13,9 +13,6 @@ import Button from '../../common/Button';
 const ManagerDashboard = () => {
   const { loggedInUser } = useAuth(); 
   
-  // Use the new hook for high-level manager actions
-  // Note: Ensure deleteRoster and fetchIncomingRequests are exported from useRosterManager
-  // or imported from their respective hooks if you split them further.
   const { 
     createRoster, 
     fetchRosters, 
@@ -34,8 +31,6 @@ const ManagerDashboard = () => {
     const r = await fetchRosters();
     setRosters(r);
     
-    // If you haven't moved this to a hook yet, check where it lives.
-    // Assuming it's available via the manager hook now.
     if (fetchIncomingRequests) {
         const req = await fetchIncomingRequests();
         setRequests(req);
@@ -46,11 +41,11 @@ const ManagerDashboard = () => {
     loadData();
   }, [loadData]);
 
+  // FIX: Pass groupData to the createRoster hook
   const handleCreateRoster = async (name, season, capacity, isDiscoverable, groupData, addManager) => {
-    // The hook now handles the complex logic (creating chat, etc.)
     const rosterId = await createRoster({
         name, season, maxCapacity: capacity, isDiscoverable
-    }, addManager);
+    }, groupData, addManager);
 
     if (rosterId) {
       loadData();
@@ -107,12 +102,11 @@ const ManagerDashboard = () => {
           {/* VIEW: DETAIL */}
           {activeView === 'detail' && selectedRoster && (
             <RosterDetail 
-                // THE FIX: We only pass the ID. The component fetches its own live data.
                 rosterId={selectedRoster.id} 
                 onBack={() => { 
                     setSelectedRoster(null); 
                     setActiveView('list'); 
-                    loadData(); // Refresh list to see any changes (like player counts)
+                    loadData(); 
                 }}
             />
           )}

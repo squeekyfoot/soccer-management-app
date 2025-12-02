@@ -14,6 +14,7 @@ export const useFeedback = () => {
   // Subscribe to feedback list
   useEffect(() => {
     const feedbackRef = collection(db, "feedback");
+    // This query requires documents to have a 'votes' field to appear
     const q = query(feedbackRef, orderBy("votes", "desc"));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -29,6 +30,8 @@ export const useFeedback = () => {
   const createFeedback = async (data) => {
     if (!loggedInUser) return false;
     try {
+      // FIX: Re-added 'votes' and 'voters' initialized to safe defaults.
+      // The updated security rules now permit this specifically.
       await addDoc(collection(db, "feedback"), {
         ...data,
         authorId: loggedInUser.uid,
@@ -36,7 +39,7 @@ export const useFeedback = () => {
         status: 'Proposed', 
         developerNotes: [], 
         votes: 0,
-        voters: [], 
+        voters: [],
         createdAt: serverTimestamp()
       });
       return true;
