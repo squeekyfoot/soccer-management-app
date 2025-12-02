@@ -1,6 +1,6 @@
 # **App Scenarios & Product Manual**
 
-**Last Updated:** \[Current Date\]  
+**Last Updated:** [Current Date]  
 **Purpose:** This document serves as the "Source of Truth" for User Acceptance Testing (UAT) and Quality Assurance (QA). It details every supported user flow to ensure that key outcomes are achievable across both Web and Mobile platforms.
 
 ## **1\. The Scenario Matrix**
@@ -16,13 +16,16 @@ Use this matrix to validate that the application is functioning correctly. Each 
 | **Auth** | **New User Sign Up** | User enters valid email/pass; Account created in Firebase; Redirected to Home Dashboard. | ✅ |
 |  | **Existing User Login** | User logs in; Session restores; "My Teams" list loads immediately. | ✅ |
 |  | **Re-Authentication** | User changes sensitive setting; Prompts for login; Action succeeds after verification. |  |
+| **Dashboard** | **View Home Dashboard** | User sees 4-section grid (Actions, Updates, Events, Opportunities) with accurate counts. | ✅ |
+|  | **View Dashboard Details** | Clicking a dashboard card (e.g., "Actions Needed") opens a list view of specific items. |  |
 | **Profile** | **Edit "My Profile"** | User changes Avatar/Name; Header and Sidebar update immediately without refresh. |  |
 |  | **Update Sports Info** | User adds "Goalkeeper" to Soccer profile; Data persists in users/{id} collection. |  |
 | **Discovery** | **Search for Users** | User types name in Search; List renders matching users; Clicking result opens Public Profile. |  |
 |  | **Find Teams** | User browses "Find Teams"; Sees open rosters; "Request to Join" button functions. | ✅ |
 | **Messaging** | **Send Team Chat** | User sends text in Team Chat; Message appears instantly for all other active members. | ✅ |
 |  | **Share Image** | User selects image; Image compresses (client-side); Uploads & renders in chat stream. |  |
-|  | **Direct Message** | User clicks "Message" on a profile; Private 1:1 chat thread opens. |  |
+|  | **Direct Message** | User clicks "Message" on a profile (e.g. in Roster list); Private 1:1 chat thread opens immediately. |  |
+|  | **Create Group Chat** | User creates chat with selected members; New independent chat created (does not redirect to existing Team Chat). |  |
 | **Community** | **Join Group** | User clicks "Join" on a Community Group; Access granted to group feed. |  |
 |  | **Submit Feedback** | User submits feature request; Item appears in "Feedback" list for voting. |  |
 
@@ -33,7 +36,11 @@ Use this matrix to validate that the application is functioning correctly. Each 
 | Feature Area | Scenario (Action) | Expected Outcome | Critical Path? |
 | :---- | :---- | :---- | :---- |
 | **Creation** | **Create New Roster** | Manager submits Roster Form; New document created in rosters collection; Appears in Dashboard. | ✅ |
-| **Roster Mgmt** | **Incoming Requests** | Manager sees badge/list of pending players; Can view player profile. | ✅ |
+|  | **Create League** | Manager creates a League (Season dates, frequency); League becomes available for linking. |  |
+| **Roster Mgmt** | **Edit Roster Details** | Manager updates capacity, toggles "Looking for Players", or links Roster to a League. |  |
+|  | **Manage Connections** | Manager links/unlinks a Community Group; Roster Details update to show linked status. |  |
+|  | **Recreate Team Chat** | Manager clicks "Recreate"; Old chat archived; New chat created with current players & notification. |  |
+|  | **Incoming Requests** | Manager sees badge/list of pending players; Can view player profile. | ✅ |
 |  | **Accept Player** | Manager clicks "Accept"; Player moves to Active list; Player gains Chat access. | ✅ |
 |  | **Reject Player** | Manager clicks "Reject"; Request document deleted; Player removed from list. |  |
 |  | **Remove Player** | Manager removes active player; Player immediately loses access to Team Chat. |  |
@@ -48,6 +55,7 @@ Use this matrix to validate that the application is functioning correctly. Each 
 | **Mobile Web** | **Viewport Resize** | Accessing site on phone (\<768px) hides Sidebar and shows Bottom Tab Bar. |
 | **Native App** | **Navigation** | Swiping "Back" on iOS (Stack Navigator) returns to previous screen smoothly. |
 | **Native App** | **Keyboard Input** | Tapping input field slides keyboard up; KeyboardAvoidingView prevents UI obstruction. |
+| **Native App** | **Dashboard Layout** | Home Dashboard cards stack vertically (Flex column) instead of grid to fit screen width. |
 
 ## **2\. End-to-End (E2E) Test Script**
 
@@ -57,8 +65,9 @@ Perform this "Day in the Life" walkthrough manually before major releases (e.g.,
 
 1. Sign up as a new user (test\_rookie@example.com).  
 2. Go to **Profile** \-\> Upload a random photo as Avatar.  
-3. Go to **Find Teams** \-\> Search for an existing team (or create one if empty).  
-4. **Action:** Submit a "Join Request" to a team.
+3. **Verify:** Dashboard "Actions Needed" shows tasks (e.g., "Add Emergency Contact").  
+4. Go to **Find Teams** \-\> Search for an existing team (or create one if empty).  
+5. **Action:** Submit a "Join Request" to a team.
 
 **Step 2: The Boss (User B \- Manager)**
 
@@ -83,13 +92,12 @@ When adding items to the product roadmap, use this template to ensure engineerin
 
 ### **The "Feature Brief" Template**
 
-**1\. Feature Name:** (e.g., "Event Scheduling") **2\. Role:** (Who is this for? e.g., Manager) **3\. The Scenario (User Story):**  
-"As a Manager, I want to create a practice event with a time and location, so that players know when to show up."  
+**1\. Feature Name:** (e.g., "Event Scheduling") **2\. Role:** (Who is this for? e.g., Manager) **3\. The Scenario (User Story):** "As a Manager, I want to create a practice event with a time and location, so that players know when to show up."  
 **4\. Expected Outcomes (Acceptance Criteria):**
 
-* \[ \] Manager can select Date/Time via a picker.  
-* \[ \] Event appears in the "Calendar" view for all roster members.  
-* \[ \] Players receive a notification (or see a badge) for the new event.
+* [ ] Manager can select Date/Time via a picker.  
+* [ ] Event appears in the "Calendar" view for all roster members.  
+* [ ] Players receive a notification (or see a badge) for the new event.
 
 **5\. Parity Check:**
 
@@ -138,3 +146,4 @@ A scenario is marked as **Critical Path** if it meets at least one of the follow
 | **Send Team Chat** | **Value Core** | The "Retention Hook." Daily communication is the primary use case. Failure here causes immediate churn to external tools (WhatsApp/SMS). |
 | **Manager: Create Roster** | **Content Seed** | Without Rosters, there are no containers for players to join. The ecosystem cannot start without this. |
 | **Manager: Accept Player** | **Handshake** | Completes the viral loop initiated by "Find Teams." If broken, the network effect halts. |
+| **View Home Dashboard** | **Value Core** | The "Command Center." If this fails, the user cannot orient themselves or see alerts, breaking the daily loop. |
