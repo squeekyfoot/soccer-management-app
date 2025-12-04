@@ -3,7 +3,31 @@
 **Last Updated:** [Current Date]  
 **Purpose:** This document serves as the "Source of Truth" for User Acceptance Testing (UAT) and Quality Assurance (QA). It details every supported user flow to ensure that key outcomes are achievable across both Web and Mobile platforms.
 
-## **1\. The Scenario Matrix**
+## **1\. Core Concepts & Business Entities**
+
+Before diving into specific scenarios, it's crucial to understand the core "nouns" of the application. These are the primary data objects, or **Business Entities**, that all features and user actions revolve around. Each entity will have its own dedicated "Brain" (`use...Manager.js` hook) as per the `RefactorStrategy.md`.
+
+### **Primary Entities**
+
+| Entity | Description | Key Scenarios & Features |
+| :--- | :--- | :--- |
+| **User / Profile** | The record for an individual person. Holds identity, auth details, and personal info. | `New User Sign Up`, `Edit "My Profile"`, `Search for Users` |
+| **Team / Roster** | The central organizing unit for players. Has members, capacity, and links to other entities. | `Create New Roster`, `Find Teams`, `Edit Roster Details`, `Accept Player` |
+| **Chat / Message** | A communication channel (`Chat`) and the individual messages within it. Can be 1:1, group, or team-wide. | `Send Team Chat`, `Direct Message`, `Create Group Chat` |
+| **League** | A container for a season or competition with start/end dates. Teams can be linked to a league. | `Create League`, `links Roster to a League` |
+
+### **Secondary & Transient Entities**
+
+| Entity | Description | Key Scenarios & Features |
+| :--- | :--- | :--- |
+| **Join Request** | A temporary record representing a user's request to join a team. Has a status (pending, accepted, etc.). | `Incoming Requests`, `Accept Player`, `Reject Player` |
+| **Event** | A scheduled occurrence like a practice or game with a time and location. | `Event Scheduling` (from Feature Brief) |
+| **Community Group** | A social space, distinct from a competitive team, that users can join to access a feed. | `Join Group`, `Manage Connections` |
+| **Feedback Item** | A feature request or suggestion submitted by a user, which can then be voted on. | `Submit Feedback` |
+
+---
+
+## **2\. The Scenario Matrix**
 
 Use this matrix to validate that the application is functioning correctly. Each scenario describes an action a user takes and the specific outcome that confirms success.
 
@@ -57,7 +81,7 @@ Use this matrix to validate that the application is functioning correctly. Each 
 | **Native App** | **Keyboard Input** | Tapping input field slides keyboard up; KeyboardAvoidingView prevents UI obstruction. |
 | **Native App** | **Dashboard Layout** | Home Dashboard cards stack vertically (Flex column) instead of grid to fit screen width. |
 
-## **2\. End-to-End (E2E) Test Script**
+## **3\. End-to-End (E2E) Test Script**
 
 Perform this "Day in the Life" walkthrough manually before major releases (e.g., submitting to the App Store).  
 **Prerequisite:** Have two devices or two browser windows (Incognito) open.  
@@ -86,7 +110,7 @@ Perform this "Day in the Life" walkthrough manually before major releases (e.g.,
 4. **Action:** Reply with an image from your gallery.  
 5. **Verify:** Image loads correctly on both screens.
 
-## **3\. Protocol: Defining New Features**
+## **4\. Protocol: Defining New Features**
 
 When adding items to the product roadmap, use this template to ensure engineering and QA are aligned **before** code is written.
 
@@ -109,7 +133,7 @@ When adding items to the product roadmap, use this template to ensure engineerin
 * **Update:** When a PR is merged that introduces a user-facing change.  
 * **Audit:** If a feature is deprecated or behavior changes significantly.
 
-## **4\. Product Manager Best Practices**
+## **5\. Product Manager Best Practices**
 
 To maintain a healthy repository and product lifecycle, perform these rituals regularly.
 
@@ -123,9 +147,9 @@ To maintain a healthy repository and product lifecycle, perform these rituals re
 
 * **Security Sweep:** Review docs/FirestoreSecurityRules.md vs the actual firestore.rules file. Did we add a feature but forget to lock it down?  
 * **Dependency Audit:** Run npm audit in both web/ and mobile/. Security vulnerabilities in older packages (especially React Native ones) can block App Store approval.  
-* **Scenario Run-Through:** Execute the **E2E Test Script** (Section 2\) fully to ensure core loops aren't broken.
+ * **Scenario Run-Through:** Execute the **E2E Test Script** (Section 3\) fully to ensure core loops aren't broken.
 
-## **Appendix: Critical Path Definition**
+## **6\. Appendix: Critical Path Definition**
 
 The "Critical Path" designation (✅) in the Scenario Matrix is not arbitrary. It is assigned based on a strict set of criteria that defines the minimum viability of the product.
 
