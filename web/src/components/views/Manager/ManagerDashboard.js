@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Header from '../../common/Header';
+import Header from '../../ui/Header';
 import { useAuth } from '../../../context/AuthContext';
 import { useRosterManager } from '../../../hooks/useRosterManager'; 
 
@@ -8,7 +8,7 @@ import IncomingRequests from './components/IncomingRequests';
 import RosterDetail from './components/RosterDetail';
 import CreateRosterForm from './components/CreateRosterForm';
 import CreateLeagueModal from './components/CreateLeagueModal';
-import Button from '../../common/Button';
+import Button from '../../ui/Button';
 
 const ManagerDashboard = () => {
   const { loggedInUser } = useAuth(); 

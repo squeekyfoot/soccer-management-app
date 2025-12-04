@@ -11,11 +11,11 @@ import { useChat } from '../../../../context/ChatContext';
 import { useDirectMessage } from '../../../../hooks/useDirectMessage';
 
 // UI
-import Card from '../../../common/Card';
-import Button from '../../../common/Button';
-import Modal from '../../../common/Modal';
-import UserSearch from '../../../shared/UserSearch';
-import Header from '../../../common/Header';
+import Card from '../../../ui/Card';
+import Button from '../../../ui/Button';
+import Modal from '../../../ui/Modal';
+import UserSearch from '../../../domain/users/UserSearch';
+import Header from '../../../ui/Header';
 import { COLORS } from '../../../../lib/constants';
 import { UserPlus, Edit2, Save, X, MessageCircle, Calendar, Clock, Trophy, Link, CheckCircle, AlertCircle, RefreshCw, Unlink } from 'lucide-react';
 

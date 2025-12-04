@@ -2,12 +2,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useProfileLogic } from '../../../hooks/useProfileLogic'; 
 import { LogOut, User, Activity, Edit2, Camera } from 'lucide-react'; 
-import Header from '../../common/Header';
-import Button from '../../common/Button';
-import Card from '../../common/Card';
-import Avatar from '../../common/Avatar';
-import Modal from '../../common/Modal'; 
-import Input from '../../common/Input'; 
+import Header from '../../ui/Header';
+import Button from '../../ui/Button';
+import Card from '../../ui/Card';
+import Avatar from '../../ui/Avatar';
+import Modal from '../../ui/Modal'; 
+import Input from '../../ui/Input'; 
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 
 function MyProfile() {

@@ -1,28 +1,29 @@
+// src/components/shared/UserSearch.js
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { useUserManager } from '../../../hooks/useUserManager';
 
 function UserSearch({ onSelectionChange }) {
-  const [allUsers, setAllUsers] = useState([]);
+  // Use the Brain
+  const { searchUsers } = useUserManager();
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  
+  // Cache all users locally if needed, or fetch dynamically. 
+  // For this pattern, we'll fetch on mount to maintain original behavior (instant filtering)
+  const [cachedUsers, setCachedUsers] = useState([]);
 
   useEffect(() => {
-    const fetchAllUsers = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "users"));
-        const users = querySnapshot.docs.map(doc => ({
-          uid: doc.id,
-          ...doc.data()
-        }));
-        setAllUsers(users);
-      } catch (error) {
-        console.error("Error fetching users for search:", error);
-      }
+    const loadUsers = async () => {
+      // We pass empty string to get all users, handling filtering in the UI for instant feedback
+      // OR we could let the hook handle filtering. 
+      // To match previous UI behavior (filtering existing list), we fetch all once.
+      const users = await searchUsers(""); 
+      setCachedUsers(users);
     };
-    fetchAllUsers();
-  }, []);
+    loadUsers();
+  }, [searchUsers]);
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -32,8 +33,8 @@ function UserSearch({ onSelectionChange }) {
     
     const lowerTerm = searchTerm.toLowerCase();
     
-    // 1. Filter existing users
-    const filtered = allUsers.filter(user => 
+    // 1. Filter existing cached users
+    const filtered = cachedUsers.filter(user => 
       (user.playerName && user.playerName.toLowerCase().includes(lowerTerm)) ||
       (user.email && user.email.toLowerCase().includes(lowerTerm))
     ).filter(user => 
@@ -56,7 +57,7 @@ function UserSearch({ onSelectionChange }) {
     }
 
     setSuggestions(finalSuggestions);
-  }, [searchTerm, allUsers, selectedUsers]);
+  }, [searchTerm, cachedUsers, selectedUsers]);
 
   const addUser = (user) => {
     const newSelection = [...selectedUsers, user];
@@ -114,12 +115,12 @@ function UserSearch({ onSelectionChange }) {
           border: '1px solid #444', 
           borderRadius: '4px',
           position: 'absolute', 
-          width: '100%', // Match input width
-          left: 0,       // Align to left edge
+          width: '100%', 
+          left: 0,
           zIndex: 10, 
           maxHeight: '150px', 
           overflowY: 'auto',
-          boxSizing: 'border-box' // Prevent border/padding overflow
+          boxSizing: 'border-box'
         }}>
           {suggestions.map(user => (
             <div 

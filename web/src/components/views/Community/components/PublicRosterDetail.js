@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { useLeagueManager } from '../../../../hooks/useLeagueManager'; // NEW IMPORT
-import Card from '../../../common/Card';
-import Button from '../../../common/Button';
+import Card from '../../../ui/Card';
+import Button from '../../../ui/Button';
 import { COLORS } from '../../../../lib/constants';
 import { Calendar, Clock, Trophy, MapPin, Users, CheckCircle, AlertCircle } from 'lucide-react';
 

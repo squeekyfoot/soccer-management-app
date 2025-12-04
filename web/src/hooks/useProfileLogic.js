@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+// src/hooks/useProfileLogic.js
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { useUserManager } from './useUserManager';
 
 export const useProfileLogic = () => {
-  const { loggedInUser, updateProfile } = useAuth();
+  const { loggedInUser } = useAuth();
+  // Import the Brain
+  const { 
+    updateUserProfile, 
+    uploadProfileAvatar, 
+    fetchUserSportsDetails, 
+    updateUserSportsDetails 
+  } = useUserManager();
   
   // UI State
   const [currentView, setCurrentView] = useState('hub');
@@ -30,15 +37,14 @@ export const useProfileLogic = () => {
          });
          setPreviewUrl(loggedInUser.photoURL || "");
          
-         // Fetch Soccer Details independently
-         const fetchSoccer = async () => {
-             const ref = doc(db, "users", loggedInUser.uid, "sportsDetails", "soccer");
-             const snap = await getDoc(ref);
-             if (snap.exists()) setSoccerDetails(snap.data());
+         // Fetch Soccer Details via Brain
+         const loadSoccerDetails = async () => {
+            const data = await fetchUserSportsDetails(loggedInUser.uid, 'soccer');
+            if (data) setSoccerDetails(data);
          };
-         fetchSoccer();
+         loadSoccerDetails();
      }
-  }, [loggedInUser]);
+  }, [loggedInUser, fetchUserSportsDetails]);
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -62,11 +68,50 @@ export const useProfileLogic = () => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    const success = await updateProfile(profileFormData, selectedFile, isRemovingImage);
-    if (success) {
-      setIsEditingProfile(false);
-      setSelectedFile(null);
-      setIsRemovingImage(false);
+    if (!loggedInUser) return;
+
+    try {
+        let photoURL = profileFormData.photoURL;
+
+        // 1. Handle Image Logic via Brain
+        if (isRemovingImage) {
+            photoURL = ""; 
+            // Note: If you want to delete the file from Storage, 
+            // you'd add a deleteProfileAvatar function to useUserManager
+        } else if (selectedFile) {
+            photoURL = await uploadProfileAvatar(loggedInUser.uid, selectedFile);
+        }
+
+        // 2. Prepare Data
+        const updatedData = {
+            firstName: profileFormData.firstName,
+            lastName: profileFormData.lastName,
+            preferredName: profileFormData.preferredName,
+            phone: profileFormData.phone,
+            notificationPreference: profileFormData.notificationPreference,
+            emergencyContact: {
+                firstName: profileFormData.emergencyContactFirstName,
+                lastName: profileFormData.emergencyContactLastName,
+                phone: profileFormData.emergencyContactPhone,
+                relationship: profileFormData.emergencyContactRelationship
+            },
+            photoURL: photoURL
+        };
+
+        // 3. Update Profile via Brain
+        await updateUserProfile(loggedInUser.uid, updatedData);
+
+        setIsEditingProfile(false);
+        setSelectedFile(null);
+        setIsRemovingImage(false);
+        
+        // Note: You might need to reload the Auth Context user here 
+        // if it doesn't listen to real-time changes automatically.
+        
+        return true;
+    } catch (error) {
+        console.error("Profile update failed", error);
+        return false;
     }
   };
 
@@ -74,13 +119,23 @@ export const useProfileLogic = () => {
       try {
         const dataToSave = {
           ...soccerData,
-          currentRosters: soccerData.currentRosters.split(',').map(item => item.trim()),
-          rosterJerseysOwned: soccerData.rosterJerseysOwned.split(',').map(item => item.trim()),
+          currentRosters: typeof soccerData.currentRosters === 'string' 
+            ? soccerData.currentRosters.split(',').map(item => item.trim()) 
+            : soccerData.currentRosters,
+          rosterJerseysOwned: typeof soccerData.rosterJerseysOwned === 'string' 
+            ? soccerData.rosterJerseysOwned.split(',').map(item => item.trim()) 
+            : soccerData.rosterJerseysOwned,
           playerNumber: Number(soccerData.playerNumber) || 0,
         };
-        await setDoc(doc(db, "users", loggedInUser.uid, "sportsDetails", "soccer"), dataToSave);
-        setSoccerDetails(dataToSave);
-        return true;
+
+        // Use Brain for persistence
+        const success = await updateUserSportsDetails(loggedInUser.uid, 'soccer', dataToSave);
+        
+        if (success) {
+            setSoccerDetails(dataToSave);
+            return true;
+        }
+        return false;
       } catch (error) {
         console.error(error);
         return false;

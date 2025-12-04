@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import Button from '../common/Button'; 
-import Input from '../common/Input';   
+import Button from '../ui/Button'; 
+import Input from '../ui/Input';   
 import { COLORS } from '../../lib/constants'; 
 
 function AuthPage() {

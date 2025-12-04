@@ -10,12 +10,12 @@ import { useAuth } from '../../../context/AuthContext';
 import { useGroupManager } from '../../../hooks/useGroupManager';
 import { useRosterManager } from '../../../hooks/useRosterManager';
 
-import UserSearch from '../../shared/UserSearch';
-import Header from '../../common/Header'; 
-import Button from '../../common/Button'; 
-import Input from '../../common/Input';
-import Card from '../../common/Card';
-import Avatar from '../../common/Avatar';
+import UserSearch from '../../domain/users/UserSearch';
+import Header from '../../ui/Header'; 
+import Button from '../../ui/Button'; 
+import Input from '../../ui/Input';
+import Card from '../../ui/Card';
+import Avatar from '../../ui/Avatar';
 
 // New Component
 import PublicRosterDetail from './components/PublicRosterDetail';

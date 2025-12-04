@@ -4,11 +4,11 @@ import { db } from '../../../lib/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { useFeedback } from '../../../hooks/useFeedback'; // NEW HOOK
 
-import Header from '../../common/Header';
-import Button from '../../common/Button';
-import Card from '../../common/Card';
-import Modal from '../../common/Modal';
-import Input from '../../common/Input';
+import Header from '../../ui/Header';
+import Button from '../../ui/Button';
+import Card from '../../ui/Card';
+import Modal from '../../ui/Modal';
+import Input from '../../ui/Input';
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { ThumbsUp, MessageSquare, CheckCircle, AlertCircle, Clock, Plus, Trash2, ShieldAlert, Edit3, PlusCircle } from 'lucide-react';
 

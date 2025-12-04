@@ -10,9 +10,9 @@ import { useStorage } from '../../../hooks/useStorage'; // NEW
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { SquarePen } from 'lucide-react';
 
-import UserSearch from '../../shared/UserSearch';
-import Header from '../../common/Header'; 
-import Button from '../../common/Button';
+import UserSearch from '../../domain/users/UserSearch';
+import Header from '../../ui/Header'; 
+import Button from '../../ui/Button';
 
 // Sub-components
 import ChatList from './components/ChatList';

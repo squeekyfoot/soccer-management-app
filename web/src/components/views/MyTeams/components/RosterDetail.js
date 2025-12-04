@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card from '../../../common/Card';
-import Button from '../../../common/Button';
-import Modal from '../../../common/Modal';
+import Card from '../../../ui/Card';
+import Button from '../../../ui/Button';
+import Modal from '../../../ui/Modal';
 import { COLORS } from '../../../../lib/constants';
 import { MessageSquare, Calendar, Clock, Trophy, Link, CheckCircle, MessageCircle, Mail, Phone, User } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';

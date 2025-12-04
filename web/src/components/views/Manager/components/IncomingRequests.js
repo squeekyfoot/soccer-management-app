@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import Card from '../../../common/Card';
-import Button from '../../../common/Button';
-import Avatar from '../../../common/Avatar';
-import Modal from '../../../common/Modal';
+import Card from '../../../ui/Card';
+import Button from '../../../ui/Button';
+import Avatar from '../../../ui/Avatar';
+import Modal from '../../../ui/Modal';
 import { useAuth } from '../../../../context/AuthContext';
 import { COLORS } from '../../../../lib/constants';
 

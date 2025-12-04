@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Header from '../../common/Header';
-import Card from '../../common/Card';
-import Button from '../../common/Button';
-import Loading from '../../common/Loading';
+import Header from '../../ui/Header';
+import Card from '../../ui/Card';
+import Button from '../../ui/Button';
+import Loading from '../../ui/Loading';
 import { useAuth } from '../../../context/AuthContext';
 import { useRosterManager } from '../../../hooks/useRosterManager'; // NEW HOOK
 import { COLORS } from '../../../lib/constants';
