@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"; 
 import { db } from "../../../lib/firebase";
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
-import { Users, Search, UserPlus, Globe, Plus, X, ArrowRight } from 'lucide-react';
+import { Users, Search, UserPlus, Globe, Plus, X } from 'lucide-react';
 
 // Context & Hooks
 import { useAuth } from '../../../context/AuthContext';
 import { useGroupManager } from '../../../hooks/useGroupManager';
-import { useRosterManager } from '../../../hooks/useRosterManager';
 
+// Domain/UI Components
 import UserSearch from '../../domain/users/UserSearch';
 import Header from '../../ui/Header'; 
 import Button from '../../ui/Button'; 
@@ -17,10 +17,10 @@ import Input from '../../ui/Input';
 import Card from '../../ui/Card';
 import Avatar from '../../ui/Avatar';
 
-// Domain Component
-import PublicRosterDetail from '../../domain/teams/PublicRosterDetail';
+// Sub-Views
+import FindTeams from './FindTeams';
 
-// --- HELPER COMPONENT (Moved Outside) ---
+// --- HELPER COMPONENT (Defined outside to prevent re-renders) ---
 const HubButton = ({ title, desc, icon: Icon, onClick, isMobile, color = COLORS.primary }) => (
   <Card 
     onClick={onClick} 
@@ -36,7 +36,6 @@ const HubButton = ({ title, desc, icon: Icon, onClick, isMobile, color = COLORS.
         padding: '20px', 
         boxSizing: 'border-box' 
     }}
-    // A11y Fixes
     role="button"
     tabIndex={0}
     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(e); }}
@@ -54,25 +53,30 @@ function Community() {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
   
-  // Use New Hooks
-  const { createGroup, fetchUserGroups, addGroupMembers, createGroupPost, updateGroupMemberRole, transferGroupOwnership, removeGroupMember } = useGroupManager();
-  const { subscribeToDiscoverableRosters, subscribeToUserRequests, submitJoinRequest } = useRosterManager();
+  // Use Group Hook
+  const { 
+    createGroup, 
+    fetchUserGroups, 
+    addGroupMembers, 
+    createGroupPost, 
+    updateGroupMemberRole, 
+    transferGroupOwnership, 
+    removeGroupMember 
+  } = useGroupManager();
 
+  // State
   const [currentView, setCurrentView] = useState('hub');
   const [myGroups, setMyGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [selectedRoster, setSelectedRoster] = useState(null);
-
   const [isLoading, setIsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
-  const [discoverableTeams, setDiscoverableTeams] = useState([]);
-  const [myRequests, setMyRequests] = useState([]);
-
+  // Group Create State
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDesc, setNewGroupDesc] = useState("");
 
+  // Group Detail State
   const [activeTab, setActiveTab] = useState('posts'); 
   const [groupPosts, setGroupPosts] = useState([]);
   const [newPostText, setNewPostText] = useState("");
@@ -80,12 +84,14 @@ function Community() {
   const [selectedMemberEmails, setSelectedMemberEmails] = useState([]);
   const [activeMemberMenu, setActiveMemberMenu] = useState(null); 
 
+  // 1. Responsive Listener
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 2. Load User Groups
   const loadGroups = useCallback(async () => {
     if (!loggedInUser) return;
     setIsLoading(true);
@@ -96,15 +102,20 @@ function Community() {
 
   useEffect(() => { if (loggedInUser) loadGroups(); }, [loggedInUser, loadGroups]);
 
+  // 3. Handle URL Routing (Deep Link to Group)
   useEffect(() => {
     const fetchLinkedGroup = async () => {
         if (!groupId) return;
+        
+        // Check if we already have it loaded
         const existing = myGroups.find(g => g.id === groupId);
         if (existing) {
             setSelectedGroup(existing);
             setCurrentView('detail');
             return;
         }
+
+        // If not, fetch it directly
         try {
             const docRef = doc(db, "groups", groupId);
             const snap = await getDoc(docRef);
@@ -119,6 +130,7 @@ function Community() {
     if (groupId) { fetchLinkedGroup(); }
   }, [groupId, myGroups]);
 
+  // 4. Group Detail: Listen to Posts
   useEffect(() => {
     if (!selectedGroup) return;
     const postsRef = collection(db, "groups", selectedGroup.id, "posts");
@@ -130,18 +142,7 @@ function Community() {
     return () => unsubscribe();
   }, [selectedGroup]);
 
-  useEffect(() => {
-      if (currentView === 'findTeams') {
-          setIsLoading(true);
-          const unsubRosters = subscribeToDiscoverableRosters((data) => { 
-              const recruiting = data.filter(t => t.lookingForPlayers);
-              setDiscoverableTeams(recruiting); 
-              setIsLoading(false); 
-          });
-          const unsubRequests = subscribeToUserRequests((data) => { setMyRequests(data); });
-          return () => { unsubRosters(); unsubRequests(); };
-      }
-  }, [currentView, subscribeToDiscoverableRosters, subscribeToUserRequests]); 
+  // --- HANDLERS ---
 
   const refreshSelectedGroup = async () => {
     if (!selectedGroup) return;
@@ -154,7 +155,13 @@ function Community() {
     e.preventDefault();
     if (!newGroupName) return;
     const success = await createGroup({ name: newGroupName, description: newGroupDesc, links: [] });
-    if (success) { alert("Group created!"); setShowCreateForm(false); setNewGroupName(""); setNewGroupDesc(""); loadGroups(); }
+    if (success) { 
+        alert("Group created!"); 
+        setShowCreateForm(false); 
+        setNewGroupName(""); 
+        setNewGroupDesc(""); 
+        loadGroups(); 
+    }
   };
 
   const handlePostSubmit = async (e) => {
@@ -167,16 +174,12 @@ function Community() {
   const handleAddMembers = async () => {
     if (selectedMemberEmails.length === 0) return;
     const success = await addGroupMembers(selectedGroup.id, selectedMemberEmails);
-    if (success) { alert("Members added!"); setShowAddMember(false); setSelectedMemberEmails([]); refreshSelectedGroup(); }
-  };
-
-  const handleJoinRequest = async (team) => { 
-      await submitJoinRequest(team.id, team.name, team.createdBy); 
-  };
-  
-  const getRequestStatus = (teamId) => { 
-      const req = myRequests.find(r => r.rosterId === teamId); 
-      return req ? req.status : null; 
+    if (success) { 
+        alert("Members added!"); 
+        setShowAddMember(false); 
+        setSelectedMemberEmails([]); 
+        refreshSelectedGroup(); 
+    }
   };
 
   const handlePromote = async (uid) => { const success = await updateGroupMemberRole(selectedGroup.id, uid, 'admin', selectedGroup.memberDetails); if(success) { setActiveMemberMenu(null); refreshSelectedGroup(); }};
@@ -212,6 +215,11 @@ function Community() {
         </div>
       </div>
     );
+  }
+
+  // --- DELEGATED VIEW: FIND TEAMS ---
+  if (currentView === 'findTeams') {
+      return <FindTeams onBack={() => setCurrentView('hub')} />;
   }
 
   if (currentView === 'myGroups') {
@@ -258,66 +266,6 @@ function Community() {
         </div>
       </div>
     );
-  }
-
-  if (currentView === 'findTeams') {
-      if (selectedRoster) {
-          const status = getRequestStatus(selectedRoster.id);
-          return (
-              <div className="view-container">
-                  <Header title="Team Details" style={{ maxWidth: '1000px', margin: '0 auto' }} />
-                  <div className="view-content">
-                      <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                          <PublicRosterDetail 
-                              roster={selectedRoster} 
-                              onBack={() => setSelectedRoster(null)}
-                              onJoin={handleJoinRequest}
-                              joinStatus={status}
-                          />
-                      </div>
-                  </div>
-              </div>
-          );
-      }
-      return (
-        <div className="view-container">
-            <Header title="Find Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} onBack={() => setCurrentView('hub')} />
-            <div className="view-content">
-              <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                {isLoading ? <p>Loading teams...</p> : discoverableTeams.length === 0 ? <p style={{ color: '#888' }}>No teams are currently recruiting.</p> : (
-                    <div style={{ display: 'grid', gap: '15px' }}>
-                        {discoverableTeams.map(team => {
-                            const status = getRequestStatus(team.id);
-                            const alreadyJoined = team.playerIDs?.includes(loggedInUser.uid);
-                            return (
-                                <Card 
-                                    key={team.id} 
-                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} 
-                                    hoverable 
-                                    onClick={() => setSelectedRoster(team)}
-                                    role="button"
-                                    tabIndex={0}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedRoster(team); }}
-                                >
-                                    <div>
-                                        <h3 style={{ margin: '0 0 5px 0', color: 'white' }}>{team.name}</h3>
-                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                            <span style={{ color: '#aaa', fontSize: '14px' }}>{team.season}</span>
-                                            {team.lookingForPlayers && <span style={{ backgroundColor: COLORS.success, color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>RECRUITING</span>}
-                                            {alreadyJoined && <span style={{ color: COLORS.success, fontSize: '12px', fontWeight: 'bold' }}>Joined</span>}
-                                            {status === 'pending' && <span style={{ color: '#ffc107', fontSize: '12px', fontWeight: 'bold' }}>Pending</span>}
-                                        </div>
-                                    </div>
-                                    <Button variant="secondary" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>Details <ArrowRight size={14} /></Button>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
-              </div>
-            </div>
-        </div>
-      );
   }
 
   if (currentView === 'detail' && selectedGroup) {

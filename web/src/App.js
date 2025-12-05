@@ -15,6 +15,7 @@ import Messaging from './components/views/Messaging/Messaging';
 import MyProfile from './components/views/Profile/MyProfile';
 import Feedback from './components/views/Feedback/Feedback';
 import ManagerDashboard from './components/views/Manager/ManagerDashboard';
+import FindTeams from './components/views/Community/FindTeams';
 
 function App() {
   const { loggedInUser, isLoading, needsReauth } = useAuth();
@@ -52,6 +53,7 @@ function App() {
             
             {/* Community Routes */}
             <Route path="community" element={<Community />} />
+            <Route path="find-teams" element={<FindTeams />} />
             <Route path="community/:groupId" element={<Community />} />
 
             {/* My Teams Routes */}
