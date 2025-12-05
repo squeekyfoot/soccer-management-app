@@ -3,23 +3,31 @@ import { collection, query, orderBy, onSnapshot, limitToLast, where } from "fire
 import { db } from "../../../lib/firebase";
 import { useAuth } from '../../../context/AuthContext';
 import { useChat } from '../../../context/ChatContext';
+import { useChatManager } from '../../../hooks/useChatManager'; // NEW HOOK
+import { useStorage } from '../../../hooks/useStorage'; // NEW HOOK
 import { compressImage } from '../../../utils/imageUtils';
 
-// Sub-components
+// Sub-components (Moved to domain/chats/components/)
 import ChatHeader from './components/ChatHeader';
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
 import ChatDetailsModal from './components/ChatDetailsModal';
-import ImageViewer from './components/ImageViewer';
+
+// Generic UI
+import ImageViewer from '../../ui/ImageViewer'; 
 
 const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
-    const { uploadImage, loggedInUser } = useAuth();
+    const { loggedInUser } = useAuth();
+    const { upload } = useStorage();
+    const { myChats } = useChat(); // Context for state
+    
+    // Manager for actions
     const { 
-        myChats, sendMessage, markChatAsRead, updateGroupPhoto, 
+        sendMessage, markChatAsRead, updateGroupPhoto, 
         leaveChat, hideChat, renameChat, addParticipant 
-    } = useChat();
+    } = useChatManager();
 
-    // Derived State from Context (ensures we always have fresh data)
+    // Derived State from Context
     const chat = useMemo(() => myChats.find(c => c.id === chatId), [myChats, chatId]);
 
     const [messages, setMessages] = useState([]);
@@ -34,12 +42,10 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
     useEffect(() => {
         if (!chatId || !chat) return;
 
-        // Mark read immediately
         markChatAsRead(chatId);
 
         const messagesRef = collection(db, "chats", chatId, "messages");
         
-        // Filter history if user was added late/removed previously
         let qConstraints = [orderBy("createdAt", "asc"), limitToLast(50)];
         if (chat.hiddenHistory && chat.hiddenHistory[loggedInUser.uid]) {
              const cutoffTimestamp = chat.hiddenHistory[loggedInUser.uid];
@@ -51,7 +57,6 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setMessages(msgs);
-            // Mark read again on new message arrival if component is active
             markChatAsRead(chatId);
         });
 
@@ -74,7 +79,8 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         let imageUrl = null;
         try {
             if (fileToUpload) {
-                imageUrl = await uploadImage(fileToUpload, `chat_images/${chatId}`);
+                // Using new Storage hook
+                imageUrl = await upload(fileToUpload, `chat_images/${chatId}/${Date.now()}_${fileToUpload.name}`);
             }
             await sendMessage(chatId, text, chat.participants, imageUrl);
         } catch (error) {
@@ -91,7 +97,7 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         if (!chat || !file) return;
         try {
             const compressedFile = await compressImage(file, 300, 0.8);
-            const imageUrl = await uploadImage(compressedFile, `chat_avatars/${chat.id}/${Date.now()}`);
+            const imageUrl = await upload(compressedFile, `chat_avatars/${chat.id}/${Date.now()}`);
             if (imageUrl) await updateGroupPhoto(chat.id, imageUrl);
         } catch (error) {
             console.error("Failed to update photo", error);
@@ -110,12 +116,12 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         if (isGroup) {
             if (window.confirm("Are you sure you want to leave this group?")) {
                 await leaveChat(chatId);
-                if (onBack) onBack(); // Navigate away
+                if (onBack) onBack(); 
             }
         } else {
             if (window.confirm("Are you sure you want to delete this chat history?")) {
                 await hideChat(chatId, chat.visibleTo);
-                if (onBack) onBack(); // Navigate away
+                if (onBack) onBack(); 
             }
         }
     };
@@ -141,7 +147,7 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
                 loggedInUser={loggedInUser}
                 onShowDetails={() => setShowChatDetails(true)}
                 onBack={onBack}
-                totalUnreadCount={0} // Managed internally or context
+                totalUnreadCount={0} 
             />
 
             <MessageList 

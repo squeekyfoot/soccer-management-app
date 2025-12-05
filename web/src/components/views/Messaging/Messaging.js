@@ -4,8 +4,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 // Contexts & Hooks
 import { useAuth } from '../../../context/AuthContext';
 import { useChat } from '../../../context/ChatContext'; 
-import { useUserDirectory } from '../../../hooks/useUserDirectory'; // NEW
-import { useStorage } from '../../../hooks/useStorage'; // NEW
+import { useChatManager } from '../../../hooks/useChatManager'; 
+import { useUserDirectory } from '../../../hooks/useUserDirectory'; 
+import { useStorage } from '../../../hooks/useStorage'; 
 
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
 import { SquarePen } from 'lucide-react';
@@ -14,49 +15,45 @@ import UserSearch from '../../domain/users/UserSearch';
 import Header from '../../ui/Header'; 
 import Button from '../../ui/Button';
 
-// Sub-components
-import ChatList from './components/ChatList';
-import Conversation from './Conversation'; 
-import MessageInput from './components/MessageInput'; 
+// Domain Components (Moved)
+import ChatList from '../../domain/chats/ChatList';
+import Conversation from '../../domain/chats/Conversation'; 
+import MessageInput from '../../domain/chats/components/MessageInput'; 
 
 function Messaging() {
-  const { chatId } = useParams(); // URL Driver
+  const { chatId } = useParams(); 
   const navigate = useNavigate();
   
-  // Use new hooks
   const { loggedInUser } = useAuth();
-  const { upload } = useStorage(); // Replaces uploadImage from AuthContext
-  const { userProfiles } = useUserDirectory(); // Replaces manual useEffect fetch
-  const { myChats, createChat, sendMessage, hideChat, leaveChat } = useChat(); 
+  const { upload } = useStorage();
+  const { userProfiles } = useUserDirectory(); 
+  const { myChats } = useChat(); 
+  const { createChat, sendMessage, hideChat, leaveChat } = useChatManager(); 
   
-  // -- UI STATE --
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
 
-  // -- DRAFT STATE (Only for New Chat Screen) --
   const [selectedEmails, setSelectedEmails] = useState([]); 
   const [newMessage, setNewMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
 
-  // 1. Responsive Check
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 2. Routing Sync
   useEffect(() => {
     if (chatId) {
-        setIsCreatingChat(false); // URL overrides manual creation mode
+        setIsCreatingChat(false); 
     }
   }, [chatId]);
 
   // -- HANDLERS --
 
   const startNewChat = useCallback(() => {
-      navigate('/messages'); // Clear URL
+      navigate('/messages');
       setIsCreatingChat(true); 
       setNewMessage(""); 
       setSelectedEmails([]);
@@ -92,7 +89,6 @@ function Messaging() {
          const fileToUpload = selectedFile;
          
          let imageUrl = null;
-         // Use the new hook's upload function
          if (fileToUpload) {
              imageUrl = await upload(fileToUpload, `chat_images/${chatResult.id}/${Date.now()}_${fileToUpload.name}`);
          }

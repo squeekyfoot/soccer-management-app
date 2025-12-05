@@ -1,9 +1,7 @@
 import React, { useRef, useState } from 'react';
-// FIX: Up 4 levels to src
 import { COLORS } from '../../../../lib/constants';
-// FIX: Up 3 levels to components
 import Button from '../../../ui/Button';
-import UserSearch from '../../../domain/users/UserSearch'; 
+import UserSearch from '../../users/UserSearch'; 
 import { Camera, UserPlus, ArrowLeft } from 'lucide-react';
 
 const ChatDetailsModal = ({ 
