@@ -17,8 +17,37 @@ import Input from '../../ui/Input';
 import Card from '../../ui/Card';
 import Avatar from '../../ui/Avatar';
 
-// New Component
-import PublicRosterDetail from './components/PublicRosterDetail';
+// Domain Component
+import PublicRosterDetail from '../../domain/teams/PublicRosterDetail';
+
+// --- HELPER COMPONENT (Moved Outside) ---
+const HubButton = ({ title, desc, icon: Icon, onClick, isMobile, color = COLORS.primary }) => (
+  <Card 
+    onClick={onClick} 
+    hoverable 
+    style={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'row' : 'column', 
+        alignItems: 'center', 
+        justifyContent: isMobile ? 'flex-start' : 'center', 
+        textAlign: isMobile ? 'left' : 'center', 
+        minHeight: isMobile ? 'auto' : '220px', 
+        marginBottom: 0, 
+        padding: '20px', 
+        boxSizing: 'border-box' 
+    }}
+    // A11y Fixes
+    role="button"
+    tabIndex={0}
+    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(e); }}
+  >
+    <Icon size={isMobile ? 32 : 40} color={color} style={{ marginBottom: isMobile ? 0 : '15px', marginRight: isMobile ? '15px' : 0, flexShrink: 0 }} />
+    <div>
+      <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>{title}</div>
+      <div style={{ fontSize: '13px', color: '#aaa' }}>{desc}</div>
+    </div>
+  </Card>
+);
 
 function Community() {
   const { groupId } = useParams(); 
@@ -167,16 +196,6 @@ function Community() {
       setCurrentView('myGroups');
   };
 
-  const HubButton = ({ title, desc, icon: Icon, onClick, color = COLORS.primary }) => (
-    <Card onClick={onClick} hoverable style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', textAlign: isMobile ? 'left' : 'center', minHeight: isMobile ? 'auto' : '220px', marginBottom: 0, padding: '20px', boxSizing: 'border-box' }}>
-      <Icon size={isMobile ? 32 : 40} color={color} style={{ marginBottom: isMobile ? 0 : '15px', marginRight: isMobile ? '15px' : 0, flexShrink: 0 }} />
-      <div>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>{title}</div>
-        <div style={{ fontSize: '13px', color: '#aaa' }}>{desc}</div>
-      </div>
-    </Card>
-  );
-
   // --- VIEWS ---
 
   if (currentView === 'hub') {
@@ -185,10 +204,10 @@ function Community() {
         <Header title="Community" style={{ maxWidth: '1000px', margin: '0 auto' }} />
         <div className="view-content">
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
-            <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} />
-            <HubButton title="Find Teams" desc="Search for local teams to join" icon={Search} onClick={() => setCurrentView('findTeams')} />
-            <HubButton title="Find Players" desc="Connect with other players (Coming Soon)" icon={UserPlus} color="#888" onClick={() => alert("Feature coming soon!")} />
-            <HubButton title="My Groups" desc="Teams, groups and communities that I've already joined" icon={Users} onClick={() => setCurrentView('myGroups')} />
+            <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} isMobile={isMobile} />
+            <HubButton title="Find Teams" desc="Search for local teams to join" icon={Search} onClick={() => setCurrentView('findTeams')} isMobile={isMobile} />
+            <HubButton title="Find Players" desc="Connect with other players (Coming Soon)" icon={UserPlus} color="#888" onClick={() => alert("Feature coming soon!")} isMobile={isMobile} />
+            <HubButton title="My Groups" desc="Teams, groups and communities that I've already joined" icon={Users} onClick={() => setCurrentView('myGroups')} isMobile={isMobile} />
           </div>
         </div>
       </div>
@@ -222,9 +241,11 @@ function Community() {
                 {myGroups.map(group => (
                   <Card 
                     key={group.id} 
-                    // FIX: Ensure we switch view AND set the group
                     onClick={() => { setSelectedGroup(group); setCurrentView('detail'); }} 
                     hoverable
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedGroup(group); setCurrentView('detail'); } }}
                   >
                     <h3 style={{ margin: '0 0 10px 0', color: COLORS.primary }}>{group.name}</h3>
                     <p style={{ margin: 0, color: '#ccc', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.description}</p>
@@ -269,7 +290,15 @@ function Community() {
                             const status = getRequestStatus(team.id);
                             const alreadyJoined = team.playerIDs?.includes(loggedInUser.uid);
                             return (
-                                <Card key={team.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} hoverable onClick={() => setSelectedRoster(team)}>
+                                <Card 
+                                    key={team.id} 
+                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} 
+                                    hoverable 
+                                    onClick={() => setSelectedRoster(team)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedRoster(team); }}
+                                >
                                     <div>
                                         <h3 style={{ margin: '0 0 5px 0', color: 'white' }}>{team.name}</h3>
                                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>

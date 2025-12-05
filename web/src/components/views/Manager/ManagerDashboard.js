@@ -7,29 +7,38 @@ import { useRosterManager } from '../../../hooks/useRosterManager';
 import RosterList from '../../domain/teams/RosterList';
 import RosterDetail from '../../domain/teams/RosterDetail';
 import CreateRosterForm from '../../domain/teams/CreateRosterForm';
-import JoinRequestList from '../../domain/joinRequests/JoinRequestList'; // <-- NEW
+import JoinRequestList from '../../domain/joinRequests/JoinRequestList'; 
+import CreateLeagueModal from '../../domain/leagues/CreateLeagueModal'; // <--- NEW LOCATION
 
-import CreateLeagueModal from './components/CreateLeagueModal';
 import Button from '../../ui/Button';
 
 const ManagerDashboard = () => {
   const { loggedInUser } = useAuth(); 
-  const { createRoster, fetchRosters, deleteRoster } = useRosterManager();
+  
+  const { 
+    createRoster, 
+    fetchRosters, 
+    deleteRoster 
+  } = useRosterManager();
 
   const [activeView, setActiveView] = useState('list'); 
   const [rosters, setRosters] = useState([]);
   const [selectedRoster, setSelectedRoster] = useState(null);
   const [showLeagueModal, setShowLeagueModal] = useState(false);
 
-  // Load Roster Data
+  // Load List Data Only
   const loadData = useCallback(async () => {
+    // Note: In a real app, you might filter this by ownerID on the server
     const r = await fetchRosters();
+    // Filter client-side if fetchRosters returns all (depending on your security rules/API)
     const myRosters = r.filter(roster => roster.createdBy === loggedInUser?.uid);
     setRosters(myRosters);
   }, [fetchRosters, loggedInUser]);
 
   useEffect(() => {
-    if (loggedInUser) loadData();
+    if (loggedInUser) {
+        loadData();
+    }
   }, [loadData, loggedInUser]);
 
   const handleCreateRoster = async (name, season, capacity, isDiscoverable, groupData, addManager) => {
@@ -62,6 +71,7 @@ const ManagerDashboard = () => {
       <div className="view-content">
         <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'left' }}>
           
+          {/* Action Bar (Only visible in list view) */}
           {activeView === 'list' && (
               <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
                   <Button onClick={() => setActiveView('create')}>+ New Roster</Button>
@@ -92,7 +102,7 @@ const ManagerDashboard = () => {
             />
           )}
 
-          {/* VIEW: DETAIL */}
+          {/* VIEW: DETAIL (Using Unified Smart Component) */}
           {activeView === 'detail' && selectedRoster && (
             <RosterDetail 
                 rosterId={selectedRoster.id} 

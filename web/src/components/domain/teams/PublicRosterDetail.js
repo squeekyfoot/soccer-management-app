@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../../../context/AuthContext';
-import { useLeagueManager } from '../../../../hooks/useLeagueManager'; // NEW IMPORT
-import Card from '../../../ui/Card';
-import Button from '../../../ui/Button';
-import { COLORS } from '../../../../lib/constants';
-import { Calendar, Clock, Trophy, MapPin, Users, CheckCircle, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
+import { useLeagueManager } from '../../../hooks/useLeagueManager';
+import Card from '../../ui/Card';
+import Button from '../../ui/Button';
+import { COLORS } from '../../../lib/constants';
+import { Calendar, Clock, Trophy, CheckCircle, AlertCircle } from 'lucide-react';
 
 const PublicRosterDetail = ({ roster, onBack, onJoin, joinStatus }) => {
   const { loggedInUser } = useAuth();
-  const { fetchLeagues } = useLeagueManager(); // USE NEW HOOK
+  const { fetchLeagues } = useLeagueManager();
 
   const [league, setLeague] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +16,6 @@ const PublicRosterDetail = ({ roster, onBack, onJoin, joinStatus }) => {
   useEffect(() => {
     const loadLeague = async () => {
       if (roster.leagueId) {
-        // Now calling the function from the hook, not AuthContext
         const leagues = await fetchLeagues();
         const found = leagues.find(l => l.id === roster.leagueId);
         setLeague(found);
