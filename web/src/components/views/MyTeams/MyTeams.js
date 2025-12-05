@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../../ui/Header';
-import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Loading from '../../ui/Loading';
 import { useAuth } from '../../../context/AuthContext';
-import { useRosterManager } from '../../../hooks/useRosterManager'; // NEW HOOK
+import { useRosterManager } from '../../../hooks/useRosterManager';
 import { COLORS } from '../../../lib/constants';
-import RosterDetail from './components/RosterDetail';
+
+// Updated Domain Imports
+import RosterDetail from '../../domain/teams/RosterDetail';
+import TeamCard from '../../domain/teams/TeamCard';
 
 function MyTeams() {
   const { rosterId } = useParams(); 
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
   
-  // Use new hook
   const { fetchUserRosters } = useRosterManager();
   
   const [rosters, setRosters] = useState([]);
@@ -26,7 +27,6 @@ function MyTeams() {
     const load = async () => {
       if (loggedInUser) {
         setLoading(true);
-        // Uses the hook function instead of Context
         const data = await fetchUserRosters(loggedInUser.uid);
         setRosters(data);
         setLoading(false);
@@ -44,8 +44,11 @@ function MyTeams() {
       } else {
         setSelectedRoster(null);
       }
+    } else if (!loading && rosters.length === 0 && rosterId) {
+        // Handle case where user navigates to a roster they aren't part of or doesn't exist
+        navigate('/myteams');
     }
-  }, [rosterId, rosters, loading]);
+  }, [rosterId, rosters, loading, navigate]);
 
   // 3. Handlers
   const handleSelectRoster = (roster) => {
@@ -60,15 +63,20 @@ function MyTeams() {
 
   return (
     <div className="view-container">
-      <Header title="My Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} />
+      {/* Only show main header in List View to avoid double headers with RosterDetail */}
+      {!selectedRoster && (
+          <Header title="My Teams" style={{ maxWidth: '1000px', margin: '0 auto' }} />
+      )}
       
       <div className="view-content">
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
           
-          {/* DETAIL VIEW */}
+          {/* DETAIL VIEW (Unified Component) */}
           {selectedRoster ? (
             <RosterDetail 
-              roster={selectedRoster} 
+              rosterId={selectedRoster.id}
+              initialRosterData={selectedRoster}
+              viewMode="view" // Explicitly setting read-only mode
               onBack={handleBack} 
             />
           ) : (
@@ -82,20 +90,14 @@ function MyTeams() {
               ) : (
                 <div style={{ display: 'grid', gap: '15px' }}>
                   {rosters.map(roster => (
-                    <Card 
+                    <TeamCard 
                       key={roster.id} 
-                      hoverable 
+                      roster={roster} 
                       onClick={() => handleSelectRoster(roster)}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                    >
-                      <div>
-                        <h3 style={{ margin: '0 0 5px 0', color: COLORS.primary }}>{roster.name}</h3>
-                        <p style={{ margin: 0, color: '#ccc', fontSize: '14px' }}>
-                            {roster.season} • {roster.players?.length || 0} Players
-                        </p>
-                      </div>
-                      <Button variant="secondary" style={{ fontSize: '13px' }}>View Details</Button>
-                    </Card>
+                      actions={
+                        <Button variant="secondary" style={{ fontSize: '13px' }}>View Details</Button>
+                      }
+                    />
                   ))}
                 </div>
               )}

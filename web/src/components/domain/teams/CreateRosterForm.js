@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import Card from '../../../ui/Card';
-import Input from '../../../ui/Input';
-import Button from '../../../ui/Button';
-import { COLORS } from '../../../../lib/constants';
+import Card from '../../ui/Card';
+import Input from '../../ui/Input';
+import Button from '../../ui/Button';
+import { COLORS } from '../../../lib/constants';
 
 const CreateRosterForm = ({ onSubmit, onCancel }) => {
   const [name, setName] = useState("");
