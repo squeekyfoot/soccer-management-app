@@ -1,141 +1,136 @@
-Phase 0: Definition & Documentation
+# Phase 0: AI Tool Preparation
 
-Goal: Define the "Contract" (Data shape & Success criteria) before writing code.
+**Goal:** Set up the AI tool to undersand a context and preferences that you may need to repeat constantly.
 
-Checklist:
+**Checklist**:
+1. Grab repository URL if it's changed from this one
+2. Ensure prompt has descriptor of your project
+3. Identify any relevant files in case it needs some additional context (such as architecture files)
+4. Include general instructions on how it's to help
+5. Tell the the scope (and what's out of scope)
+6. Give any preferences to remember (full code, brain vs. body)
 
-[ ] Define the Entity Name (e.g., Tournament).
+**Repository URL**:
+https://github.com/squeekyfoot/soccer-management-app
 
-[ ] List the database fields needed (e.g., name, date, location).
+**Prompt:**
 
-[ ] List the user actions needed (e.g., create, join, delete).
+I'm developing a sports management application and I've included my repository for your context. The primary README at the root of the project has general overview information about everything. I maintain a general philosophy of "Inside-Out" (Data & Logic → UI Components → View Orchestration).
 
-[ ] Update docs/SCENARIOS.md to define the success criteria.
+Instruction: I need your help with development of this project.
+Scope: We are only working on the web app today and not worrying about any code in the mobile app, as I will port that over in the upcoming days.
+Requirements: Please follow these requirements as we proceed working together:
+* I'm not a developer so I barely know coding language and nuances-you must give me full code files when writing code so I can copy and paste the full document without wasting time
+* Do not truncate code, because I will make you re-render the complete code which will defeat your original purpose of trying to be efficient
+* Please be on the lookout for scalability and resiliency-meaning if I ask you to create a new piece of functionality, try to break apart the data/logic/ui concerns and file it into the appropriate folder structure
+* Do not just agree with every thought I have, I am flawed and I want to know when I'm not utilizing best practices or going against intended project design
 
-📋 Gemini Prompt for Phase 0 (Documentation): "I am adding a new feature: [FEATURE NAME].
+Please verify that you understand the project, these instructions and my requirements today.
 
-Please generate the specific Markdown to update docs/SCENARIOS.md.
 
-Identify the Role: Is this for a Standard User or a Team Manager?
+-------------------------------------------
 
-Create the Matrix Row: Generate a table row in the format: | Feature Area | Scenario (Action) | Expected Outcome | Critical Path? |.
 
-Details:
+### Phase 1: The Foundation (Docs, Data & Logic)
+**Goal:** Define the feature once, then immediately generate the "Contract" (Docs) and the "Engine" (Hook & Tests) to fulfill it.
 
-Action: [DESCRIBE USER ACTION, e.g., 'User clicks Filter button']
+**The Workflow:**
+1.  **Define:** Fill out the "Feature Context" (mental or scratchpad).
+2.  **Document:** Update `SCENARIOS.md` to lock in the requirements.
+3.  **Implement:** Create the Hook (`use...Manager`) that powers those requirements.
+4.  **Verify:** Create the Unit Test to prove it works.
 
-Outcome: [DESCRIBE RESULT, e.g., 'List updates to show only matching teams']
+**Checklist:**
+- [ ] **Define the Feature Context** (Name, Fields, Actions).
+- [ ] **Update `docs/SCENARIOS.md`** (The Contract).
+- [ ] **Create the Hook** (`src/hooks/use{Entity}Manager.js`).
+- [ ] **Create the Test** (`src/hooks/__tests__/use{Entity}Manager.test.js`).
+- [ ] Run `npm test` to confirm the foundation is solid.
 
-Critical: [YES/NO]
+#### Step 1: Define the Feature Context (Do this once)
+*To avoid repeating yourself, fill in these blanks mentally or in a notepad. You will paste this "Context" into the prompts below.*
 
-Please output only the Markdown table row so I can paste it directly into the file."
+**Feature Context:**
+* **Feature Name:** (e.g., `Tournaments`)
+* **User Role:** (e.g., Manager)
+* **Database Fields:** (e.g., `name`, `startDate`, `bracketType`)
+* **Required Actions:** (e.g., `create`, `delete`, `generateBracket`)
 
-Phase 1: The Brain (Logic & Testing)
+#### Step 2: The Prompts (Execute the Plan)
 
-Goal: Build and verify the engine before building the car. Files: src/hooks/use{Entity}Manager.js and src/hooks/__tests__/use{Entity}Manager.test.js.
+**Prompt A: The Contract (Documentation)**
+I am building a new feature. Here is the **Feature Context**: [PASTE CONTEXT HERE].
 
-Checklist:
+Please generate the specific Markdown table row to update `docs/SCENARIOS.md`.
+* **Columns:** Feature Area | Scenario (Action) | Expected Outcome | Critical Path?
+* **Focus:** Define the successful user outcome for this feature (e.g., 'Manager creates tournament -> Tournament appears in list').
 
-[ ] Create the Hook file with Firestore CRUD logic.
+**Prompt B: The Brain (The Hook)**
 
-[ ] Create the Unit Test file.
-
-[ ] Run npm test to verify the logic works in isolation.
-
-📋 Gemini Prompt for Phase 1a (The Hook): "I am adding a new feature called [FEATURE NAME] to my React app. Please create the custom hook src/hooks/use[FEATURE]Manager.js following my 'Brain vs. Body' architecture.
-
+Using the same Feature Context, please create the custom hook `src/hooks/use[ENTITY]Manager.js`.
 Requirements:
+1.  Interact with the'[COLLECTION_NAME]' Firestore collection.
+2.  Export `loading`, `error`, and the actions defined in my Context.
+3.  Strict Rule: NO JSX. Return only data and functions.
 
-It should use firebase/firestore to interact with the '[COLLECTION_NAME]' collection.
+**Prompt C: The Safety Net (The Test)**
 
-It must export loading, error, and the following actions: [LIST ACTIONS: e.g., createItem, fetchItems, deleteItem].
-
-The fetch function should be memoized with useCallback.
-
-Strict Rule: This file must contain ONLY logic and state. NO JSX or UI rendering."
-
-📋 Gemini Prompt for Phase 1b (The Test): "I have created the hook src/hooks/use[FEATURE]Manager.js. Now I need to ensure it is robust.
-
-Please generate the unit test file: src/hooks/__tests__/use[FEATURE]Manager.test.js.
-
+Now generate the unit test file `src/hooks/__tests__/use[ENTITY]Manager.test.js` for the hook we just created.
 Requirements:
+1.  Mock `firebase/firestore` (addDoc, getDocs, etc.) so no network calls occur.
+2.  Test the 'Happy Path' (Success) and one 'Error Case' (Failure).
+3.  Mock `useAuth` to simulate a logged-in user.
 
-Use @testing-library/react (renderHook, act) and jest.
 
-Mock Firebase: Strictly mock firebase/firestore functions (collection, addDoc, getDocs) so no real network calls are made.
+-------------------------------------------
 
-Test Cases:
 
-Success: Verify that calling the action (e.g., createItem) calls the Firestore function with the correct parameters.
+### Phase 2: The Body (Domain Components)
+**Goal:** Build the reusable UI blocks (Cards, Forms) that consume the Hook.
+**Files:** `src/components/domain/{entity}/*`
 
-Failure: Mock a Firestore error and verify the hook returns false or sets an error state.
+- [ ] Create **Card** component.
+- [ ] Create **Form/Modal** component.
 
-Mock useAuth context to provide a fake loggedInUser."
+**Prompt:**
+> "Now I need the Domain Components for **[FEATURE NAME]**. Please create the following files in `src/components/domain/[ENTITY]/`:
+>
+> 1.  **`[ENTITY]Card.js`**: Displays a summary of the item. Accepts `item` and `onAction` props.
+> 2.  **`Create[ENTITY]Form.js`**: A form to add a new item using my generic UI components (`src/components/ui/Input`, `Button`).
+>
+> **Strict Rules:**
+> * Do NOT import firebase or hooks here. These are 'dumb' components.
+> * Use `lucide-react` for icons and `src/lib/constants` for colors."
 
-Phase 2: The Body (Domain Components)
 
-Goal: Build the reusable UI blocks (Cards, Forms, Lists). Files: src/components/domain/{entity}/*
+-------------------------------------------
 
-Checklist:
 
-[ ] Create the Card component (Display item in a list).
+### Phase 3: The Orchestrator (The View)
+**Goal:** Connect the Brain (Phase 1) to the Body (Phase 2).
+**Files:** `src/components/views/{Feature}/{Feature}.js`
 
-[ ] Create the Form/Modal component (Create or Edit item).
+- [ ] Create the View file.
+- [ ] Connect Hook to Components.
 
-[ ] Validation: Ensure these accept data via props only. No direct API calls here.
+**Prompt:**
+> "Please create the View component `src/components/views/[FEATURE]/[FEATURE].js`.
+>
+> **Responsibilities:**
+> 1.  Import `use[ENTITY]Manager` (from Phase 1).
+> 2.  Import the Domain Components (from Phase 2).
+> 3.  Fetch data using the hook and render the list using the Card component.
+> 4.  Handle the 'Create' action by opening the Form component (manage modal state locally)."
 
-📋 Gemini Prompt for Phase 2 (Domain UI): "Now I need the Domain Components for [FEATURE NAME]. Please create the following files in src/components/domain/[FEATURE]/:
 
-[FEATURE]Card.js: Displays a summary of the item. It should accept props: item (object) and onAction (function).
+-------------------------------------------
 
-Create[FEATURE]Form.js: A form to add a new item. It should use my generic UI components (src/components/ui/Input, Button, etc.).
 
-Strict Rules:
+### Phase 4: The Map (Routing)
+**Goal:** Make it accessible.
+**Files:** `src/App.js`
 
-Do NOT import firebase or hooks here. These are 'dumb' presentation components.
+- [ ] Add Route to `src/App.js`.
 
-Use src/lib/constants for colors if needed.
-
-Use the lucide-react library for icons."
-
-Phase 3: The Orchestrator (The View)
-
-Goal: Connect the Brain (Phase 1) to the Body (Phase 2). Files: src/components/views/{Feature}/{Feature}.js
-
-Checklist:
-
-[ ] Create the View file.
-
-[ ] Import the Hook from Phase 1.
-
-[ ] Import the Domain Components from Phase 2.
-
-[ ] Wire up the data and actions (glue code).
-
-📋 Gemini Prompt for Phase 3 (The View): "Please create the View component src/components/views/[VIEW_NAME]/[VIEW_NAME].js.
-
-Responsibilities:
-
-Import and use use[FEATURE]Manager to fetch data and handle actions.
-
-Import [FEATURE]Card and Create[FEATURE]Form from the domain folder.
-
-Render a list of items using the Card component.
-
-Render a 'Create' button that opens the Form component (manage the modal visibility state locally in this view).
-
-Strict Rule: Keep this file clean. It should mostly look like a list of component calls. Do not write inline complex logic."
-
-Phase 4: The Map (Routing)
-
-Goal: Make the feature accessible via URL. Files: src/App.js
-
-Checklist:
-
-[ ] Import the new View in App.js.
-
-[ ] Register the <Route> (Protected or Public).
-
-[ ] Verify the User Flow matches the Scenario defined in Phase 0.
-
-📋 Gemini Prompt for Phase 4 (Routing): "I need to expose this new view. Please provide the code snippet to add [VIEW_NAME] to my src/App.js routing configuration. It should be a protected route accessible only to logged-in users at the path '/[PATH_NAME]'."
+**Prompt:**
+> "Please provide the code snippet to add **[VIEW_NAME]** to my `src/App.js`. It should be a protected route at **'/[PATH_NAME]'**."
