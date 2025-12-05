@@ -1,8 +1,7 @@
-// src/hooks/useRosterManager.js
 import { useState, useCallback } from 'react';
 import { 
   collection, addDoc, updateDoc, doc, deleteDoc, getDocs, 
-  query, where, arrayUnion, arrayRemove, serverTimestamp, deleteField, setDoc, onSnapshot, orderBy, getDoc 
+  query, where, arrayUnion, arrayRemove, serverTimestamp, deleteField, setDoc, onSnapshot 
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
@@ -15,10 +14,7 @@ export const useRosterManager = () => {
 
   // --- SUBSCRIPTIONS (Real-time) ---
   
-  /**
-   * Listen to a specific Roster document.
-   * Replaces direct onSnapshot usage in Views.
-   */
+  // 1. Single Roster Listener
   const subscribeToRoster = useCallback((rosterId, callback) => {
     if (!rosterId) return () => {};
     const rosterRef = doc(db, "rosters", rosterId);
@@ -31,6 +27,7 @@ export const useRosterManager = () => {
     });
   }, []);
 
+  // 2. Incoming Requests (For Managers)
   const subscribeToIncomingRequests = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
@@ -40,6 +37,27 @@ export const useRosterManager = () => {
       callback(requests);
     });
   }, [loggedInUser]);
+
+  // 3. User Requests (For Players)
+  const subscribeToUserRequests = useCallback((callback) => {
+    if (!loggedInUser) return () => {};
+    const requestsRef = collection(db, "rosterRequests");
+    const q = query(requestsRef, where("userId", "==", loggedInUser.uid));
+    return onSnapshot(q, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(requests);
+    });
+  }, [loggedInUser]);
+
+  // 4. Discoverable Rosters (For Community Search)
+  const subscribeToDiscoverableRosters = useCallback((callback) => {
+    const rostersRef = collection(db, "rosters");
+    const q = query(rostersRef, where("isDiscoverable", "==", true));
+    return onSnapshot(q, (snapshot) => {
+      const rosters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(rosters);
+    });
+  }, []);
 
   // --- FETCHING (One-time) ---
   
@@ -65,7 +83,40 @@ export const useRosterManager = () => {
     }
   }, []);
 
+  const fetchIncomingRequests = useCallback(async () => {
+    if (!loggedInUser) return [];
+    try {
+      const requestsRef = collection(db, "rosterRequests");
+      const q = query(requestsRef, where("managerId", "==", loggedInUser.uid));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error fetching incoming requests:", error);
+      return [];
+    }
+  }, [loggedInUser]);
+
   // --- ACTIONS ---
+
+  const submitJoinRequest = async (rosterId, rosterName, managerId) => {
+    if (!loggedInUser) return false;
+    try {
+       const requestsRef = collection(db, "rosterRequests");
+       const q = query(requestsRef, where("rosterId", "==", rosterId), where("userId", "==", loggedInUser.uid));
+       const existing = await getDocs(q);
+       if (!existing.empty) { alert("Already requested."); return false; }
+
+       await addDoc(requestsRef, {
+         rosterId, rosterName, managerId,
+         userId: loggedInUser.uid, userName: loggedInUser.playerName, userEmail: loggedInUser.email,
+         status: 'pending', createdAt: serverTimestamp()
+       });
+       return true;
+    } catch (error) {
+      console.error("Error submitting request:", error);
+      return false;
+    }
+  };
 
   const createRoster = async (rosterData, groupCreationData = null, addManagerAsPlayer = false) => {
     if (!loggedInUser) return false;
@@ -131,6 +182,31 @@ export const useRosterManager = () => {
     }
   };
 
+  const deleteRoster = async (rosterId) => {
+    try {
+      await deleteDoc(doc(db, "rosters", rosterId));
+      
+      const chatsRef = collection(db, "chats");
+      const q = query(chatsRef, where("rosterId", "==", rosterId));
+      const querySnapshot = await getDocs(q);
+
+      const batchPromises = querySnapshot.docs.map(async (chatDoc) => {
+          const systemMessage = "This team has been disbanded by the manager.";
+          await addDoc(collection(db, "chats", chatDoc.id, "messages"), {
+              text: systemMessage, type: 'system', createdAt: serverTimestamp()
+          });
+          await updateDoc(chatDoc.ref, {
+              type: 'group', rosterId: deleteField(), lastMessage: systemMessage, lastMessageTime: serverTimestamp() 
+          });
+      });
+      await Promise.all(batchPromises);
+      return true;
+    } catch (error) {
+      console.error("Error deleting roster:", error);
+      return false;
+    }
+  };
+
   const addPlayerToRoster = async (rosterId, playerEmail) => {
     try {
       const usersRef = collection(db, "users");
@@ -172,8 +248,7 @@ export const useRosterManager = () => {
       await updateDoc(doc(db, "rosters", rosterId), {
         playerIDs: arrayRemove(playerSummary.uid), players: arrayRemove(playerSummary)
       });
-      // Note: We don't strictly remove from chat history visibility here to preserve history, 
-      // but you can add that logic if desired.
+      // Chat sync logic can be added here if needed
       return true;
     } catch (error) {
       console.error("Error removing player:", error);
@@ -217,11 +292,19 @@ export const useRosterManager = () => {
 
   return {
     loading,
-    subscribeToRoster, // <--- EXPORTED
-    fetchRosters, fetchUserRosters,
-    createRoster, updateRoster,
-    addPlayerToRoster, removePlayerFromRoster,
+    subscribeToRoster, 
+    subscribeToIncomingRequests,
+    subscribeToUserRequests,
+    subscribeToDiscoverableRosters,
+    fetchRosters, 
+    fetchUserRosters,
+    fetchIncomingRequests,
+    createRoster, 
+    updateRoster, 
+    deleteRoster,
+    addPlayerToRoster, 
+    removePlayerFromRoster,
     createTeamChat,
-    subscribeToIncomingRequests
+    submitJoinRequest
   };
 };

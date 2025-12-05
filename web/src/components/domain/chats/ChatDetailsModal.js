@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { COLORS } from '../../../../lib/constants';
-import Button from '../../../ui/Button';
-import UserSearch from '../../users/UserSearch'; 
+import { COLORS } from '../../../lib/constants'; // Updated path
+import Button from '../../ui/Button'; // Updated path
+import UserSearch from '../users/UserSearch'; // Updated path
 import { Camera, UserPlus, ArrowLeft } from 'lucide-react';
 
 const ChatDetailsModal = ({ 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronLeft, MoreVertical } from 'lucide-react'; 
-import { COLORS } from '../../../../lib/constants';
+import { COLORS } from '../../../lib/constants'; // Updated path
 
 const ChatHeader = ({ 
   selectedChat, 

@@ -15,10 +15,10 @@ import UserSearch from '../../domain/users/UserSearch';
 import Header from '../../ui/Header'; 
 import Button from '../../ui/Button';
 
-// Domain Components (Moved)
+// Domain Components (FLATTENED IMPORTS)
 import ChatList from '../../domain/chats/ChatList';
 import Conversation from '../../domain/chats/Conversation'; 
-import MessageInput from '../../domain/chats/components/MessageInput'; 
+import MessageInput from '../../domain/chats/MessageInput'; 
 
 function Messaging() {
   const { chatId } = useParams(); 

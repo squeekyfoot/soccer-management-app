@@ -3,15 +3,15 @@ import { collection, query, orderBy, onSnapshot, limitToLast, where } from "fire
 import { db } from "../../../lib/firebase";
 import { useAuth } from '../../../context/AuthContext';
 import { useChat } from '../../../context/ChatContext';
-import { useChatManager } from '../../../hooks/useChatManager'; // NEW HOOK
-import { useStorage } from '../../../hooks/useStorage'; // NEW HOOK
+import { useChatManager } from '../../../hooks/useChatManager'; 
+import { useStorage } from '../../../hooks/useStorage'; 
 import { compressImage } from '../../../utils/imageUtils';
 
-// Sub-components (Moved to domain/chats/components/)
-import ChatHeader from './components/ChatHeader';
-import MessageList from './components/MessageList';
-import MessageInput from './components/MessageInput';
-import ChatDetailsModal from './components/ChatDetailsModal';
+// Sub-components (FLATTENED IMPORTS)
+import ChatHeader from './ChatHeader';
+import MessageList from './MessageList';
+import MessageInput from './MessageInput';
+import ChatDetailsModal from './ChatDetailsModal';
 
 // Generic UI
 import ImageViewer from '../../ui/ImageViewer'; 
@@ -19,15 +19,13 @@ import ImageViewer from '../../ui/ImageViewer';
 const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
     const { loggedInUser } = useAuth();
     const { upload } = useStorage();
-    const { myChats } = useChat(); // Context for state
+    const { myChats } = useChat(); 
     
-    // Manager for actions
     const { 
         sendMessage, markChatAsRead, updateGroupPhoto, 
         leaveChat, hideChat, renameChat, addParticipant 
     } = useChatManager();
 
-    // Derived State from Context
     const chat = useMemo(() => myChats.find(c => c.id === chatId), [myChats, chatId]);
 
     const [messages, setMessages] = useState([]);
@@ -38,7 +36,6 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
     
     const fileInputRef = useRef(null);
 
-    // 1. Mark Read & Fetch Messages
     useEffect(() => {
         if (!chatId || !chat) return;
 
@@ -63,7 +60,6 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         return () => unsubscribe();
     }, [chatId, chat, loggedInUser.uid, markChatAsRead]);
 
-    // 2. Handlers
     const handleSend = async (e) => {
         e.preventDefault();
         if ((!newMessage.trim() && !selectedFile) || !chatId) return;
@@ -71,7 +67,6 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         const text = newMessage;
         const fileToUpload = selectedFile;
         
-        // Optimistic Reset
         setNewMessage("");
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -79,7 +74,6 @@ const Conversation = ({ chatId, onBack, userProfiles = {} }) => {
         let imageUrl = null;
         try {
             if (fileToUpload) {
-                // Using new Storage hook
                 imageUrl = await upload(fileToUpload, `chat_images/${chatId}/${Date.now()}_${fileToUpload.name}`);
             }
             await sendMessage(chatId, text, chat.participants, imageUrl);

@@ -6,9 +6,11 @@ import Header from '../../ui/Header';
 import Button from '../../ui/Button';
 import Card from '../../ui/Card';
 import Avatar from '../../ui/Avatar';
-import Modal from '../../ui/Modal'; 
 import Input from '../../ui/Input'; 
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
+
+// --- NEW DOMAIN IMPORT ---
+import SportsInfoCard from '../../domain/users/SportsInfoCard';
 
 function MyProfile() {
   const { loggedInUser, signOutUser } = useAuth();
@@ -18,66 +20,17 @@ function MyProfile() {
       isEditingProfile, setIsEditingProfile,
       profileFormData, handleProfileFormChange,
       previewUrl, handleFileChange, handleRemoveImage,
-      handleProfileSubmit,
-      soccerDetails, updateSoccerDetails
+      handleProfileSubmit
   } = useProfileLogic();
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
   const fileInputRef = useRef(null);
-  
-  // Local state for "Add/Edit Sport" modal
-  const [showAddSportModal, setShowAddSportModal] = useState(false);
-  const [newSportType, setNewSportType] = useState("Soccer");
-  const [sportForm, setSportForm] = useState({
-      favoredPosition: "", 
-      jerseySize: "Large", 
-      playerNumber: 0,
-      currentRosters: "", 
-      rosterJerseysOwned: "", 
-      comments: ""
-  });
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  // Pre-fill sport form when editing existing details
-  useEffect(() => {
-      if (showAddSportModal && soccerDetails) {
-          setSportForm({
-              favoredPosition: soccerDetails.favoredPosition || "",
-              jerseySize: soccerDetails.jerseySize || "Large",
-              playerNumber: soccerDetails.playerNumber || 0,
-              currentRosters: Array.isArray(soccerDetails.currentRosters) ? soccerDetails.currentRosters.join(', ') : "",
-              rosterJerseysOwned: Array.isArray(soccerDetails.rosterJerseysOwned) ? soccerDetails.rosterJerseysOwned.join(', ') : "",
-              comments: soccerDetails.comments || ""
-          });
-      }
-  }, [showAddSportModal, soccerDetails]);
-
-  const handleSportChange = (e) => {
-      const { name, value } = e.target;
-      setSportForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSportSubmit = async (e) => {
-      e.preventDefault();
-      if (newSportType === 'Soccer') {
-          const success = await updateSoccerDetails(sportForm);
-          if (success) {
-              setShowAddSportModal(false);
-              // Reset form
-              setSportForm({
-                  favoredPosition: "", jerseySize: "Large", playerNumber: 0,
-                  currentRosters: "", rosterJerseysOwned: "", comments: ""
-              });
-          }
-      } else {
-          alert("Only Soccer is supported at this time.");
-      }
-  };
 
   const styles = {
     profileHeader: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '30px' },
@@ -238,118 +191,10 @@ function MyProfile() {
               <Header title="Sports Details" style={{ maxWidth: '800px', margin: '0 auto' }} onBack={() => setCurrentView('hub')} />
               <div className="view-content">
                   <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-                      
-                      {!soccerDetails ? (
-                          <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-                              <p>You haven't set up your sports profile yet.</p>
-                              <Button onClick={() => setShowAddSportModal(true)}>Set Up Soccer Profile</Button>
-                          </div>
-                      ) : (
-                          <Card style={{ padding: '30px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #444', paddingBottom: '15px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                      <Activity size={24} color={COLORS.primary} />
-                                      <h3 style={{ margin: 0 }}>Soccer</h3>
-                                  </div>
-                                  <Button variant="secondary" onClick={() => setShowAddSportModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <Edit2 size={16} /> Edit
-                                  </Button>
-                              </div>
-
-                              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
-                                  <div>
-                                      <div style={styles.infoRow}><span style={styles.infoLabel}>Position:</span><span style={styles.infoValue}>{soccerDetails.favoredPosition || "Any"}</span></div>
-                                      <div style={styles.infoRow}><span style={styles.infoLabel}>Jersey Size:</span><span style={styles.infoValue}>{soccerDetails.jerseySize || "Large"}</span></div>
-                                      <div style={styles.infoRow}><span style={styles.infoLabel}>Preferred #:</span><span style={styles.infoValue}>{soccerDetails.playerNumber || "N/A"}</span></div>
-                                  </div>
-                                  <div>
-                                      <div style={{ marginBottom: '15px' }}>
-                                          <div style={{...styles.infoLabel, marginBottom: '5px'}}>Current Rosters:</div>
-                                          <div style={{ color: '#ccc', fontSize: '14px' }}>
-                                              {(Array.isArray(soccerDetails.currentRosters) && soccerDetails.currentRosters.length > 0 && soccerDetails.currentRosters[0] !== "") 
-                                                  ? soccerDetails.currentRosters.join(', ') 
-                                                  : "None"}
-                                          </div>
-                                      </div>
-                                      <div>
-                                          <div style={{...styles.infoLabel, marginBottom: '5px'}}>Jerseys Owned:</div>
-                                          <div style={{ color: '#ccc', fontSize: '14px' }}>
-                                              {(Array.isArray(soccerDetails.rosterJerseysOwned) && soccerDetails.rosterJerseysOwned.length > 0 && soccerDetails.rosterJerseysOwned[0] !== "") 
-                                                  ? soccerDetails.rosterJerseysOwned.join(', ') 
-                                                  : "None"}
-                                          </div>
-                                      </div>
-                                  </div>
-                              </div>
-                              
-                              {soccerDetails.comments && (
-                                  <div style={styles.subSection}>
-                                      <h4 style={{ margin: '0 0 10px 0', color: '#ccc', fontSize: '14px' }}>Notes / Comments</h4>
-                                      <p style={{ margin: 0, color: '#eee', fontSize: '14px' }}>{soccerDetails.comments}</p>
-                                  </div>
-                              )}
-                          </Card>
-                      )}
+                      {/* Replaced massive inline code with this: */}
+                      <SportsInfoCard />
                   </div>
               </div>
-
-              {/* MODAL: ADD/EDIT SPORT */}
-              {showAddSportModal && (
-                  <Modal title="Manage Sports Profile" onClose={() => setShowAddSportModal(false)} actions={
-                      <Button onClick={handleSportSubmit}>Save Profile</Button>
-                  }>
-                      <form onSubmit={handleSportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
-                          <div>
-                              <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Sport</label>
-                              <select 
-                                  value={newSportType} 
-                                  onChange={(e) => setNewSportType(e.target.value)} 
-                                  style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', color: 'white' }}
-                              >
-                                  <option value="Soccer">Soccer</option>
-                                  <option value="Basketball" disabled>Basketball (Coming Soon)</option>
-                              </select>
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                              <div style={{ flex: 1 }}>
-                                  <Input label="Favored Position" name="favoredPosition" value={sportForm.favoredPosition} onChange={handleSportChange} placeholder="e.g. Striker" />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                  <Input label="Player Number" type="number" name="playerNumber" value={sportForm.playerNumber} onChange={handleSportChange} />
-                              </div>
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                              <div style={{ flex: 1 }}>
-                                  <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>Jersey Size</label>
-                                  <select name="jerseySize" value={sportForm.jerseySize} onChange={handleSportChange} style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', color: 'white' }}>
-                                      <option value="Small">Small</option>
-                                      <option value="Medium">Medium</option>
-                                      <option value="Large">Large</option>
-                                      <option value="XL">XL</option>
-                                      <option value="XXL">XXL</option>
-                                  </select>
-                              </div>
-                          </div>
-
-                          <Input label="Current Teams (comma separated)" name="currentRosters" value={sportForm.currentRosters} onChange={handleSportChange} placeholder="Team A, Team B" />
-                          
-                          <Input label="Jerseys Owned (comma separated)" name="rosterJerseysOwned" value={sportForm.rosterJerseysOwned} onChange={handleSportChange} placeholder="Red Home, Blue Away" />
-
-                          <div>
-                              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>Additional Comments</label>
-                              <textarea 
-                                  name="comments" 
-                                  value={sportForm.comments} 
-                                  onChange={handleSportChange} 
-                                  style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', color: 'white', minHeight: '80px', fontFamily: 'inherit' }} 
-                                  placeholder="Allergies, availability notes, etc."
-                              />
-                          </div>
-                      </form>
-                  </Modal>
-              )}
           </div>
       );
   }
