@@ -16,6 +16,7 @@ import MyProfile from './components/views/Profile/MyProfile';
 import Feedback from './components/views/Feedback/Feedback';
 import ManagerDashboard from './components/views/Manager/ManagerDashboard';
 import FindTeams from './components/views/Community/FindTeams';
+import FindPlayers from './components/views/Community/FindPlayers'; // NEW IMPORT
 
 function App() {
   const { loggedInUser, isLoading, needsReauth } = useAuth();
@@ -54,6 +55,7 @@ function App() {
             {/* Community Routes */}
             <Route path="community" element={<Community />} />
             <Route path="find-teams" element={<FindTeams />} />
+            <Route path="find-players" element={<FindPlayers />} /> 
             <Route path="community/:groupId" element={<Community />} />
 
             {/* My Teams Routes */}

@@ -10,7 +10,7 @@ import {
   reauthenticateWithCredential,
   deleteUser
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, arrayUnion, arrayRemove, orderBy, serverTimestamp, deleteField } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../lib/firebase"; 
 import { useStorage } from '../hooks/useStorage';
 
@@ -37,7 +37,6 @@ export const AuthProvider = ({ children }) => {
         const soccerDoc = await getDoc(soccerDocRef);
 
         if (userDoc.exists()) {
-          // CRITICAL FIX: Merge the UID from the auth object with the Firestore data
           setLoggedInUser({ uid: user.uid, ...userDoc.data() });
         } else {
           setLoggedInUser(null);
@@ -83,7 +82,7 @@ export const AuthProvider = ({ children }) => {
       const displayName = `${formData.firstName} ${formData.lastName}`;
       
       const userProfileData = {
-        uid: user.uid, // Explicitly save UID
+        uid: user.uid,
         firstName: formData.firstName,
         lastName: formData.lastName,
         preferredName: formData.preferredName,
@@ -91,6 +90,11 @@ export const AuthProvider = ({ children }) => {
         email: formData.email,
         phone: formData.phone,
         notificationPreference: formData.notificationPreference,
+        // NEW: Personal Info for Free Agency / Discovery
+        personalInfo: {
+            sex: formData.sex,
+            birthDate: formData.birthDate // Saved as string "YYYY-MM-DD"
+        },
         emergencyContact: {
             firstName: formData.emergencyContactFirstName,
             lastName: formData.emergencyContactLastName,
@@ -102,7 +106,6 @@ export const AuthProvider = ({ children }) => {
       };
       
       await setDoc(doc(db, "users", user.uid), userProfileData);
-      // Ensure local state has it immediately
       setLoggedInUser(userProfileData);
 
     } catch (error) {
@@ -155,7 +158,6 @@ export const AuthProvider = ({ children }) => {
       await updateDoc(doc(db, "users", loggedInUser.uid), dataToUpdate);
       await firebaseUpdateProfile(auth.currentUser, { displayName, photoURL });
       
-      // Preserve UID in local state update
       setLoggedInUser(prev => ({ ...prev, ...dataToUpdate, uid: loggedInUser.uid }));
 
       // Denormalize updates to chats
@@ -216,7 +218,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- ROLE HELPERS ---
   const isManager = useCallback(() => {
     return loggedInUser && (loggedInUser.role === 'manager' || loggedInUser.role === 'developer');
   }, [loggedInUser]);

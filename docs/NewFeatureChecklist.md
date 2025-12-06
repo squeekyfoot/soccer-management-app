@@ -51,19 +51,37 @@ Please verify that you understand the project, these instructions and my require
 *To avoid repeating yourself, fill in these blanks mentally or in a notepad. You will paste this "Context" into the prompts below.*
 
 **Feature Context:**
-* **Feature Name:** (e.g., `Tournaments`)
-* **User Role:** (e.g., Manager)
-* **Database Fields:** (e.g., `name`, `startDate`, `bracketType`)
-* **Required Actions:** (e.g., `create`, `delete`, `generateBracket`)
+Feature Name: (e.g., `Tournaments`)
+Feature Description:
+User Roles: (e.g., Manager)
+User Requirements:
+Database Fields: (e.g., `name`, `startDate`, `bracketType`)
+Required Actions: (e.g., `create`, `delete`, `generateBracket`)
 
 #### Step 2: The Prompts (Execute the Plan)
 
-**Prompt A: The Contract (Documentation)**
-I am building a new feature. Here is the **Feature Context**: [PASTE CONTEXT HERE].
+**Prompt A: The Consult (Definition)**
+I am building a new feature. Here is the **Feature Context**: 
 
-Please generate the specific Markdown table row to update `docs/SCENARIOS.md`.
+[PASTE CONTEXT HERE].
+
+Can you please review and analyze this context to see if I've sufficiently defined a feature area, the user types, the scenarios, expected outcomes and critical paths? I'd like you to analyze if there's situations or edge cases here that I may have missed. I'd also like you to identify any assumptions you may have to make based off of the information that i've given you. Once we can align on these things, we can move onto defining technical requirements.
+
+**Prompt: Technical requirements**
+
+Now that we have our context and user scenarios well established. I'd like to identify what the technical needs are of implementing these scenarios. I would like to know how we should structure different components, what business entities we should consider establishing or using, what database fields we expect to use and what actions we expect to support from a logic standpoint. This should help us identify what files and folders to use, how we should create separation of concerns, how to handle logic, which files we should create unit tests for and what firestore rules we should be updating.
+
+
+
+**Prompt A: The Contract (Documentation)**
+
+Please generate the specific Markdown table rows to update `docs/SCENARIOS.md` with any new business entities, new users, feature area, scenarios, expected outcomes and critical path that we've identified in these requirements so far. This will help me inventory what I can occasionally test manually and also helps us communicate what use cases my apps support.
+
 * **Columns:** Feature Area | Scenario (Action) | Expected Outcome | Critical Path?
 * **Focus:** Define the successful user outcome for this feature (e.g., 'Manager creates tournament -> Tournament appears in list').
+  
+Please ensure that the output includes the original content and inserts the new content so that I can copy & paste the full section over what I have.
+Please ensure that the output is in native markup so that I can easily copy it in a single click.
 
 **Prompt B: The Brain (The Hook)**
 
@@ -80,6 +98,9 @@ Requirements:
 1.  Mock `firebase/firestore` (addDoc, getDocs, etc.) so no network calls occur.
 2.  Test the 'Happy Path' (Success) and one 'Error Case' (Failure).
 3.  Mock `useAuth` to simulate a logged-in user.
+
+
+"Please write these unit tests assuming resetMocks: true. Define the mock structure in the factory, but ensure all mock return values and implementations are explicitly reset inside a beforeEach block to prevent test pollution."
 
 
 -------------------------------------------

@@ -33,7 +33,7 @@ Use this matrix to validate that the application is functioning correctly. Each 
 
 ### **Role: Standard User (Player / Fan)**
 
-*Everyone starts here. These flows cover identity, discovery, and communication.*
+*Everyone starts here. These flows cover identity, discovery, communication, and the new Free Agency tools.*
 
 | Feature Area | Scenario (Action) | Expected Outcome | Critical Path? |
 | :---- | :---- | :---- | :---- |
@@ -42,10 +42,17 @@ Use this matrix to validate that the application is functioning correctly. Each 
 |  | **Re-Authentication** | User changes sensitive setting; Prompts for login; Action succeeds after verification. |  |
 | **Dashboard** | **View Home Dashboard** | User sees 4-section grid (Actions, Updates, Events, Opportunities) with accurate counts. | ✅ |
 |  | **View Dashboard Details** | Clicking a dashboard card (e.g., "Actions Needed") opens a list view of specific items. |  |
+|  | **Invite Received** | Player logs in after receiving an Invite; "Actions Needed" card shows "Request" item. | ✅ |
 | **Profile** | **Edit "My Profile"** | User changes Avatar/Name; Header and Sidebar update immediately without refresh. |  |
-|  | **Update Sports Info** | User adds "Goalkeeper" to Soccer profile; Data persists in users/{id} collection. |  |
+|  | **Update Sports Info** | User updates sport-specific profile (Positions, Skill, etc.); Data is saved to `users/{uid}/soccerProfile`. | ✅ |
+| **Free Agency** | **Toggle Free Agent ON** | User toggles status with all required fields; Profile becomes visible in "Find Players" search results. | ✅ |
+|  | **Toggle Blocked** | User attempts to toggle status with missing data; Action blocked; UI highlights missing required fields. |  |
 | **Discovery** | **Search for Users** | User types name in Search; List renders matching users; Clicking result opens Public Profile. |  |
 |  | **Find Teams** | User browses "Find Teams"; Sees open rosters; "Request to Join" button functions. | ✅ |
+|  | **Find Players** | User visits "Community > Find Players"; List of active Free Agents is displayed with filters available. | ✅ |
+| **Recruiting** | **Refer Player** | User (Recommender) refers a Free Agent to a Manager; Manager receives System Notification with profile link. |  |
+| **Roster Mgmt** | **Accept Team Invite** | Player accepts invite; Added to `rosters/{id}/members`; Request status -> 'accepted'; Manager notified. | ✅ |
+|  | **Reject Team Invite** | Player rejects invite (optional msg); Request status -> 'rejected'; Manager receives "Updates Missed" alert. | ✅ |
 | **Messaging** | **Send Team Chat** | User sends text in Team Chat; Message appears instantly for all other active members. | ✅ |
 |  | **Share Image** | User selects image; Image compresses (client-side); Uploads & renders in chat stream. |  |
 |  | **Direct Message** | User clicks "Message" on a profile (e.g. in Roster list); Private 1:1 chat thread opens immediately. |  |
@@ -61,6 +68,8 @@ Use this matrix to validate that the application is functioning correctly. Each 
 | :---- | :---- | :---- | :---- |
 | **Creation** | **Create New Roster** | Manager submits Roster Form; New document created in rosters collection; Appears in Dashboard. | ✅ |
 |  | **Create League** | Manager creates a League (Season dates, frequency); League becomes available for linking. |  |
+| **Recruiting** | **Open Invite Modal** | Manager clicks "Invite to Team" on a Free Agent's card; Modal opens with team selection & message input. | ✅ |
+|  | **Send Invite** | Manager sends request; "Invite Sent" toast appears; Button disabled for that player/team combo. | ✅ |
 | **Roster Mgmt** | **Edit Roster Details** | Manager updates capacity, toggles "Looking for Players", or links Roster to a League. |  |
 |  | **Manage Connections** | Manager links/unlinks a Community Group; Roster Details update to show linked status. |  |
 |  | **Recreate Team Chat** | Manager clicks "Recreate"; Old chat archived; New chat created with current players & notification. |  |
@@ -69,6 +78,7 @@ Use this matrix to validate that the application is functioning correctly. Each 
 |  | **Reject Player** | Manager clicks "Reject"; Request document deleted; Player removed from list. |  |
 |  | **Remove Player** | Manager removes active player; Player immediately loses access to Team Chat. |  |
 | **Admin** | **Dashboard View** | Manager loads Dashboard; Sees high-level stats or list of all managed teams. |  |
+| **Notifications** | **Dismiss Update** | Manager clicks "Dismiss" on "Updates Missed" item (e.g. Offer Rejected); Item removed from Dashboard view. |  |
 
 ### **Role: Cross-Platform Parity**
 

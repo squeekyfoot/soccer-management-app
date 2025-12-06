@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useRosterManager } from './useRosterManager'; // NEW IMPORT
+import { useRosterManager } from './useRosterManager';
 import { 
     calculateProfileTodos, 
     filterUpcomingEvents, 
@@ -12,21 +12,22 @@ import {
 export const useDashboardLogic = () => {
   const { loggedInUser } = useAuth();
   
-  // Use the new manager hook for subscriptions and event data
   const { 
       subscribeToIncomingRequests, 
-      subscribeToUserRequests, 
+      subscribeToUserRequests,
+      subscribeToMyPendingInvites,
       subscribeToDiscoverableRosters,
       fetchAllUserEvents 
   } = useRosterManager();
 
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
+  const [myInvites, setMyInvites] = useState([]); 
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Data Acquisition (Side Effects)
+  // 1. Data Acquisition
   useEffect(() => {
     if (!loggedInUser) {
         setLoading(false);
@@ -35,15 +36,18 @@ export const useDashboardLogic = () => {
 
     setLoading(true);
 
-    // Subscriptions now come from useRosterManager
     const unsubIncoming = subscribeToIncomingRequests(setIncomingRequests);
     const unsubMyRequests = subscribeToUserRequests(setMyRequests);
+    const unsubMyInvites = subscribeToMyPendingInvites(setMyInvites); 
     const unsubOpportunities = subscribeToDiscoverableRosters(setOpportunities);
 
     const loadEvents = async () => {
         try {
-            const events = await fetchAllUserEvents(loggedInUser.uid);
-            setUpcomingEvents(events);
+            // FIX: Removed invalid hook call. Use the destructured function directly.
+            if (fetchAllUserEvents) {
+                const events = await fetchAllUserEvents(loggedInUser.uid);
+                setUpcomingEvents(events);
+            }
         } catch (error) {
             console.error("Failed to load events", error);
         }
@@ -54,18 +58,29 @@ export const useDashboardLogic = () => {
     return () => {
       if (unsubIncoming) unsubIncoming();
       if (unsubMyRequests) unsubMyRequests();
+      if (unsubMyInvites) unsubMyInvites();
       if (unsubOpportunities) unsubOpportunities();
     };
-  }, [loggedInUser]);
+  }, [loggedInUser, subscribeToIncomingRequests, subscribeToUserRequests, subscribeToMyPendingInvites, subscribeToDiscoverableRosters, fetchAllUserEvents]);
 
-  // 2. Data Transformation (Using Pure Utils)
+  // 2. Data Transformation
   const dashboardStats = useMemo(() => {
     if (!loggedInUser) return null;
 
     // --- Actions ---
     const todoList = calculateProfileTodos(loggedInUser);
     const formattedRequests = formatIncomingRequests(incomingRequests);
-    const actionItems = [...formattedRequests, ...todoList];
+    
+    const formattedInvites = myInvites.map(invite => ({
+        id: invite.id,
+        title: `Team Invite: ${invite.rosterName}`,
+        description: `Manager ${invite.managerName} invited you. "${invite.message || ''}"`,
+        type: 'request',
+        isInvite: true, 
+        date: invite.createdAt
+    }));
+
+    const actionItems = [...formattedInvites, ...formattedRequests, ...todoList];
 
     // --- Updates ---
     const recentUpdates = formatRecentUpdates(myRequests);
@@ -82,6 +97,7 @@ export const useDashboardLogic = () => {
             total: actionItems.length,
             items: actionItems,
             breakdown: {
+                invites: formattedInvites.length,
                 requests: formattedRequests.length,
                 todos: todoList.length
             }
@@ -111,7 +127,7 @@ export const useDashboardLogic = () => {
             }
         }
     };
-  }, [loggedInUser, incomingRequests, myRequests, upcomingEvents, opportunities]);
+  }, [loggedInUser, incomingRequests, myRequests, myInvites, upcomingEvents, opportunities]);
 
   return { 
       loading: loading && !dashboardStats, 

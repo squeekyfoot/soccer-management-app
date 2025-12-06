@@ -20,18 +20,22 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      allow read: if request.auth != null;
+      // Allow read if Auth OR if it's a specific Free Agent query (future proofing)
+      allow read: if request.auth != null || 
+                  (resource.data.soccerProfile.isFreeAgent == true);
+
       // Developers can create/update any user profile if needed
       allow create: if (isOwner(userId) && request.resource.data.role == 'player') ||
                        isDeveloper();
       
       // Allow updates if Owner (restricted) OR if Developer (unrestricted)
       allow update: if isDeveloper() ||
-                   (
+                    (
                     isOwner(userId) 
                    && (!request.resource.data.keys().hasAny(['role']) 
                        || request.resource.data.role == resource.data.role)
                    );
+                   
       match /sportsDetails/{document=**} {
         allow read: if request.auth != null;
         allow write: if isOwner(userId) || isDeveloper();
@@ -91,37 +95,60 @@ service cloud.firestore {
       }
     }
 
-    // 5. Roster Requests
+    // 5. Roster Requests (Invites & Joins)
     match /rosterRequests/{requestId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Allow creation if the requester marks themselves as the sender (either User or Manager)
+      allow create: if request.auth != null && 
+                    (request.resource.data.userId == request.auth.uid || request.resource.data.managerId == request.auth.uid);
+      
       allow read, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.managerId == request.auth.uid ||
+        isDeveloper()
+      );
+      
+      // Allow updates (Accept/Reject)
+      allow update: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
         resource.data.managerId == request.auth.uid ||
         isDeveloper()
       );
     }
     
-    // 6. Feedback Collection
+    // 6. Notifications (New)
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if request.auth != null && resource.data.recipientId == request.auth.uid;
+      
+      // Users can dismiss (update) their own notifications
+      allow update: if request.auth != null && resource.data.recipientId == request.auth.uid;
+      
+      // Users can delete their own notifications
+      allow delete: if request.auth != null && resource.data.recipientId == request.auth.uid;
+      
+      // Allow creation if the sender is the auth user (e.g. Referral or Response)
+      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+    }
+    
+    // 7. Feedback Collection
     match /feedback/{feedbackId} {
       allow read: if request.auth != null;
-      
       // FIX: Allow creation ONLY if votes starts at 0 and voters is empty
       // This prevents rigging but allows fields to exist for orderBy queries
       allow create: if request.auth != null
                     && request.resource.data.votes == 0
                     && request.resource.data.voters.size() == 0;
-
       // Update Logic:
       // 1. Developers can update anything.
       // 2. Regular users can ONLY update 'votes' and 'voters' (Toggle vote).
       allow update: if isDeveloper() 
-                    || (request.auth != null 
+                    ||
+                       (request.auth != null 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'voters']));
-      
       allow delete: if isDeveloper();
     }
 
-    // 7. Leagues Collection (NEW)
+    // 8. Leagues Collection
     match /leagues/{leagueId} {
       // Anyone logged in can read leagues (to see them in dropdowns/details)
       allow read: if request.auth != null;

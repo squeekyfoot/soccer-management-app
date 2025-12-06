@@ -1,11 +1,9 @@
-// src/hooks/useProfileLogic.js
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useUserManager } from './useUserManager';
 
 export const useProfileLogic = () => {
   const { loggedInUser } = useAuth();
-  // Import the Brain
   const { 
     updateUserProfile, 
     uploadProfileAvatar, 
@@ -13,23 +11,22 @@ export const useProfileLogic = () => {
     updateUserSportsDetails 
   } = useUserManager();
   
-  // UI State
   const [currentView, setCurrentView] = useState('hub');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  
-  // Form State
   const [profileFormData, setProfileFormData] = useState({});
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isRemovingImage, setIsRemovingImage] = useState(false);
-
-  // Sports Details State
   const [soccerDetails, setSoccerDetails] = useState(null);
 
   useEffect(() => {
      if (loggedInUser) {
          setProfileFormData({
              ...loggedInUser,
+             // Map Personal Info to top-level for easier form handling
+             sex: loggedInUser.personalInfo?.sex || "Male",
+             birthDate: loggedInUser.personalInfo?.birthDate || "",
+             // Flatten Emergency Contact
              emergencyContactFirstName: loggedInUser.emergencyContact?.firstName || "",
              emergencyContactLastName: loggedInUser.emergencyContact?.lastName || "",
              emergencyContactPhone: loggedInUser.emergencyContact?.phone || "",
@@ -37,7 +34,6 @@ export const useProfileLogic = () => {
          });
          setPreviewUrl(loggedInUser.photoURL || "");
          
-         // Fetch Soccer Details via Brain
          const loadSoccerDetails = async () => {
             const data = await fetchUserSportsDetails(loggedInUser.uid, 'soccer');
             if (data) setSoccerDetails(data);
@@ -73,22 +69,24 @@ export const useProfileLogic = () => {
     try {
         let photoURL = profileFormData.photoURL;
 
-        // 1. Handle Image Logic via Brain
         if (isRemovingImage) {
             photoURL = ""; 
-            // Note: If you want to delete the file from Storage, 
-            // you'd add a deleteProfileAvatar function to useUserManager
         } else if (selectedFile) {
             photoURL = await uploadProfileAvatar(loggedInUser.uid, selectedFile);
         }
 
-        // 2. Prepare Data
+        // Reconstruct Data Structure
         const updatedData = {
             firstName: profileFormData.firstName,
             lastName: profileFormData.lastName,
             preferredName: profileFormData.preferredName,
             phone: profileFormData.phone,
             notificationPreference: profileFormData.notificationPreference,
+            // NEW: Save Personal Info
+            personalInfo: {
+                sex: profileFormData.sex,
+                birthDate: profileFormData.birthDate
+            },
             emergencyContact: {
                 firstName: profileFormData.emergencyContactFirstName,
                 lastName: profileFormData.emergencyContactLastName,
@@ -98,15 +96,11 @@ export const useProfileLogic = () => {
             photoURL: photoURL
         };
 
-        // 3. Update Profile via Brain
         await updateUserProfile(loggedInUser.uid, updatedData);
 
         setIsEditingProfile(false);
         setSelectedFile(null);
         setIsRemovingImage(false);
-        
-        // Note: You might need to reload the Auth Context user here 
-        // if it doesn't listen to real-time changes automatically.
         
         return true;
     } catch (error) {
@@ -128,9 +122,7 @@ export const useProfileLogic = () => {
           playerNumber: Number(soccerData.playerNumber) || 0,
         };
 
-        // Use Brain for persistence
         const success = await updateUserSportsDetails(loggedInUser.uid, 'soccer', dataToSave);
-        
         if (success) {
             setSoccerDetails(dataToSave);
             return true;

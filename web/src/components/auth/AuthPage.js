@@ -18,6 +18,8 @@ function AuthPage() {
     email: "",
     password: "",
     phone: "",
+    sex: "Male", // Default
+    birthDate: "",
     notificationPreference: "Email",
     emergencyContactFirstName: "",
     emergencyContactLastName: "",
@@ -32,6 +34,10 @@ function AuthPage() {
 
   const handleSignUpSubmit = (e) => {
     e.preventDefault();
+    if (!signUpForm.birthDate) {
+        alert("Date of Birth is required");
+        return;
+    }
     signUp(signUpForm);
   };
 
@@ -40,7 +46,6 @@ function AuthPage() {
     setSignUpForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // 1. Main Page Container: Full viewport, scrollable, centered horizontally
   const pageStyle = {
     minHeight: '100vh',
     width: '100vw',
@@ -57,7 +62,6 @@ function AuthPage() {
     overflowY: 'auto'           
   };
 
-  // 2. Card Container
   const cardStyle = {
     display: 'flex', 
     flexDirection: 'column', 
@@ -68,6 +72,12 @@ function AuthPage() {
     width: '100%', 
     maxWidth: '400px',
     boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+    boxSizing: 'border-box'
+  };
+
+  const selectStyle = {
+    width: '100%', padding: '10px', backgroundColor: '#3a3f4a', 
+    border: `1px solid ${COLORS.border}`, borderRadius: '4px', color: 'white', fontSize: '16px',
     boxSizing: 'border-box'
   };
 
@@ -87,19 +97,26 @@ function AuthPage() {
           
           <Input label="Email" type="email" name="email" value={signUpForm.email} onChange={handleSignUpChange} required />
           <Input label="Password" type="password" name="password" value={signUpForm.password} onChange={handleSignUpChange} required />
+          
+          {/* NEW FIELDS */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+             <div style={{ flex: 1, textAlign: 'left' }}>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Sex</label>
+                <select name="sex" value={signUpForm.sex} onChange={handleSignUpChange} style={selectStyle}>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                </select>
+             </div>
+             <div style={{ flex: 1 }}>
+                <Input label="Date of Birth" type="date" name="birthDate" value={signUpForm.birthDate} onChange={handleSignUpChange} required />
+             </div>
+          </div>
+
           <Input label="Phone" type="tel" name="phone" value={signUpForm.phone} onChange={handleSignUpChange} />
           
           <div style={{ marginBottom: '15px', textAlign: 'left' }}>
             <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>System Notification Preference</label>
-            <select
-              name="notificationPreference"
-              value={signUpForm.notificationPreference}
-              onChange={handleSignUpChange}
-              style={{ 
-                width: '100%', padding: '10px', backgroundColor: '#3a3f4a', 
-                border: `1px solid ${COLORS.border}`, borderRadius: '4px', color: 'white', fontSize: '16px' 
-              }}
-            >
+            <select name="notificationPreference" value={signUpForm.notificationPreference} onChange={handleSignUpChange} style={selectStyle}>
               <option value="Email">Email</option>
               <option value="Text Message">Text Message</option>
             </select>

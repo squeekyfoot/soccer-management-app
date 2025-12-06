@@ -8,8 +8,6 @@ import Card from '../../ui/Card';
 import Avatar from '../../ui/Avatar';
 import Input from '../../ui/Input'; 
 import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
-
-// --- NEW DOMAIN IMPORT ---
 import SportsInfoCard from '../../domain/users/SportsInfoCard';
 
 function MyProfile() {
@@ -55,7 +53,6 @@ function MyProfile() {
     </Card>
   );
 
-  // --- VIEW: HUB ---
   if (currentView === 'hub') {
       return (
         <div className="view-container">
@@ -85,16 +82,13 @@ function MyProfile() {
       );
   }
 
-  // --- VIEW: PERSONAL INFO ---
   if (currentView === 'personal') {
       return (
         <div className="view-container">
           <Header title={isEditingProfile ? "Edit Personal Info" : "Personal Information"} style={{ maxWidth: '800px', margin: '0 auto' }} onBack={!isEditingProfile ? () => setCurrentView('hub') : undefined} />
           <div className="view-content">
              <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-                
                 {isEditingProfile ? (
-                  /* EDIT MODE */
                   <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }}>
                     <div style={styles.profileHeader}>
                       <div style={styles.imageContainer}>
@@ -108,7 +102,6 @@ function MyProfile() {
                         {previewUrl && <Button type="button" onClick={handleRemoveImage} variant="danger">Remove</Button>}
                       </div>
                     </div>
-
                     <Card style={{ padding: '25px' }}>
                         <h4 style={styles.sectionTitle}>Basic Info</h4>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -119,6 +112,20 @@ function MyProfile() {
                         <Input label="Email" type="email" name="email" value={profileFormData.email || ''} onChange={handleProfileFormChange} required />
                         <Input label="Phone Number" type="tel" name="phone" value={profileFormData.phone || ''} onChange={handleProfileFormChange} />
                         
+                        {/* NEW EDIT FIELDS */}
+                        <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>Sex</label>
+                                <select name="sex" value={profileFormData.sex || "Male"} onChange={handleProfileFormChange} style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', color: 'white' }}>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <Input label="Date of Birth" type="date" name="birthDate" value={profileFormData.birthDate || ""} onChange={handleProfileFormChange} />
+                            </div>
+                        </div>
+
                         <div style={{ marginTop: '15px' }}>
                             <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>Notification Preference</label>
                             <select name="notificationPreference" value={profileFormData.notificationPreference || 'email'} onChange={handleProfileFormChange} style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', color: 'white' }}>
@@ -128,7 +135,7 @@ function MyProfile() {
                             </select>
                         </div>
                     </Card>
-
+                    
                     <Card style={{ padding: '25px' }}>
                         <h4 style={styles.sectionTitle}>Emergency Contact</h4>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -140,14 +147,12 @@ function MyProfile() {
                             <Input label="Contact Phone" type="tel" name="emergencyContactPhone" value={profileFormData.emergencyContactPhone || ''} onChange={handleProfileFormChange} />
                         </div>
                     </Card>
-
                     <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                       <Button type="submit" style={{ flex: 1 }}>Save Changes</Button>
                       <Button type="button" variant="secondary" onClick={() => { setIsEditingProfile(false); }} style={{ flex: 1 }}>Cancel</Button>
                     </div>
                   </form>
                 ) : (
-                  /* READ ONLY MODE */
                   <div>
                       <Card style={{ padding: '30px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -156,13 +161,14 @@ function MyProfile() {
                                   <Edit2 size={16} /> Edit
                               </Button>
                           </div>
-
                           <div style={styles.infoRow}><span style={styles.infoLabel}>Full Name:</span><span style={styles.infoValue}>{loggedInUser.firstName} {loggedInUser.lastName}</span></div>
                           <div style={styles.infoRow}><span style={styles.infoLabel}>Preferred Name:</span><span style={styles.infoValue}>{loggedInUser.preferredName || "N/A"}</span></div>
+                          <div style={styles.infoRow}><span style={styles.infoLabel}>Sex:</span><span style={styles.infoValue}>{loggedInUser.personalInfo?.sex || "N/A"}</span></div>
+                          <div style={styles.infoRow}><span style={styles.infoLabel}>Birth Date:</span><span style={styles.infoValue}>{loggedInUser.personalInfo?.birthDate || "N/A"}</span></div>
                           <div style={styles.infoRow}><span style={styles.infoLabel}>Email:</span><span style={styles.infoValue}>{loggedInUser.email}</span></div>
                           <div style={styles.infoRow}><span style={styles.infoLabel}>Phone:</span><span style={styles.infoValue}>{loggedInUser.phone || "N/A"}</span></div>
                           <div style={styles.infoRow}><span style={styles.infoLabel}>Notifications:</span><span style={styles.infoValue}>{loggedInUser.notificationPreference || "Email"}</span></div>
-
+                          
                           <div style={styles.subSection}>
                               <h4 style={{ margin: '0 0 15px 0', color: '#ccc' }}>Emergency Contact</h4>
                               {loggedInUser.emergencyContact ? (
@@ -171,9 +177,7 @@ function MyProfile() {
                                     <div style={styles.infoRow}><span style={styles.infoLabel}>Relationship:</span><span style={styles.infoValue}>{loggedInUser.emergencyContact.relationship || "N/A"}</span></div>
                                     <div style={styles.infoRow}><span style={styles.infoLabel}>Phone:</span><span style={styles.infoValue}>{loggedInUser.emergencyContact.phone || "N/A"}</span></div>
                                   </>
-                              ) : (
-                                  <span style={{ color: '#888', fontStyle: 'italic' }}>No emergency contact set.</span>
-                              )}
+                              ) : (<span style={{ color: '#888', fontStyle: 'italic' }}>No emergency contact set.</span>)}
                           </div>
                       </Card>
                   </div>
@@ -184,14 +188,12 @@ function MyProfile() {
       );
   }
 
-  // --- VIEW: SPORTS DETAILS ---
   if (currentView === 'sports') {
       return (
           <div className="view-container">
               <Header title="Sports Details" style={{ maxWidth: '800px', margin: '0 auto' }} onBack={() => setCurrentView('hub')} />
               <div className="view-content">
                   <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-                      {/* Replaced massive inline code with this: */}
                       <SportsInfoCard />
                   </div>
               </div>

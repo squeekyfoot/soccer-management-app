@@ -19,6 +19,7 @@ import Avatar from '../../ui/Avatar';
 
 // Sub-Views
 import FindTeams from './FindTeams';
+import FindPlayers from './FindPlayers'; // NEW IMPORT
 
 // --- HELPER COMPONENT (Defined outside to prevent re-renders) ---
 const HubButton = ({ title, desc, icon: Icon, onClick, isMobile, color = COLORS.primary }) => (
@@ -209,7 +210,8 @@ function Community() {
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
             <HubButton title="Explore Communities" desc="Discover new groups and communities" icon={Globe} onClick={() => alert("Feature coming soon!")} isMobile={isMobile} />
             <HubButton title="Find Teams" desc="Search for local teams to join" icon={Search} onClick={() => setCurrentView('findTeams')} isMobile={isMobile} />
-            <HubButton title="Find Players" desc="Connect with other players (Coming Soon)" icon={UserPlus} color="#888" onClick={() => alert("Feature coming soon!")} isMobile={isMobile} />
+            {/* UPDATED BUTTON */}
+            <HubButton title="Find Players" desc="Connect with other players" icon={UserPlus} onClick={() => setCurrentView('findPlayers')} isMobile={isMobile} />
             <HubButton title="My Groups" desc="Teams, groups and communities that I've already joined" icon={Users} onClick={() => setCurrentView('myGroups')} isMobile={isMobile} />
           </div>
         </div>
@@ -217,9 +219,14 @@ function Community() {
     );
   }
 
-  // --- DELEGATED VIEW: FIND TEAMS ---
+  // --- DELEGATED VIEWS ---
   if (currentView === 'findTeams') {
       return <FindTeams onBack={() => setCurrentView('hub')} />;
+  }
+
+  // NEW: Find Players View
+  if (currentView === 'findPlayers') {
+      return <FindPlayers onBack={() => setCurrentView('hub')} />;
   }
 
   if (currentView === 'myGroups') {
