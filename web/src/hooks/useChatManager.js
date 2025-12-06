@@ -9,10 +9,32 @@ import { useAuth } from '../context/AuthContext';
 
 /**
  * @description The "Brain" for Chat Logic. 
- * Handles Creating, Sending, Hiding, and Updating chats.
  */
 export const useChatManager = () => {
   const { loggedInUser } = useAuth();
+
+  // --- HELPER: Centralized System Message Logic ---
+  const sendSystemMessage = async (chatId, text) => {
+      try {
+          // 1. Add the message to history
+          await addDoc(collection(db, "chats", chatId, "messages"), {
+              text: text,
+              type: 'system',
+              createdAt: serverTimestamp()
+          });
+
+          // 2. Update the parent chat preview
+          const chatRef = doc(db, "chats", chatId);
+          await updateDoc(chatRef, {
+              lastMessage: text,
+              lastMessageTime: new Date() 
+          });
+          return true;
+      } catch (error) {
+          console.error("Error sending system message:", error);
+          return false;
+      }
+  };
 
   // --- ACTIONS ---
 
@@ -65,21 +87,6 @@ export const useChatManager = () => {
       if (participantIds.length < 2) {
         alert("Could not find any valid users to chat with.");
         return false;
-      }
-
-      // Check for existing chat (Ignore 'roster' chats)
-      // Note: We need to fetch existing chats manually here since we aren't in Context anymore
-      // Optimization: We could query firestore, but complex array queries are hard. 
-      // For now, we assume if we are creating a chat, we check against a simple query or just create new if group.
-      // *Restoring original logic relies on 'myChats', but hooks shouldn't rely on global state if possible.*
-      // *Strategy:* For this refactor, we will allow creating new generic groups easily, but check specific DMs.
-      
-      // DM Check (Optimization)
-      if (participantIds.length === 2) {
-          const chatsRef = collection(db, "chats");
-          // Finding existing DM via query is complex in Firestore (array-contains). 
-          // We will proceed to create a new one or handle duplication in UI.
-          // Ideally: The backend or a cloud function handles this deduplication.
       }
 
       // Create New
@@ -154,20 +161,7 @@ export const useChatManager = () => {
     try {
       const chatRef = doc(db, "chats", chatId);
       await updateDoc(chatRef, { photoURL: photoURL });
-
-      const systemMsgText = `${loggedInUser.playerName} changed the group photo.`;
-      
-      await addDoc(collection(db, "chats", chatId, "messages"), {
-        text: systemMsgText,
-        type: 'system',
-        createdAt: serverTimestamp()
-      });
-
-      await updateDoc(chatRef, {
-        lastMessage: systemMsgText,
-        lastMessageTime: new Date()
-      });
-
+      await sendSystemMessage(chatId, `${loggedInUser.playerName} changed the group photo.`);
       return true;
     } catch (error) {
       console.error("Error updating group photo:", error);
@@ -217,19 +211,7 @@ export const useChatManager = () => {
         }
 
         await updateDoc(chatRef, updateData);
-
-        const systemMsgText = `${loggedInUser.playerName} added ${newUser.name} to the group.`;
-        await addDoc(collection(db, "chats", chatId, "messages"), {
-            text: systemMsgText,
-            type: 'system',
-            createdAt: serverTimestamp()
-        });
-
-        await updateDoc(chatRef, {
-            lastMessage: systemMsgText,
-            lastMessageTime: new Date()
-        });
-
+        await sendSystemMessage(chatId, `${loggedInUser.playerName} added ${newUser.name} to the group.`);
         return true;
     } catch (error) {
         console.error("Error adding participant:", error);
@@ -273,18 +255,7 @@ export const useChatManager = () => {
         participantDetails: updatedDetails
       });
 
-      const systemMsgText = `${loggedInUser.playerName} left the group.`;
-      await addDoc(collection(db, "chats", chatId, "messages"), {
-        text: systemMsgText,
-        type: 'system',
-        createdAt: serverTimestamp()
-      });
-      
-      await updateDoc(chatRef, {
-        lastMessage: systemMsgText,
-        lastMessageTime: new Date()
-      });
-
+      await sendSystemMessage(chatId, `${loggedInUser.playerName} left the group.`);
       return true;
     } catch (error) {
       console.error("Error leaving chat:", error);
@@ -320,6 +291,7 @@ export const useChatManager = () => {
   return {
     createChat,
     sendMessage,
+    sendSystemMessage,
     markChatAsRead,
     updateGroupPhoto,
     addParticipant,

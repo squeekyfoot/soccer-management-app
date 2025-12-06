@@ -1,22 +1,23 @@
 import { useState, useCallback } from 'react';
 import { 
   collection, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, 
-  query, where, arrayUnion, arrayRemove, serverTimestamp, setDoc, onSnapshot 
+  query, where, arrayUnion, arrayRemove, serverTimestamp, deleteField, setDoc, onSnapshot 
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
 import { useGroupManager } from './useGroupManager'; 
-import { useNotifications } from './useNotifications'; 
+import { useNotifications } from './useNotifications';
+import { useChatManager } from './useChatManager'; // NEW
 
 export const useRosterManager = () => {
   const { loggedInUser } = useAuth();
   const { createGroup } = useGroupManager(); 
   const { sendResponseNotification } = useNotifications();
+  const { sendSystemMessage } = useChatManager(); // NEW
   const [loading, setLoading] = useState(false);
 
   // --- SUBSCRIPTIONS (Real-time) ---
   
-  // 1. Single Roster Listener
   const subscribeToRoster = useCallback((rosterId, callback) => {
     if (!rosterId) return () => {};
     const rosterRef = doc(db, "rosters", rosterId);
@@ -29,7 +30,6 @@ export const useRosterManager = () => {
     });
   }, []);
 
-  // 2. Incoming Requests (For Managers: Players wanting to join)
   const subscribeToIncomingRequests = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
@@ -44,7 +44,6 @@ export const useRosterManager = () => {
     });
   }, [loggedInUser]);
 
-  // 3. User Requests (For Players: Status of their sent requests)
   const subscribeToUserRequests = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
@@ -55,7 +54,6 @@ export const useRosterManager = () => {
     });
   }, [loggedInUser]);
 
-  // 4. My Pending Invites (For Players: Managers inviting them)
   const subscribeToMyPendingInvites = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
@@ -71,7 +69,6 @@ export const useRosterManager = () => {
     });
   }, [loggedInUser]);
 
-  // 5. Manager Sent Invites (For Managers: Tracking their outbound invites)
   const subscribeToManagerSentInvites = useCallback((callback) => {
     if (!loggedInUser) return () => {};
     const requestsRef = collection(db, "rosterRequests");
@@ -86,7 +83,6 @@ export const useRosterManager = () => {
     });
   }, [loggedInUser]);
 
-  // 6. Discoverable Rosters
   const subscribeToDiscoverableRosters = useCallback((callback) => {
     const rostersRef = collection(db, "rosters");
     const q = query(rostersRef, where("isDiscoverable", "==", true));
@@ -130,6 +126,10 @@ export const useRosterManager = () => {
         console.error("Error fetching managed rosters:", error);
         return [];
     }
+  }, []);
+
+  const fetchAllUserEvents = useCallback(async (uid) => {
+      return []; 
   }, []);
 
   // --- ACTIONS ---
@@ -326,15 +326,21 @@ export const useRosterManager = () => {
         playerIDs: arrayUnion(playerDoc.id), players: arrayUnion(playerSummary) 
       });
 
+      // Update Linked Chat
       const chatsRef = collection(db, "chats");
       const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
       const chatSnapshot = await getDocs(chatQ);
 
       if (!chatSnapshot.empty) {
-        await setDoc(chatSnapshot.docs[0].ref, {
+        const chatDoc = chatSnapshot.docs[0];
+        
+        await setDoc(chatDoc.ref, {
           participants: arrayUnion(playerDoc.id), visibleTo: arrayUnion(playerDoc.id),
           participantDetails: arrayUnion(playerSummary), [`unreadCounts.${playerDoc.id}`]: 0 
         }, { merge: true });
+
+        // FIX: Use Centralized Helper
+        await sendSystemMessage(chatDoc.id, `${playerSummary.playerName} joined the team.`);
       }
       return true;
     } catch (error) {
@@ -348,11 +354,44 @@ export const useRosterManager = () => {
       await updateDoc(doc(db, "rosters", rosterId), {
         playerIDs: arrayRemove(playerSummary.uid), players: arrayRemove(playerSummary)
       });
+
+      const chatsRef = collection(db, "chats");
+      const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
+      const chatSnapshot = await getDocs(chatQ);
+
+      if (!chatSnapshot.empty) {
+        const chatDoc = chatSnapshot.docs[0];
+        
+        await updateDoc(chatDoc.ref, {
+            participants: arrayRemove(playerSummary.uid),
+            visibleTo: arrayRemove(playerSummary.uid),
+            participantDetails: arrayRemove(playerSummary),
+            [`unreadCounts.${playerSummary.uid}`]: deleteField() 
+        });
+
+        // FIX: Use Centralized Helper
+        await sendSystemMessage(chatDoc.id, `${playerSummary.playerName} was removed from the team.`);
+      }
+
       return true;
     } catch (error) {
       console.error("Error removing player:", error);
       return false;
     }
+  };
+
+  const unlinkChatFromRoster = async (chatId) => {
+      try {
+          const chatRef = doc(db, "chats", chatId);
+          await updateDoc(chatRef, { 
+              type: 'group', 
+              rosterId: deleteField() 
+          });
+          return true;
+      } catch (error) {
+          console.error("Error unlinking chat:", error);
+          return false;
+      }
   };
 
   const createTeamChat = async (rosterId, rosterName, season, rosterPlayers = [], customMessage = null) => {
@@ -400,12 +439,14 @@ export const useRosterManager = () => {
     fetchRosters, 
     fetchUserRosters,
     fetchManagedRosters,
+    fetchAllUserEvents, 
     createRoster, 
     updateRoster, 
     deleteRoster,
     addPlayerToRoster, 
     removePlayerFromRoster,
     createTeamChat,
+    unlinkChatFromRoster,
     submitJoinRequest,
     invitePlayer,
     withdrawInvite,
