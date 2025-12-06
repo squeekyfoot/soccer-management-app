@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useUserManager } from './useUserManager';
+import { useSystemNotification } from './useSystemNotification';
 
 export const useProfileLogic = () => {
-  const { loggedInUser } = useAuth();
+  const { loggedInUser, updateProfile } = useAuth();
+  
   const { 
-    updateUserProfile, 
-    uploadProfileAvatar, 
     fetchUserSportsDetails, 
     updateUserSportsDetails 
   } = useUserManager();
   
+  const { showNotification } = useSystemNotification();
+
   const [currentView, setCurrentView] = useState('hub');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileFormData, setProfileFormData] = useState({});
@@ -19,14 +21,16 @@ export const useProfileLogic = () => {
   const [isRemovingImage, setIsRemovingImage] = useState(false);
   const [soccerDetails, setSoccerDetails] = useState(null);
 
+  // Derived State for Field Locking
+  const isSexLocked = !!loggedInUser?.personalInfo?.sex;
+  const isBirthDateLocked = !!loggedInUser?.personalInfo?.birthDate;
+
   useEffect(() => {
      if (loggedInUser) {
          setProfileFormData({
              ...loggedInUser,
-             // Map Personal Info to top-level for easier form handling
-             sex: loggedInUser.personalInfo?.sex || "Male",
+             sex: loggedInUser.personalInfo?.sex || "",
              birthDate: loggedInUser.personalInfo?.birthDate || "",
-             // Flatten Emergency Contact
              emergencyContactFirstName: loggedInUser.emergencyContact?.firstName || "",
              emergencyContactLastName: loggedInUser.emergencyContact?.lastName || "",
              emergencyContactPhone: loggedInUser.emergencyContact?.phone || "",
@@ -66,23 +70,23 @@ export const useProfileLogic = () => {
     e.preventDefault();
     if (!loggedInUser) return;
 
+    if (!profileFormData.sex) {
+        showNotification('error', "Please select a Sex.");
+        return;
+    }
+    if (!profileFormData.birthDate) {
+        showNotification('error', "Date of Birth is required.");
+        return;
+    }
+
     try {
-        let photoURL = profileFormData.photoURL;
-
-        if (isRemovingImage) {
-            photoURL = ""; 
-        } else if (selectedFile) {
-            photoURL = await uploadProfileAvatar(loggedInUser.uid, selectedFile);
-        }
-
-        // Reconstruct Data Structure
-        const updatedData = {
+        const dataToSave = {
             firstName: profileFormData.firstName,
             lastName: profileFormData.lastName,
             preferredName: profileFormData.preferredName,
+            email: profileFormData.email, 
             phone: profileFormData.phone,
             notificationPreference: profileFormData.notificationPreference,
-            // NEW: Save Personal Info
             personalInfo: {
                 sex: profileFormData.sex,
                 birthDate: profileFormData.birthDate
@@ -92,19 +96,26 @@ export const useProfileLogic = () => {
                 lastName: profileFormData.emergencyContactLastName,
                 phone: profileFormData.emergencyContactPhone,
                 relationship: profileFormData.emergencyContactRelationship
-            },
-            photoURL: photoURL
+            }
         };
 
-        await updateUserProfile(loggedInUser.uid, updatedData);
+        const success = await updateProfile(
+            dataToSave, 
+            selectedFile,   
+            isRemovingImage 
+        );
 
-        setIsEditingProfile(false);
-        setSelectedFile(null);
-        setIsRemovingImage(false);
+        if (success) {
+            showNotification('success', 'Profile updated successfully!');
+            setIsEditingProfile(false);
+            setSelectedFile(null);
+            setIsRemovingImage(false);
+        }
         
-        return true;
+        return success;
     } catch (error) {
         console.error("Profile update failed", error);
+        showNotification('error', "Error saving profile: " + error.message);
         return false;
     }
   };
@@ -140,6 +151,7 @@ export const useProfileLogic = () => {
       profileFormData, handleProfileFormChange,
       previewUrl, selectedFile, handleFileChange, handleRemoveImage,
       handleProfileSubmit,
-      soccerDetails, updateSoccerDetails
+      soccerDetails, updateSoccerDetails,
+      isSexLocked, isBirthDateLocked
   };
 };

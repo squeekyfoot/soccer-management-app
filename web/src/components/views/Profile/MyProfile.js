@@ -18,7 +18,8 @@ function MyProfile() {
       isEditingProfile, setIsEditingProfile,
       profileFormData, handleProfileFormChange,
       previewUrl, handleFileChange, handleRemoveImage,
-      handleProfileSubmit
+      handleProfileSubmit,
+      isSexLocked, isBirthDateLocked
   } = useProfileLogic();
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
@@ -40,7 +41,8 @@ function MyProfile() {
     infoRow: { marginBottom: '15px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '5px' : '20px' },
     infoLabel: { fontWeight: 'bold', color: '#888', minWidth: '140px', fontSize: '14px' },
     infoValue: { color: 'white', flex: 1 },
-    subSection: { marginTop: '25px', background: '#252525', padding: '15px', borderRadius: '8px' }
+    subSection: { marginTop: '25px', background: '#252525', padding: '15px', borderRadius: '8px' },
+    disabledInput: { backgroundColor: '#2a2a2a', color: '#888', cursor: 'not-allowed', border: '1px solid #444' }
   };
 
   const MenuCard = ({ title, desc, icon: Icon, onClick }) => (
@@ -112,17 +114,44 @@ function MyProfile() {
                         <Input label="Email" type="email" name="email" value={profileFormData.email || ''} onChange={handleProfileFormChange} required />
                         <Input label="Phone Number" type="tel" name="phone" value={profileFormData.phone || ''} onChange={handleProfileFormChange} />
                         
-                        {/* NEW EDIT FIELDS */}
                         <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                             <div style={{ flex: 1 }}>
-                                <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '14px' }}>Sex</label>
-                                <select name="sex" value={profileFormData.sex || "Male"} onChange={handleProfileFormChange} style={{ width: '100%', padding: '10px', backgroundColor: '#333', border: '1px solid #555', borderRadius: '5px', color: 'white' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', color: isSexLocked ? '#888' : '#ccc', fontSize: '14px' }}>
+                                    Sex {isSexLocked && "(Locked)"} <span style={{ color: COLORS.danger }}>*</span>
+                                </label>
+                                <select 
+                                    name="sex" 
+                                    value={profileFormData.sex || ""} 
+                                    onChange={handleProfileFormChange} 
+                                    disabled={isSexLocked}
+                                    title={isSexLocked ? "Contact support to change" : ""}
+                                    style={{ 
+                                        width: '100%', 
+                                        padding: '10px', 
+                                        backgroundColor: '#333', 
+                                        border: '1px solid #555', 
+                                        borderRadius: '5px', 
+                                        color: 'white',
+                                        ...(isSexLocked ? styles.disabledInput : {})
+                                    }}
+                                    required
+                                >
+                                    <option value="" disabled>Please select</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
                                 </select>
                             </div>
                             <div style={{ flex: 1 }}>
-                                <Input label="Date of Birth" type="date" name="birthDate" value={profileFormData.birthDate || ""} onChange={handleProfileFormChange} />
+                                <Input 
+                                    label={`Date of Birth ${isBirthDateLocked ? "(Locked)" : ""}`}
+                                    type="date" 
+                                    name="birthDate" 
+                                    value={profileFormData.birthDate || ""} 
+                                    onChange={handleProfileFormChange}
+                                    disabled={isBirthDateLocked}
+                                    style={isBirthDateLocked ? styles.disabledInput : {}}
+                                    required
+                                />
                             </div>
                         </div>
 

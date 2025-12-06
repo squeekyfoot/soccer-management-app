@@ -18,7 +18,7 @@ function AuthPage() {
     email: "",
     password: "",
     phone: "",
-    sex: "Male", // Default
+    sex: "", 
     birthDate: "",
     notificationPreference: "Email",
     emergencyContactFirstName: "",
@@ -34,6 +34,11 @@ function AuthPage() {
 
   const handleSignUpSubmit = (e) => {
     e.preventDefault();
+    // Validate Sex selection
+    if (!signUpForm.sex) {
+        alert("Please select a Sex.");
+        return;
+    }
     if (!signUpForm.birthDate) {
         alert("Date of Birth is required");
         return;
@@ -98,11 +103,13 @@ function AuthPage() {
           <Input label="Email" type="email" name="email" value={signUpForm.email} onChange={handleSignUpChange} required />
           <Input label="Password" type="password" name="password" value={signUpForm.password} onChange={handleSignUpChange} required />
           
-          {/* NEW FIELDS */}
           <div style={{ display: 'flex', gap: '10px' }}>
              <div style={{ flex: 1, textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>Sex</label>
-                <select name="sex" value={signUpForm.sex} onChange={handleSignUpChange} style={selectStyle}>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc', fontSize: '14px' }}>
+                    Sex <span style={{ color: COLORS.danger }}>*</span>
+                </label>
+                <select name="sex" value={signUpForm.sex} onChange={handleSignUpChange} style={selectStyle} required>
+                    <option value="" disabled>Please select</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                 </select>

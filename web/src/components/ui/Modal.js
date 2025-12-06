@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
+import { X } from 'lucide-react'; 
 import { COLORS } from '../../lib/constants';
-import Button from './Button';
+// Removed unused Button import
 
 const Modal = ({ title, children, onClose, actions }) => {
-  // Close on Escape key
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleEsc);
@@ -18,31 +18,60 @@ const Modal = ({ title, children, onClose, actions }) => {
       zIndex: 2000, padding: '20px', boxSizing: 'border-box'
     }} onClick={onClose}>
       <div 
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking content
+        onClick={(e) => e.stopPropagation()} 
         style={{
-          backgroundColor: COLORS.sidebar, // Match AuthPage
+          backgroundColor: COLORS.sidebar,
           padding: '30px', 
-          borderRadius: '12px',            // Match AuthPage
-          maxWidth: '400px',               // Match AuthPage width
+          borderRadius: '12px',
+          maxWidth: '400px',
           width: '100%',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', // Match AuthPage shadow
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           border: `1px solid ${COLORS.border}`,
           maxHeight: '90vh',
-          overflowY: 'auto'
+          overflowY: 'auto',
+          position: 'relative' 
         }}
       >
-        <h3 style={{ marginTop: 0, color: 'white', borderBottom: `1px solid ${COLORS.border}`, paddingBottom: '10px', marginBottom: '20px' }}>
-          {title}
-        </h3>
+        <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            borderBottom: `1px solid ${COLORS.border}`, 
+            paddingBottom: '10px', 
+            marginBottom: '20px' 
+        }}>
+            <h3 style={{ margin: 0, color: 'white' }}>{title}</h3>
+            
+            <button 
+                onClick={onClose}
+                style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#888',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.color = 'white'}
+                onMouseOut={(e) => e.currentTarget.style.color = '#888'}
+            >
+                <X size={24} />
+            </button>
+        </div>
         
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: actions ? '20px' : '0' }}>
           {children}
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          {actions}
-          <Button variant="secondary" onClick={onClose}>Close</Button>
-        </div>
+        {actions && (
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {actions}
+            </div>
+        )}
       </div>
     </div>
   );

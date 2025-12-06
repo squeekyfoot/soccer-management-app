@@ -90,10 +90,9 @@ export const AuthProvider = ({ children }) => {
         email: formData.email,
         phone: formData.phone,
         notificationPreference: formData.notificationPreference,
-        // NEW: Personal Info for Free Agency / Discovery
         personalInfo: {
             sex: formData.sex,
-            birthDate: formData.birthDate // Saved as string "YYYY-MM-DD"
+            birthDate: formData.birthDate 
         },
         emergencyContact: {
             firstName: formData.emergencyContactFirstName,
@@ -126,15 +125,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfile = async (profileData, newImageFile = null, removeImage = false) => {
-    if (!loggedInUser) return;
+    if (!loggedInUser) return false;
 
     if (profileData.email !== loggedInUser.email) {
       try {
         await updateEmail(auth.currentUser, profileData.email);
       } catch (error) {
-        if (error.code === 'auth/requires-recent-login') setNeedsReauth(true);
-        else alert("Error: " + error.message);
-        return;
+        if (error.code === 'auth/requires-recent-login') {
+            setNeedsReauth(true);
+            return false; 
+        }
+        throw error; 
       }
     }
 
@@ -175,11 +176,10 @@ export const AuthProvider = ({ children }) => {
         }
       });
       await Promise.all(batchPromises);
-      alert("Profile successfully updated!");
+      
       return true; 
     } catch (error) {
-      alert("Error saving profile: " + error.message);
-      return false;
+      throw error; 
     }
   };
 

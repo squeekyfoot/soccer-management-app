@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { 
-  collection, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, // FIX: Added getDoc import
-  query, where, arrayUnion, arrayRemove, serverTimestamp, deleteField, setDoc, onSnapshot 
+  collection, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, 
+  query, where, arrayUnion, arrayRemove, serverTimestamp, setDoc, onSnapshot 
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
@@ -71,7 +71,22 @@ export const useRosterManager = () => {
     });
   }, [loggedInUser]);
 
-  // 5. Discoverable Rosters
+  // 5. Manager Sent Invites (For Managers: Tracking their outbound invites)
+  const subscribeToManagerSentInvites = useCallback((callback) => {
+    if (!loggedInUser) return () => {};
+    const requestsRef = collection(db, "rosterRequests");
+    const q = query(
+        requestsRef, 
+        where("managerId", "==", loggedInUser.uid),
+        where("type", "==", "INVITE_PLAYER")
+    );
+    return onSnapshot(q, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(requests);
+    });
+  }, [loggedInUser]);
+
+  // 6. Discoverable Rosters
   const subscribeToDiscoverableRosters = useCallback((callback) => {
     const rostersRef = collection(db, "rosters");
     const q = query(rostersRef, where("isDiscoverable", "==", true));
@@ -172,6 +187,16 @@ export const useRosterManager = () => {
         console.error("Error sending invite:", error);
         return { success: false, message: error.message };
     }
+  };
+
+  const withdrawInvite = async (requestId) => {
+      try {
+          await deleteDoc(doc(db, "rosterRequests", requestId));
+          return true;
+      } catch (error) {
+          console.error("Error withdrawing invite:", error);
+          return false;
+      }
   };
 
   const respondToInvite = async (requestId, accept, message = "") => {
@@ -370,6 +395,7 @@ export const useRosterManager = () => {
     subscribeToIncomingRequests,
     subscribeToUserRequests,
     subscribeToMyPendingInvites,
+    subscribeToManagerSentInvites,
     subscribeToDiscoverableRosters,
     fetchRosters, 
     fetchUserRosters,
@@ -382,6 +408,7 @@ export const useRosterManager = () => {
     createTeamChat,
     submitJoinRequest,
     invitePlayer,
+    withdrawInvite,
     respondToInvite
   };
 };

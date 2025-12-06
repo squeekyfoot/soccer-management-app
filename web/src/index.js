@@ -7,14 +7,17 @@ import reportWebVitals from './reportWebVitals';
 
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
+import { NotificationProvider } from './context/NotificationContext'; // NEW
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <BrowserRouter>
     <AuthProvider>
-      <ChatProvider>
-        <App />
-      </ChatProvider>
+      <NotificationProvider> {/* Added Provider */}
+        <ChatProvider>
+          <App />
+        </ChatProvider>
+      </NotificationProvider>
     </AuthProvider>
   </BrowserRouter>
 );

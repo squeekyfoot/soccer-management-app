@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useFreeAgency } from '../../../hooks/useFreeAgency';
 import { useRosterManager } from '../../../hooks/useRosterManager';
 import { useAuth } from '../../../context/AuthContext';
-import { COLORS, MOBILE_BREAKPOINT } from '../../../lib/constants';
+import { useSystemNotification } from '../../../hooks/useSystemNotification';
 
 // UI Components
 import Header from '../../ui/Header';
@@ -18,12 +18,19 @@ import PlayerFilterBar from '../../domain/freeAgency/PlayerFilterBar';
 const FindPlayers = ({ onBack }) => {
   const { loggedInUser } = useAuth();
   const { fetchFreeAgents, loading } = useFreeAgency();
-  const { fetchManagedRosters, invitePlayer } = useRosterManager();
+  const { 
+      fetchManagedRosters, 
+      invitePlayer, 
+      subscribeToManagerSentInvites, 
+      withdrawInvite 
+  } = useRosterManager();
+  
+  const { showNotification } = useSystemNotification();
 
   // State
   const [players, setPlayers] = useState([]);
+  const [sentInvites, setSentInvites] = useState([]); 
   const [filters, setFilters] = useState({ position: 'Any', skillLevel: 'Any' });
-  const [isMobile, setIsMobile] = useState(window.innerWidth < MOBILE_BREAKPOINT);
   
   // Invite Modal State
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -32,42 +39,82 @@ const FindPlayers = ({ onBack }) => {
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [inviteMessage, setInviteMessage] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  
+  const [modalAvailableTeams, setModalAvailableTeams] = useState([]);
 
-  // 1. Responsive Check
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  // Pending Invites Modal State
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [pendingInvitesForSelected, setPendingInvitesForSelected] = useState([]);
 
-  // 2. Fetch Players
+  // Withdrawal Confirmation State
+  const [withdrawId, setWithdrawId] = useState(null);
+
+  // 1. Fetch Players
   useEffect(() => {
     const loadPlayers = async () => {
       const data = await fetchFreeAgents(filters);
-      // Filter out self
       const others = data.filter(p => p.uid !== loggedInUser?.uid);
       setPlayers(others);
     };
     loadPlayers();
   }, [filters, fetchFreeAgents, loggedInUser]);
 
-  // 3. Fetch Managed Teams (to determine Manager Status)
+  // 2. Fetch Managed Teams
   useEffect(() => {
       const loadTeams = async () => {
           if (loggedInUser) {
               const teams = await fetchManagedRosters(loggedInUser.uid);
               setManagedTeams(teams);
-              if (teams.length > 0) setSelectedTeamId(teams[0].id);
           }
       };
       loadTeams();
   }, [loggedInUser, fetchManagedRosters]);
 
-  // 4. Actions
+  // 3. Subscribe to Sent Invites
+  useEffect(() => {
+      const unsubscribe = subscribeToManagerSentInvites(setSentInvites);
+      return () => { if (unsubscribe) unsubscribe(); };
+  }, [subscribeToManagerSentInvites]);
+
+  // --- HELPER: Calculate Available Teams for a Player ---
+  const getAvailableTeamsForPlayer = (player) => {
+      if (!player || managedTeams.length === 0) return [];
+
+      const pendingForPlayer = sentInvites.filter(inv => inv.userId === player.uid && inv.status === 'pending');
+      const pendingTeamIds = pendingForPlayer.map(inv => inv.rosterId);
+
+      const joinedTeams = managedTeams.filter(t => t.playerIDs && t.playerIDs.includes(player.uid));
+      const joinedTeamIds = joinedTeams.map(t => t.id);
+
+      return managedTeams.filter(team => 
+          !pendingTeamIds.includes(team.id) && 
+          !joinedTeamIds.includes(team.id)
+      );
+  };
+
+  // --- ACTIONS ---
+
   const handleOpenInvite = (player) => {
     if (!player) return;
-    setSelectedPlayer(player);
-    setInviteModalOpen(true);
+    
+    const available = getAvailableTeamsForPlayer(player);
+
+    if (available.length > 0) {
+        setSelectedPlayer(player);
+        setModalAvailableTeams(available);
+        setSelectedTeamId(available[0].id); 
+        setInviteModalOpen(true);
+    } else {
+        showNotification('info', "No available teams to invite this player to.");
+    }
+  };
+
+  const handleOpenPending = (player) => {
+      if (!player) return;
+      const pending = sentInvites.filter(inv => inv.userId === player.uid && inv.status === 'pending');
+      setPendingInvitesForSelected(pending);
+      setSelectedPlayer(player);
+      setPendingModalOpen(true);
   };
 
   const handleSendInvite = async () => {
@@ -79,12 +126,32 @@ const FindPlayers = ({ onBack }) => {
     
     setInviteLoading(false);
     if (result.success) {
-      alert("Invite sent successfully!");
+      showNotification('success', "Invite sent successfully!");
       setInviteModalOpen(false);
       setInviteMessage("");
     } else {
-      alert("Failed to send invite: " + result.message);
+      showNotification('error', "Failed to send invite: " + result.message);
     }
+  };
+
+  const initiateWithdraw = (inviteId) => {
+      setWithdrawId(inviteId);
+  };
+
+  const confirmWithdraw = async () => {
+      if (!withdrawId) return;
+      
+      const success = await withdrawInvite(withdrawId);
+      if (success) {
+          setPendingInvitesForSelected(prev => prev.filter(inv => inv.id !== withdrawId));
+          if (pendingInvitesForSelected.length <= 1) {
+              setPendingModalOpen(false); 
+          }
+          showNotification('success', "Invite withdrawn.");
+      } else {
+          showNotification('error', "Failed to withdraw invite.");
+      }
+      setWithdrawId(null);
   };
 
   return (
@@ -112,34 +179,42 @@ const FindPlayers = ({ onBack }) => {
                   No free agents found matching these criteria.
                 </div>
               ) : (
-                players.map(player => (
-                  <PublicPlayerCard 
-                    key={player.uid} 
-                    player={player} 
-                    // Pass explicit manager status based on team ownership
-                    isManager={managedTeams.length > 0} 
-                    onInvite={handleOpenInvite} 
-                  />
-                ))
+                players.map(player => {
+                  const playerInvites = sentInvites.filter(inv => inv.userId === player.uid && inv.status === 'pending');
+                  const availableTeams = getAvailableTeamsForPlayer(player);
+                  const hasAvailableTeams = availableTeams.length > 0;
+
+                  return (
+                    <PublicPlayerCard 
+                        key={player.uid} 
+                        player={player} 
+                        isManager={managedTeams.length > 0} 
+                        pendingInvites={playerInvites}
+                        hasAvailableTeams={hasAvailableTeams}
+                        onInvite={handleOpenInvite}
+                        onViewPending={handleOpenPending}
+                    />
+                  );
+                })
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Invite Modal */}
+      {/* 1. Invite Modal */}
       {inviteModalOpen && selectedPlayer && (
         <Modal 
             isOpen={true} 
             onClose={() => setInviteModalOpen(false)}
             title={`Invite ${selectedPlayer.playerName}`}
+            actions={
+                <Button onClick={handleSendInvite} disabled={inviteLoading} style={{ width: '100%' }}>
+                    {inviteLoading ? 'Sending...' : 'Send Invite'}
+                </Button>
+            }
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            
-            {managedTeams.length === 0 ? (
-                <p style={{ color: COLORS.danger }}>You need to manage a team to send invites.</p>
-            ) : (
-                <>
                 <div>
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Select Team</label>
                     <select 
@@ -147,7 +222,7 @@ const FindPlayers = ({ onBack }) => {
                         value={selectedTeamId}
                         onChange={(e) => setSelectedTeamId(e.target.value)}
                     >
-                        {managedTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        {modalAvailableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                 </div>
 
@@ -158,19 +233,57 @@ const FindPlayers = ({ onBack }) => {
                     onChange={(e) => setInviteMessage(e.target.value)}
                     placeholder="Hey! We need a striker for our Sunday league..."
                 />
-
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                    <Button onClick={handleSendInvite} disabled={inviteLoading} style={{ flex: 1 }}>
-                        {inviteLoading ? 'Sending...' : 'Send Invite'}
-                    </Button>
-                    <Button onClick={() => setInviteModalOpen(false)} variant="secondary" style={{ flex: 1 }}>
-                        Cancel
-                    </Button>
-                </div>
-                </>
-            )}
             </div>
         </Modal>
+      )}
+
+      {/* 2. Pending Invites Modal */}
+      {pendingModalOpen && selectedPlayer && (
+          <Modal
+            isOpen={true}
+            onClose={() => setPendingModalOpen(false)}
+            title={`Pending Invites: ${selectedPlayer.playerName}`}
+          >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {pendingInvitesForSelected.length === 0 ? (
+                      <p>No pending invites.</p>
+                  ) : (
+                      pendingInvitesForSelected.map(invite => (
+                          <div key={invite.id} style={{ 
+                              background: '#333', padding: '15px', borderRadius: '8px', 
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center' 
+                          }}>
+                              <div>
+                                  <div style={{ fontWeight: 'bold', color: '#fff' }}>{invite.rosterName}</div>
+                                  <div style={{ fontSize: '12px', color: '#aaa' }}>Sent: {invite.createdAt?.toDate().toLocaleDateString()}</div>
+                              </div>
+                              <Button 
+                                variant="danger" 
+                                size="small" 
+                                onClick={() => initiateWithdraw(invite.id)}
+                              >
+                                  Withdraw
+                              </Button>
+                          </div>
+                      ))
+                  )}
+              </div>
+          </Modal>
+      )}
+
+      {/* 3. Withdrawal Confirmation Modal */}
+      {withdrawId && (
+          <Modal
+            title="Confirm Withdrawal"
+            onClose={() => setWithdrawId(null)}
+            actions={
+                <Button variant="danger" onClick={confirmWithdraw}>
+                    Yes, Withdraw
+                </Button>
+            }
+          >
+              <p style={{ color: '#ccc' }}>Are you sure you want to withdraw this invite? The player will no longer see it.</p>
+          </Modal>
       )}
     </div>
   );

@@ -43,7 +43,6 @@ export const useDashboardLogic = () => {
 
     const loadEvents = async () => {
         try {
-            // FIX: Removed invalid hook call. Use the destructured function directly.
             if (fetchAllUserEvents) {
                 const events = await fetchAllUserEvents(loggedInUser.uid);
                 setUpcomingEvents(events);
@@ -102,7 +101,8 @@ export const useDashboardLogic = () => {
                 todos: todoList.length
             }
         },
-        updates: {
+        // RENAMED: updates -> notifications
+        notifications: {
             total: recentUpdates.length,
             items: recentUpdates,
             breakdown: {
