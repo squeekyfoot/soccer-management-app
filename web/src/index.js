@@ -7,16 +7,21 @@ import reportWebVitals from './reportWebVitals';
 
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
-import { NotificationProvider } from './context/NotificationContext'; // NEW
+import { NotificationProvider } from './context/NotificationContext';
+// Import the new Provider
+import { ConfirmationProvider } from './context/ConfirmationContext'; 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <BrowserRouter>
     <AuthProvider>
-      <NotificationProvider> {/* Added Provider */}
-        <ChatProvider>
-          <App />
-        </ChatProvider>
+      <NotificationProvider>
+        {/* Wrap DataProvider and ChatProvider so they can also use confirmations if needed */}
+        <ConfirmationProvider>
+            <ChatProvider>
+              <App />
+            </ChatProvider>
+        </ConfirmationProvider>
       </NotificationProvider>
     </AuthProvider>
   </BrowserRouter>

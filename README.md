@@ -33,6 +33,8 @@ Both apps utilize React Context to manage global domain state, avoiding the comp
 
 * **AuthContext**: Handles User Identity, Session Persistence, Roster Data, and Event Data.  
 * **ChatContext**: Handles Real-time Messaging, Group Syncing, and Unread Counts.
+* **NotificationContext**: Handles global system toasts/snackbars (Success/Error feedback).
+* **ConfirmationContext**: Handles global modal interactions (Confirm/Prompt).
 
 ## **Instructions for AI Collaborators**
 
@@ -44,6 +46,7 @@ If you are an AI assistant helping to maintain this codebase, you **MUST** adher
 4. **Documentation Sync:** If you generate code for a new Feature, Role, or user Scenario (or modify an existing one), you MUST update docs/SCENARIOS.md. Add the new flow to the Matrix or the "Feature Brief" section to ensure our testing documentation remains the source of truth.
 5. **Provide Full Code:** The developers should not have to search for individual lines in existing files to update--this wastes too much time. If you generate or alter new code for existing files, please provide the full, complete code so that we can support a quick copy-and-paste action.
 6. **Avoid the Canvas Feature:** This is specific to Google Gemini. Please avoid using the Canvas feature as that decouples the visibility of code updates against the current conversation response. When Canvas is used, the developer is wasting time trying to locate the file that was updated so they can copy over the generated code. Instead, you are expected to generate complete code files inline to the conversation in a code block.
+7. **No System Pop-ups:** Never use `window.alert`, `window.confirm`, or `window.prompt`. Use the `useSystemNotification` and `useConfirmation` hooks provided by the global contexts to ensure a consistent, non-blocking UI experience.
 
 ## **Platform Documentation**
 
@@ -67,21 +70,20 @@ Whenever you implement a new feature involving Create, Read, Update, or Delete o
 | Feature | Collection | Read Access | Write Access |
 | :---- | :---- | :---- | :---- |
 | **User Profiles** | users | Public (Authenticated) | Owner Only |
-| **Rosters** | rosters | Public (Authenticated) | Managers Only |
+| **Rosters** | rosters | Public (Authenticated) | Managers Only (Update: Users can self-add) |
 | **Chats** | chats | Participants Only | Participants Only |
 | **Groups** | groups | Members Only | Members Only |
 | **Feedback** | feedback | Public (Authenticated) | Creator (Create), All (Vote) |
+| **Requests/Invites** | rosterRequests | Involved Parties (User/Manager) | Involved Parties |
+| **Notifications** | notifications | Recipient Only | System/Sender Only |
 
 ## **Global Quick Start**
 
-1. **Clone the Repository:**  
-   git clone \[repo-url\]
+1. **Clone the Repository:** git clone \[repo-url\]
 
-2. **Environment Setup:**  
-   * Navigate to web/ and create a .env file (see web/.env.example).  
+2. **Environment Setup:** * Navigate to web/ and create a .env file (see web/.env.example).  
    * *Note:* The mobile app currently shares the Firebase configuration via mobile/src/lib/firebase.js. Ensure this matches your .env values.  
-3. **Install All Dependencies:**  
-   \# Web  
+3. **Install All Dependencies:** \# Web  
    cd web  
    npm install
 
@@ -91,6 +93,5 @@ Whenever you implement a new feature involving Create, Read, Update, or Delete o
    cd ios  
    pod install  \# (Mac Only \- Required for Native Modules)
 
-4. **Launch:**  
-   * **Web:** cd web && npm start  
+4. **Launch:** * **Web:** cd web && npm start  
    * **Mobile:** cd mobile && npm run ios (or android)

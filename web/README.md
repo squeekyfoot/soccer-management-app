@@ -11,56 +11,51 @@ The Web App is designed as a **Responsive Dashboard**. It serves two distinct us
 
 ### **Key Web Patterns**
 
-1. **Responsive Logic:**  
-   * We do **not** use a heavy UI framework (like Bootstrap).  
+1. **Responsive Logic:** * We do **not** use a heavy UI framework (like Bootstrap).  
    * We use raw CSS/SCSS modules and a centralized src/lib/constants.js file for breakpoints.  
-   * **MOBILE\_BREAKPOINT \= 768**: This constant drives conditional rendering in React (e.g., isMobile ? \<MobileNav /\> : \<Sidebar /\>).  
-2. **Browser Capabilities:**  
-   * **Image Compression:** We leverage the HTML5 \<canvas\> API (src/utils/imageUtils.js) to resize images client-side *before* upload. This significantly reduces bandwidth usage and storage costs.  
-   * **Portals:** Modal components (ImageViewer.js) utilize ReactDOM.createPortal to render overlay layers outside the main DOM hierarchy, ensuring they sit above all other content (z-index safety).  
-3. **Routing:**  
-   * Uses react-router-dom for URL-based navigation.  
-   * All "Views" are top-level routes defined in App.js or Layout.js.
+   * **MOBILE\_BREAKPOINT \= 768**: This constant drives conditional rendering in React.  
+2. **Global Feedback Systems (UX):**
+   * **System Notifications:** We use `useSystemNotification()` instead of `alert()`. This provides a consistent, non-blocking toast message in the top-right corner.
+   * **Global Confirmations:** We use `useConfirmation()` instead of `window.confirm()`. This renders a styled Modal that returns a Promise, allowing for linear async code execution without freezing the browser.
+3. **Data Access Layer (DAL):**
+   * Direct imports of `firebase/firestore` in Views are **forbidden**.
+   * All data fetching and writing happens via Custom Hooks in `src/hooks/`.
 
 ## **Folder Structure (The Standard)**
 
 This structure defines the **Domain Modules** that the Mobile App must mirror.
 
 * **src/components/auth/**: Login, Signup, and Re-authentication modals.  
-* **src/components/common/**: Atomic, reusable UI elements (Button, Card, Input, Avatar). These are "dumb" components with no business logic.  
+* **src/components/common/**: (Deprecated - see `ui/`)
+* **src/components/ui/**: Atomic, reusable UI elements (Button, Card, Input, Avatar, Modal, SystemNotification).  
 * **src/components/layout/**: The application shell (Layout.js) containing the Sidebar/Navbar.  
-* **src/components/shared/**: Complex business components reused across views (e.g., UserSearch.js).  
-* **src/components/views/**: Feature-specific modules. **This is the core mapping for Mobile.**  
-  * **Home/**: Dashboard and Calendar logic.  
+* **src/components/domain/**: Reusable business components organized by entity.  
+  * **users/**: UserSearch, SportsInfoCard.  
+  * **teams/**: RosterCard, TeamCard, PublicRosterDetail.  
+  * **chats/**: ChatList, MessageInput.  
+  * **freeAgency/**: PublicPlayerCard, PlayerFilterBar.  
+  * **notifications/**: NotificationItem.  
+* **src/components/views/**: Feature-specific modules. **This is the core mapping for Mobile.** * **Home/**: Dashboard and Calendar logic.  
   * **Messaging/**: The chat system (TeamChat, ChatList).  
   * **Profile/**: User settings (MyProfile, SportsInfo).  
   * **Manager/**: Admin tools (ManagerDashboard, RosterList, IncomingRequests).  
-  * **Community/**: Group finding and social feeds.  
-* **src/context/**: Global state providers (AuthContext, ChatContext).
+  * **Community/**: FindTeams, FindPlayers, Group feeds.  
+* **src/context/**: Global state providers (AuthContext, ChatContext, NotificationContext, ConfirmationContext).
 
 ## **Development**
 
 ### **Prerequisites**
-
 * Node.js (v18+)  
 * npm
 
 ### **Running Locally**
-
-npm start
-
-Runs the app in development mode at [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000).
+`npm start`  
+Runs the app in development mode at [http://localhost:3000](http://localhost:3000).
 
 ### **Deployment**
-
 The web app is deployed to **Firebase Hosting**.  
-npm run build  
-firebase deploy
-
-## **Web-Specific Maintenance**
-
-* **Favicons & Manifests:** Ensure public/manifest.json is updated if app icons change. This controls the PWA (Progressive Web App) appearance when users add the site to their home screen.  
-* **CORS:** If interacting with external APIs or Firebase Storage buckets, ensure CORS rules are configured to allow the hosting domain.
+`npm run build`  
+`firebase deploy`
 
 ## **✅ Maintenance & Deployment Routine**
 
@@ -70,17 +65,15 @@ Follow this routine before every deploy to ensure the "Source of Truth" remains 
 Before building, run the automated suite to catch broken logic.
 * **Command:** `npm run test:ci`
 * **Rule:** If this fails, **STOP**. Do not deploy. Fix the regression first.
-* **Scope:** This checks `src/App.test.js` and any unit tests for Hooks/Contexts.
 
 ### **2. Architecture Checklist**
-* [ ] **Parity Check:** If I added a feature (e.g., `Views/Profile`), is the folder structure standard?
+* [ ] **Parity Check:** If I added a feature (e.g., `Views/Community/FindPlayers`), is the folder structure standard?
 * [ ] **Responsive Logic:** Did I verify the view on both Desktop (>768px) and Mobile (<768px)?
 * [ ] **Security:** If I added a write operation, did I verify `firestore.rules`?
 
 ### **3. Pre-Deployment Verification**
 * [ ] **Assets:** If the logo changed, is `public/manifest.json` updated?
 * [ ] **Environment:** Is `.env` correctly configured?
-* [ ] **CORS:** Are external API headers set?
 
 ### **4. Deployment Steps**
 1.  `npm run test:ci` (Must Pass)
