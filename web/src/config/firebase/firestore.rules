@@ -19,19 +19,17 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      allow read: if request.auth != null || 
-                  (resource.data.soccerProfile.isFreeAgent == true);
+      allow read: if request.auth != null || (resource.data.soccerProfile.isFreeAgent == true);
 
       allow create: if (isOwner(userId) && request.resource.data.role == 'player') ||
                        isDeveloper();
       
       allow update: if isDeveloper() ||
-                    (
+                   (
                     isOwner(userId) 
                    && (!request.resource.data.keys().hasAny(['role']) 
                        || request.resource.data.role == resource.data.role)
                    );
-                   
       match /sportsDetails/{document=**} {
         allow read: if request.auth != null;
         allow write: if isOwner(userId) || isDeveloper();
@@ -41,7 +39,6 @@ service cloud.firestore {
     // 2. Rosters Collection
     match /rosters/{rosterId} {
       allow read: if request.auth != null;
-      
       allow write: if isManager() || isDeveloper() || 
                    (
                      request.auth != null && 
@@ -52,44 +49,33 @@ service cloud.firestore {
       match /events/{eventId} {
         allow read: if request.auth != null;
         allow write: if isManager() || isDeveloper()
-                     ||
-                     request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
+                     || request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
       }
 
       match /messages/{messageId} {
-        allow read, write: if isManager() ||
-                     isDeveloper()
-                     ||
-                     request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
+        allow read, write: if isManager() || isDeveloper()
+                     || request.auth.uid in get(/databases/$(database)/documents/rosters/$(rosterId)).data.playerIDs;
       }
     }
 
     // 3. Chats Collection
     match /chats/{chatId} {
-      // Helper var for roster check to keep it clean
-      // Note: Rules don't support local vars well in match blocks, so we repeat the check or use a function if global.
-      // We'll repeat the check for clarity and safety.
-      
       allow read: if request.auth != null && (
         request.auth.uid in resource.data.visibleTo || 
         request.auth.uid in resource.data.participants ||
         (resource.data.rosterId != null && request.auth.uid in get(/databases/$(database)/documents/rosters/$(resource.data.rosterId)).data.playerIDs) ||
         isManager() || isDeveloper()
       );
-      
       allow update: if request.auth != null && (
         request.auth.uid in resource.data.participants ||
         request.auth.uid in request.resource.data.participants ||
         isManager() || isDeveloper()
       );
-      
       allow create: if request.auth != null
                     && (request.auth.uid in request.resource.data.participants || isDeveloper());
-      
       match /messages/{messageId} {
         allow read, write: if request.auth != null && (
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
-          // FIX: Allow access if user is in the linked roster (Syncs with parent rule)
           (get(/databases/$(database)/documents/chats/$(chatId)).data.rosterId != null && 
            request.auth.uid in get(/databases/$(database)/documents/rosters/$(get(/databases/$(database)/documents/chats/$(chatId)).data.rosterId)).data.playerIDs) ||
           isManager() || isDeveloper()
@@ -103,8 +89,7 @@ service cloud.firestore {
       allow read: if (request.auth != null && request.auth.uid in resource.data.members) || isManager() || isDeveloper();
       allow update: if (request.auth != null && request.auth.uid in resource.data.members) || isManager() || isDeveloper();
       match /posts/{postId} {
-        allow read, write: if (request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members) ||
-                              isManager() || isDeveloper();
+        allow read, write: if (request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members) || isManager() || isDeveloper();
       }
     }
 
@@ -112,13 +97,11 @@ service cloud.firestore {
     match /rosterRequests/{requestId} {
       allow create: if request.auth != null && 
                     (request.resource.data.userId == request.auth.uid || request.resource.data.managerId == request.auth.uid);
-      
       allow read, delete: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
         resource.data.managerId == request.auth.uid ||
         isDeveloper()
       );
-      
       allow update: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
         resource.data.managerId == request.auth.uid ||
@@ -141,8 +124,7 @@ service cloud.firestore {
                     && request.resource.data.votes == 0
                     && request.resource.data.voters.size() == 0;
       allow update: if isDeveloper() 
-                    ||
-                       (request.auth != null 
+                    || (request.auth != null 
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'voters']));
       allow delete: if isDeveloper();
     }
@@ -150,8 +132,52 @@ service cloud.firestore {
     // 8. Leagues
     match /leagues/{leagueId} {
       allow read: if request.auth != null;
-      allow write: if isManager() ||
-                      isDeveloper();
+      allow write: if isManager() || isDeveloper();
     }
+
+    // 9. Events (Top Level)
+    match /events/{eventId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.authorId ||
+        request.auth.uid in resource.data.invitees ||
+        (resource.data.type == 'game' && isManager()) ||
+        isDeveloper()
+      );
+
+      allow create: if request.auth != null;
+
+      allow update: if request.auth != null && (
+        // Case A: Social Event Author can edit everything
+        (resource.data.type == 'social' && resource.data.authorId == request.auth.uid) ||
+        // Case B: Managers can edit Game events
+        (resource.data.type == 'game' && isManager()) ||
+        // Case C: Invitees can ONLY update the 'responses' map (RSVP)
+        (
+           request.auth.uid in resource.data.invitees &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses'])
+        ) ||
+        // Case D: Invitees can update 'invitees' list IF 'allowInviteOthers' is ON (Social)
+        (
+           resource.data.type == 'social' && 
+           resource.data.allowInviteOthers == true &&
+           request.auth.uid in resource.data.invitees &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invitees'])
+        ) ||
+        isDeveloper()
+      );
+
+      allow delete: if request.auth != null && (
+         (resource.data.type == 'social' && resource.data.authorId == request.auth.uid) ||
+         (resource.data.type == 'game' && isManager()) ||
+         isDeveloper()
+      );
+    }
+
+    // 10. Action Items
+    match /actionItems/{itemId} {
+      allow read, update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow create: if request.auth != null; 
+    }
+
   }
 }

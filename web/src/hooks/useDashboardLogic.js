@@ -15,14 +15,12 @@ export const useDashboardLogic = () => {
   const { 
       subscribeToIncomingRequests, 
       subscribeToUserRequests,
-      subscribeToMyPendingInvites,
       subscribeToDiscoverableRosters,
       fetchAllUserEvents 
   } = useRosterManager();
 
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
-  const [myInvites, setMyInvites] = useState([]); 
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +36,6 @@ export const useDashboardLogic = () => {
 
     const unsubIncoming = subscribeToIncomingRequests(setIncomingRequests);
     const unsubMyRequests = subscribeToUserRequests(setMyRequests);
-    const unsubMyInvites = subscribeToMyPendingInvites(setMyInvites); 
     const unsubOpportunities = subscribeToDiscoverableRosters(setOpportunities);
 
     const loadEvents = async () => {
@@ -57,10 +54,9 @@ export const useDashboardLogic = () => {
     return () => {
       if (unsubIncoming) unsubIncoming();
       if (unsubMyRequests) unsubMyRequests();
-      if (unsubMyInvites) unsubMyInvites();
       if (unsubOpportunities) unsubOpportunities();
     };
-  }, [loggedInUser, subscribeToIncomingRequests, subscribeToUserRequests, subscribeToMyPendingInvites, subscribeToDiscoverableRosters, fetchAllUserEvents]);
+  }, [loggedInUser, subscribeToIncomingRequests, subscribeToUserRequests, subscribeToDiscoverableRosters, fetchAllUserEvents]);
 
   // 2. Data Transformation
   const dashboardStats = useMemo(() => {
@@ -70,16 +66,9 @@ export const useDashboardLogic = () => {
     const todoList = calculateProfileTodos(loggedInUser);
     const formattedRequests = formatIncomingRequests(incomingRequests);
     
-    const formattedInvites = myInvites.map(invite => ({
-        id: invite.id,
-        title: `Team Invite: ${invite.rosterName}`,
-        description: `Manager ${invite.managerName} invited you. "${invite.message || ''}"`,
-        type: 'request',
-        isInvite: true, 
-        date: invite.createdAt
-    }));
+    // NOTE: 'formattedInvites' removed. Invites now flow through 'actionItems' collection via useActionItems hook.
 
-    const actionItems = [...formattedInvites, ...formattedRequests, ...todoList];
+    const actionItems = [...formattedRequests, ...todoList];
 
     // --- Updates ---
     const recentUpdates = formatRecentUpdates(myRequests);
@@ -96,12 +85,10 @@ export const useDashboardLogic = () => {
             total: actionItems.length,
             items: actionItems,
             breakdown: {
-                invites: formattedInvites.length,
                 requests: formattedRequests.length,
                 todos: todoList.length
             }
         },
-        // RENAMED: updates -> notifications
         notifications: {
             total: recentUpdates.length,
             items: recentUpdates,
@@ -127,7 +114,7 @@ export const useDashboardLogic = () => {
             }
         }
     };
-  }, [loggedInUser, incomingRequests, myRequests, myInvites, upcomingEvents, opportunities]);
+  }, [loggedInUser, incomingRequests, myRequests, upcomingEvents, opportunities]);
 
   return { 
       loading: loading && !dashboardStats, 

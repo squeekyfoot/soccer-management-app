@@ -1,0 +1,88 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background-color: #252525;
+  border: 1px solid #333;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+/* Variant Borders */
+.blueBorder { border-left-color: #448aff; }
+.greenBorder { border-left-color: #69f0ae; }
+.grayBorder { border-left-color: #9e9e9e; }
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.iconBadge {
+  padding: 8px;
+  background-color: #333;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Icon Colors */
+.iconBlue { color: #448aff; }
+.iconGreen { color: #69f0ae; }
+.iconGray { color: #9e9e9e; }
+
+.textContent {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  margin-bottom: 2px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.message {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dismissBtn {
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.dismissBtn:hover {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+}

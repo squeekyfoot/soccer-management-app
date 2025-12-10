@@ -1,6 +1,6 @@
 # **App Scenarios & Product Manual**
 
-**Last Updated:** [Current Date]  
+**Last Updated:** [Current Date]
 **Purpose:** This document serves as the "Source of Truth" for User Acceptance Testing (UAT) and Quality Assurance (QA). It details every supported user flow to ensure that key outcomes are achievable across both Web and Mobile platforms.
 
 ## **1\. Core Concepts & Business Entities**
@@ -13,6 +13,7 @@ Before diving into specific scenarios, it's crucial to understand the core "noun
 | :--- | :--- | :--- |
 | **User / Profile** | The record for an individual person. Holds identity, auth details, and personal info. | `New User Sign Up`, `Edit "My Profile"`, `Search for Users` |
 | **Team / Roster** | The central organizing unit for players. Has members, capacity, and links to other entities. | `Create New Roster`, `Find Teams`, `Edit Roster Details`, `Accept Player` |
+| **Event** | A scheduled occurrence (Social or Game) with a time, location, and RSVP tracking. Can be linked to a Roster or Group. | `Create Social Event`, `Create Game Event`, `RSVP to Event` |
 | **Chat / Message** | A communication channel (`Chat`) and the individual messages within it. Can be 1:1, group, or team-wide. | `Send Team Chat`, `Direct Message`, `Create Group Chat` |
 | **League** | A container for a season or competition with start/end dates. Teams can be linked to a league. | `Create League`, `links Roster to a League` |
 
@@ -20,11 +21,11 @@ Before diving into specific scenarios, it's crucial to understand the core "noun
 
 | Entity | Description | Key Scenarios & Features |
 | :--- | :--- | :--- |
-| **Join Request** | A temporary record representing a user's request to join a team. Has a status (pending, accepted, etc.). | `Incoming Requests`, `Accept Player`, `Reject Player` |
-| **Event** | A scheduled occurrence like a practice or game with a time and location. | `Event Scheduling` (from Feature Brief) |
+| **Action Item** | A persistent task requiring user interaction. Unlike notifications, these must be acted upon or dismissed. | `Receive Event Invite`, `Incoming Roster Request`, `Dismiss Action` |
+| **Roster Request** | A specific type of Action Item representing a user's request to join a team. | `Incoming Requests`, `Accept Player`, `Reject Player` |
 | **Community Group** | A social space, distinct from a competitive team, that users can join to access a feed. | `Join Group`, `Manage Connections` |
 | **Feedback Item** | A feature request or suggestion submitted by a user, which can then be voted on. | `Submit Feedback` |
-| **System Notification** | A transient alert alerting users to status changes or actions needed. | `Offer Accepted`, `Offer Rejected`, `New Referral` |
+| **System Notification** | A transient alert alerting users to status changes (Toast/Snackbar). | `Offer Accepted`, `Offer Rejected`, `New Referral` |
 
 ---
 
@@ -41,7 +42,11 @@ Use this matrix to validate that the application is functioning correctly. Each 
 | **Auth** | **New User Sign Up** | User enters email/pass + Sex/DOB; Account created; Redirected to Dashboard. | ✅ |
 |  | **Existing User Login** | User logs in; Session restores; "My Teams" list loads immediately. | ✅ |
 | **Dashboard** | **View Home Dashboard** | User sees 4-section grid (Actions, Updates, Events, Opportunities). | ✅ |
-|  | **Invite Received** | Player logs in after receiving an Invite; "Actions Needed" card shows "Request" item. | ✅ |
+|  | **Action Item Received** | User receives an Event Invite or Roster Request; Item appears in "Actions Needed". | ✅ |
+|  | **Dismiss Action Item** | User clicks "Dismiss" on an Action Item; Item is removed from list; Underlying status (e.g., Pending) remains. |  |
+| **Events** | **Create Social Event** | User creates event; Selects Time/Loc; Adds Custom RSVP options; Event appears in "Upcoming". | ✅ |
+|  | **RSVP to Event** | User selects an RSVP option (Yes/No/Custom); "Actions Needed" item disappears; Status updates on Event. | ✅ |
+|  | **Receive Event Update** | Organizer changes Time/Loc; Previous RSVP resets to "Pending"; New "Action Needed" item appears. |  |
 | **Profile** | **Update Sports Info** | User updates sport-specific profile (Positions, Skill); Data persists in `users/{id}/soccerProfile`. | ✅ |
 |  | **Edit Personal Info** | User attempts to edit Sex/DOB; Fields are locked if already set; Can edit Contact Info. |  |
 | **Free Agency** | **Toggle Free Agent ON** | User toggles status with all required fields; Profile becomes visible in "Find Players". | ✅ |
@@ -58,6 +63,8 @@ Use this matrix to validate that the application is functioning correctly. Each 
 
 | Feature Area | Scenario (Action) | Expected Outcome | Critical Path? |
 | :---- | :---- | :---- | :---- |
+| **Events** | **Create Game Event** | Manager creates "Game"; Links to Roster; Selects Time (Timezone Aware); Event appears in Roster Schedule. | ✅ |
+|  | **Delete Game Event** | Manager deletes event; Event removed from all invitees' calendars. |  |
 | **Creation** | **Create New Roster** | Manager submits Roster Form; New document created; Appears in Dashboard. | ✅ |
 | **Recruiting** | **Open Invite Modal** | Manager clicks "Invite" on a Free Agent; Modal opens with filtered team list (excludes already invited). | ✅ |
 |  | **Send Invite** | Manager sends request; "Invite Sent" notification appears; Button updates to reflect status. | ✅ |
@@ -73,38 +80,47 @@ Use this matrix to validate that the application is functioning correctly. Each 
 ## **3\. End-to-End (E2E) Test Script**
 
 Perform this "Day in the Life" walkthrough manually before major releases (e.g., submitting to the App Store).  
-**Prerequisite:** Have two devices or two browser windows (Incognito) open.  
+**Prerequisite:** Have two devices or two browser windows (Incognito) open.
 
 **Step 1: The Rookie (User A)**
-1. Sign up as a new user (test\_rookie@example.com).  
-2. Go to **Profile** \-\> **Sports Details** \-\> Fill required fields.  
-3. **Action:** Toggle "Free Agent Status" to ON.  
+1. Sign up as a new user (test_rookie@example.com).
+2. Go to **Profile** \-\> **Sports Details** \-\> Fill required fields.
+3. **Action:** Toggle "Free Agent Status" to ON.
 
 **Step 2: The Boss (User B \- Manager)**
-1. Log in as the Manager.  
-2. Navigate to **Community -> Find Players**.  
-3. **Verify:** You see the "Rookie" in the list.  
-4. **Action:** Click "Invite to Team", select a team, send message.  
-5. **Verify:** System Notification "Invite sent successfully" appears.  
+1. Log in as the Manager.
+2. Navigate to **Community -> Find Players**.
+3. **Verify:** You see the "Rookie" in the list.
+4. **Action:** Click "Invite to Team", select a team, send message.
+5. **Verify:** System Notification "Invite sent successfully" appears.
 
 **Step 3: The Handshake**
-1. Switch back to **User A**.  
-2. **Verify:** Dashboard "Actions Needed" shows 1 Request.  
-3. **Action:** Click "Accept".  
-4. **Verify:** You are redirected or see the new Team in "My Teams".  
+1. Switch back to **User A**.
+2. **Verify:** Dashboard "Actions Needed" shows 1 Request.
+3. **Action:** Click "Accept".
+4. **Verify:** You are redirected or see the new Team in "My Teams".
 5. **Verify:** Navigate to **Messaging**, you are now in the Team Chat with a "Joined" system message.
+
+**Step 4: The Big Game (Event Flow)**
+1. Switch back to **User B (Manager)**.
+2. Go to **My Teams** -> Select Team -> **Events/Schedule**.
+3. **Action:** Create a "Game" event. Set Time to tomorrow 6:00 PM.
+4. Switch to **User A**.
+5. **Verify:** "Actions Needed" shows "Game Invite".
+6. **Action:** Click "Yes" (RSVP).
+7. **Verify:** Item disappears from Actions. Event appears in "Upcoming Events" as "Attending".
 
 ---
 
 ## **4\. Protocol: Defining New Features**
 
 ### **The "Feature Brief" Template**
-**1\. Feature Name:** (e.g., "Event Scheduling") **2\. Role:** (Who is this for?)  
-**3\. The Scenario:** "As a Manager, I want to create a practice event..."  
+**1\. Feature Name:** (e.g., "Event Scheduling") **2\. Role:** (Who is this for?)
+**3\. The Scenario:** "As a Manager, I want to create a practice event..."
 **4\. Expected Outcomes:**
-* [ ] Manager can select Date/Time.  
-* [ ] Event appears in Calendar.  
+* [ ] Manager can select Date/Time.
+* [ ] Event appears in Calendar.
 
 ### **When to Update This Document**
-* **Update:** When a PR is merged that introduces a user-facing change.  
+* **Update:** When a PR is merged that introduces a user-facing change.
 * **Audit:** If a feature is deprecated or behavior changes significantly.

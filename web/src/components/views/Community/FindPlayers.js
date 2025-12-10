@@ -19,7 +19,8 @@ const FindPlayers = ({ onBack }) => {
   const { loggedInUser } = useAuth();
   const { fetchFreeAgents, loading } = useFreeAgency();
   const { 
-      fetchManagedRosters, 
+      // fetchManagedRosters, <--- Removed
+      subscribeToManagedRosters, // <--- New Subscription
       invitePlayer, 
       subscribeToManagerSentInvites, 
       withdrawInvite 
@@ -30,7 +31,6 @@ const FindPlayers = ({ onBack }) => {
   // State
   const [players, setPlayers] = useState([]);
   const [sentInvites, setSentInvites] = useState([]); 
-  // OPTIMISTIC STATE: Tracks invites sent in this session before the server confirms them
   const [optimisticInvites, setOptimisticInvites] = useState([]); 
   
   const [filters, setFilters] = useState({ position: 'Any', skillLevel: 'Any' });
@@ -62,16 +62,11 @@ const FindPlayers = ({ onBack }) => {
     loadPlayers();
   }, [filters, fetchFreeAgents, loggedInUser]);
 
-  // 2. Fetch Managed Teams
+  // 2. Subscribe to Managed Teams (Real-time Fix)
   useEffect(() => {
-      const loadTeams = async () => {
-          if (loggedInUser) {
-              const teams = await fetchManagedRosters(loggedInUser.uid);
-              setManagedTeams(teams);
-          }
-      };
-      loadTeams();
-  }, [loggedInUser, fetchManagedRosters]);
+      const unsubscribe = subscribeToManagedRosters(setManagedTeams);
+      return () => { if (unsubscribe) unsubscribe(); };
+  }, [subscribeToManagedRosters]);
 
   // 3. Subscribe to Sent Invites
   useEffect(() => {
@@ -79,9 +74,7 @@ const FindPlayers = ({ onBack }) => {
       return () => { if (unsubscribe) unsubscribe(); };
   }, [subscribeToManagerSentInvites]);
 
-  // 4. CLEANUP OPTIMISTIC STATE
-  // Whenever real data comes in from the server, we can clear our temporary optimistic list
-  // because 'sentInvites' will now contain the authoritative data.
+  // 4. Cleanup Optimistic State
   useEffect(() => {
       setOptimisticInvites([]);
   }, [sentInvites]);
@@ -94,7 +87,7 @@ const FindPlayers = ({ onBack }) => {
       const pendingForPlayer = sentInvites.filter(inv => inv.userId === player.uid && inv.status === 'pending');
       const pendingTeamIds = pendingForPlayer.map(inv => inv.rosterId);
 
-      // 2. Check Optimistic State (Immediate feedback)
+      // 2. Check Optimistic State
       const optimisticForPlayer = optimisticInvites
           .filter(inv => inv.userId === player.uid)
           .map(inv => inv.rosterId);
@@ -130,13 +123,9 @@ const FindPlayers = ({ onBack }) => {
 
   const handleOpenPending = (player) => {
       if (!player) return;
-      // Merge real and optimistic invites for display
       const pendingReal = sentInvites.filter(inv => inv.userId === player.uid && inv.status === 'pending');
       
-      // We can't display optimistic invites in the "Withdraw" list easily because they lack a Firestore ID
-      // So we only show confirmed invites here. This is acceptable behavior.
       setPendingInvitesForSelected(pendingReal);
-      
       setSelectedPlayer(player);
       setPendingModalOpen(true);
   };
@@ -151,7 +140,6 @@ const FindPlayers = ({ onBack }) => {
     setInviteLoading(false);
     
     if (result.success) {
-      // 1. Optimistic Update: Immediately block this team from being selected again
       setOptimisticInvites(prev => [...prev, { userId: selectedPlayer.uid, rosterId: selectedTeamId }]);
       
       showNotification('success', "Invite sent successfully!");

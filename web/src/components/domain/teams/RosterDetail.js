@@ -11,13 +11,15 @@ import { useAuth } from '../../../context/AuthContext';
 import Header from '../../ui/Header';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import Input from '../../ui/Input'; // Assuming you have this from CreateRosterForm
+import Input from '../../ui/Input'; 
 import Modal from '../../ui/Modal';
 import UserSearch from '../users/UserSearch';
+import CreateEventForm from '../events/CreateEventForm'; // <--- NEW IMPORT
 import { COLORS } from '../../../lib/constants';
 import { 
   UserPlus, Edit2, Save, X, MessageCircle, Calendar, Clock, Trophy, 
-  Link as LinkIcon, CheckCircle, AlertCircle, RefreshCw, Unlink, Mail, Phone, User 
+  Link as LinkIcon, CheckCircle, AlertCircle, RefreshCw, Unlink, Mail, Phone, User,
+  CalendarPlus // <--- NEW ICON
 } from 'lucide-react';
 
 const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }) => {
@@ -43,7 +45,7 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
   // State
   const [roster, setRoster] = useState(initialRosterData || null);
   const [leagues, setLeagues] = useState([]);
-  const [myGroups, setMyGroups] = useState([]); // For linking groups (Manager only)
+  const [myGroups, setMyGroups] = useState([]); 
   
   // UI State
   const [isEditing, setIsEditing] = useState(false);
@@ -53,6 +55,7 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showGroupSelectModal, setShowGroupSelectModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false); // <--- NEW STATE
   const [selectedEmails, setSelectedEmails] = useState([]);
   const [searchKey, setSearchKey] = useState(0);
 
@@ -86,10 +89,6 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
         if (isManager && loggedInUser) {
             const gs = await fetchUserGroups(loggedInUser.uid);
             setMyGroups(gs);
-        } else {
-            // For players, we might want to fetch just the linked group? 
-            // Currently handled by 'associatedRosterId' check on the roster object or separate fetch.
-            // Simplified: We rely on the `roster` object or global group context if needed.
         }
     };
     load();
@@ -99,9 +98,6 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
 
   // Derived Data
   const linkedChat = myChats.find(c => c.rosterId === roster.id);
-  // Note: For managers, we check their owned groups. For players, we might need a different check, 
-  // but for now let's assume we find it via the roster's link or the user's membership.
-  // Ideally, the Roster object should store `linkedGroupId`. If not, we search.
   const linkedGroup = (isManager ? myGroups : []).find(g => g.associatedRosterId === roster.id);
   const currentLeague = leagues.find(l => l.id === (isEditing ? editForm.leagueId : roster.leagueId));
 
@@ -136,8 +132,21 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
             <div style={{ display: 'flex', gap: '10px' }}>
                 {!isEditing ? (
                    <>
-                    <Button onClick={() => setIsEditing(true)} style={styles.iconBtn}><Edit2 size={16} /></Button>
-                    <Button onClick={() => setShowAddModal(true)} style={styles.iconBtn}><UserPlus size={18} /></Button>
+                    {/* Schedule Game Button */}
+                    <Button 
+                        onClick={() => setShowCreateEventModal(true)} 
+                        style={styles.iconBtn} 
+                        title="Schedule Game"
+                    >
+                        <CalendarPlus size={18} />
+                    </Button>
+
+                    <Button onClick={() => setShowAddModal(true)} style={styles.iconBtn} title="Add Players">
+                        <UserPlus size={18} />
+                    </Button>
+                    <Button onClick={() => setIsEditing(true)} style={styles.iconBtn} title="Edit Roster">
+                        <Edit2 size={16} />
+                    </Button>
                    </>
                 ) : (
                    <Button onClick={() => setIsEditing(false)} variant="secondary" style={styles.iconBtn}><X size={18} /></Button>
@@ -306,6 +315,8 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
           </div>
           
           {/* --- MODALS --- */}
+          
+          {/* 1. Add Players Modal */}
           {showAddModal && (
               <Modal title="Add Players" onClose={() => setShowAddModal(false)}>
                   <UserSearch key={searchKey} onSelectionChange={setSelectedEmails} />
@@ -313,6 +324,7 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
               </Modal>
           )}
 
+          {/* 2. Link Group Modal */}
           {showGroupSelectModal && (
                <Modal title="Link Group" onClose={() => setShowGroupSelectModal(false)}>
                    {myGroups.map(g => (
@@ -323,6 +335,19 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
                </Modal>
           )}
 
+          {/* 3. Schedule Game Modal (NEW) */}
+          {showCreateEventModal && (
+              <Modal title="Schedule Game" onClose={() => setShowCreateEventModal(false)}>
+                  <CreateEventForm 
+                      // Pass initial data to pre-fill the form with Game mode + this Roster ID
+                      initialData={{ type: 'game', rosterId: roster.id }}
+                      onSuccess={() => setShowCreateEventModal(false)}
+                      onCancel={() => setShowCreateEventModal(false)}
+                  />
+              </Modal>
+          )}
+
+          {/* 4. Player Details Modal */}
           {selectedPlayer && (
               <Modal title="Player Details" onClose={() => setSelectedPlayer(null)}>
                   <div style={{ textAlign: 'center' }}>

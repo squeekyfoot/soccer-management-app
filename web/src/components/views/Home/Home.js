@@ -1,15 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../../ui/Header';
 import Loading from '../../ui/Loading';
-import Modal from '../../ui/Modal'; // Import Modal
-import Button from '../../ui/Button'; // Import Button
-import Input from '../../ui/Input'; // Import Input
+import Modal from '../../ui/Modal';
+import Button from '../../ui/Button';
+import Input from '../../ui/Input'; 
+import { Plus } from 'lucide-react';
+
+// Hooks
 import { useDashboardLogic } from '../../../hooks/useDashboardLogic';
 import { useNotifications } from '../../../hooks/useNotifications';
 import { useAuth } from '../../../context/AuthContext';
 import { useRosterManager } from '../../../hooks/useRosterManager'; 
-import NotificationItem from '../../domain/notifications/NotificationItem';
+import { useActionItems } from '../../../hooks/useActionItems';
+import { useUpcomingEvents } from '../../../hooks/useUpcomingEvents';
+import { useEventLogic } from '../../../hooks/useEventLogic'; // Need this to fetch event details
 
+// Domain Components
+import NotificationItem from '../../domain/notifications/NotificationItem';
+import ActionItemRow from '../../domain/actionItems/ActionItemRow';
+import EventCard from '../../domain/events/EventCard';
+import CreateEventForm from '../../domain/events/CreateEventForm';
+import EventDetailsModal from '../../domain/events/EventDetailsModal';
+
+// --- 1. Dashboard Card ---
 const DashboardCard = ({ title, count, breakdown, onClick, color, isMobile }) => (
   <div 
     onClick={onClick}
@@ -67,39 +80,90 @@ const DashboardCard = ({ title, count, breakdown, onClick, color, isMobile }) =>
   </div>
 );
 
-const DetailView = ({ section, items, onBack, handlers, notifications, onDismissNotification }) => {
+// --- 2. Detail View ---
+const DetailView = ({ 
+    section, 
+    items,
+    onBack, 
+    handlers, 
+    notifications, 
+    onDismissNotification,
+    actionItems,
+    dismissActionItem,
+    events,
+    onOpenEvent,
+    headerAction
+}) => {
     
     const renderItem = (item) => {
-        // --- Handle Notification Items ---
-        if (section === 'notifications' && item.type) { 
-            if (item.recipientId && item.senderId) {
-                return <NotificationItem key={item.id} notification={item} onDismiss={onDismissNotification} />;
-            }
+        if (section === 'notifications') { 
+            return <NotificationItem key={item.id} notification={item} onDismiss={onDismissNotification} />;
         }
+        
+        if (section === 'actions') {
+            if (item.ownerId) {
+                let customActions = null;
+                
+                if (item.type === 'roster_invite') {
+                    customActions = (
+                        <>
+                            <Button 
+                                onClick={() => handlers.initiateResponse({ ...item, id: item.relatedEntityId, isInvite: true }, 'approve')} 
+                                size="sm"
+                                style={{backgroundColor: '#4caf50', border: 'none', color: '#fff', fontSize: '12px', padding: '4px 10px'}}
+                            >
+                                Accept
+                            </Button>
+                            <Button 
+                                onClick={() => handlers.initiateResponse({ ...item, id: item.relatedEntityId, isInvite: true }, 'reject')} 
+                                size="sm"
+                                style={{backgroundColor: '#f44336', border: 'none', color: '#fff', fontSize: '12px', padding: '4px 10px'}}
+                            >
+                                Deny
+                            </Button>
+                        </>
+                    );
+                } else if (item.type === 'event_invite') {
+                    customActions = (
+                        <Button 
+                            onClick={() => handlers.handleViewEventAction(item)} 
+                            size="sm"
+                            style={{backgroundColor: '#448aff', border: 'none', color: '#fff', fontSize: '12px', padding: '4px 10px'}}
+                        >
+                            Details
+                        </Button>
+                    );
+                }
 
-        if (section === 'actions' && item.type === 'request') {
+                return (
+                    <div key={item.id} style={{ marginBottom: '12px' }}>
+                        <ActionItemRow 
+                            item={item} 
+                            onDismiss={dismissActionItem} 
+                            customActions={customActions}
+                        />
+                    </div>
+                );
+            }
+            
+            // Legacy Items Fallback
             return (
                 <div key={item.id} style={styles.itemCard}>
                     <div>
                         <div style={styles.itemTitle}>{item.title}</div>
                         <div style={styles.itemDesc}>{item.description}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={() => handlers.initiateResponse(item, 'approve')} style={{...styles.btn, backgroundColor: '#4caf50'}}>Accept</button>
-                        <button onClick={() => handlers.initiateResponse(item, 'reject')} style={{...styles.btn, backgroundColor: '#f44336'}}>Deny</button>
-                    </div>
+                    {item.type === 'todo' && (
+                         <Button variant="secondary" size="sm" onClick={() => alert("Navigate to Profile to fix this.")}>Resolve</Button>
+                    )}
                 </div>
             );
         }
 
-        if (section === 'actions' && item.type === 'todo') {
-             return (
-                <div key={item.id} style={styles.itemCard}>
-                    <div>
-                        <div style={styles.itemTitle}>{item.title}</div>
-                        <div style={styles.itemDesc}>{item.description}</div>
-                    </div>
-                    <button style={styles.btnOutline} onClick={() => alert("Navigate to Profile to fix this.")}>Resolve</button>
+        if (section === 'events') {
+            return (
+                <div key={item.id} style={{ marginBottom: '12px' }}>
+                    <EventCard event={item} onOpen={onOpenEvent} />
                 </div>
             );
         }
@@ -119,7 +183,11 @@ const DetailView = ({ section, items, onBack, handlers, notifications, onDismiss
         );
     };
 
-    const displayList = section === 'notifications' ? notifications : items;
+    let displayList = [];
+    if (section === 'notifications') displayList = notifications;
+    else if (section === 'actions') displayList = [...actionItems, ...(items || [])];
+    else if (section === 'events') displayList = events;
+    else displayList = items;
 
     return (
         <div className="view-content fade-in" style={{ height: '100%' }}>
@@ -129,9 +197,16 @@ const DetailView = ({ section, items, onBack, handlers, notifications, onDismiss
             }}>
                  ← Back to Dashboard
             </button>
-            <h2 style={{ textTransform: 'capitalize', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px' }}>
-                {section === 'opportunities' ? 'New Opportunities' : `${section}`}
-            </h2>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px' }}>
+                <h2 style={{ textTransform: 'capitalize', margin: 0 }}>
+                    {section === 'opportunities' ? 'New Opportunities' : `${section}`}
+                </h2>
+                {headerAction && (
+                    <div>{headerAction}</div>
+                )}
+            </div>
+
             <div style={{ display: 'grid', gap: '12px', paddingBottom: '20px' }}>
                 {!displayList || displayList.length === 0 ? (
                     <div style={{ padding: '40px', textAlign: 'center', color: '#666', background: '#1a1a1a', borderRadius: '12px' }}>
@@ -145,18 +220,26 @@ const DetailView = ({ section, items, onBack, handlers, notifications, onDismiss
     );
 };
 
+// --- 3. Main Home Component ---
 function Home() {
-  const { loading, dashboardStats } = useDashboardLogic();
+  const { loading: dashboardLoading, dashboardStats } = useDashboardLogic();
   const { notifications, unreadCount, dismissNotification } = useNotifications();
-  const { respondToRequest, submitJoinRequest } = useAuth();
-  const { respondToInvite } = useRosterManager(); 
+  const { items: actionItems, loading: actionsLoading, dismissItem: dismissActionItem } = useActionItems();
+  const { events, loading: eventsLoading } = useUpcomingEvents();
+  const { getEvent } = useEventLogic(); // New Hook for single fetch
+  
+  const { submitJoinRequest, respondToRequest } = useAuth();
+  const { respondToInvite } = useRosterManager();
   
   const [activeSection, setActiveSection] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // --- Modal State ---
   const [actionModal, setActionModal] = useState({ isOpen: false, item: null, action: null });
   const [rejectReason, setRejectReason] = useState("");
+  
+  const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
+  const [createEventInitialData, setCreateEventInitialData] = useState({}); 
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -164,44 +247,68 @@ function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  if (loading || !dashboardStats) return <Loading />;
+  if (dashboardLoading || actionsLoading || eventsLoading) return <Loading />;
 
-  // 1. Triggered by clicking button (Opens UI)
+  // --- Handlers ---
   const initiateResponse = (item, action) => {
-      setRejectReason(""); // Reset form
+      setRejectReason(""); 
       setActionModal({ isOpen: true, item: item, action: action });
   };
 
-  // 2. Triggered by confirming in Modal (Executes Logic)
   const confirmResponse = async () => {
       const { item, action } = actionModal;
       if (!item) return;
 
       if (item.isInvite) {
-          // New Invite Logic
-          if (action === 'approve') {
-              await respondToInvite(item.id, true);
-          } else {
-              await respondToInvite(item.id, false, rejectReason);
-          }
+          await respondToInvite(item.id, action === 'approve', rejectReason);
       } else {
-          // Old Request Logic
           await respondToRequest(item, action);
       }
       
-      // Cleanup
       setActionModal({ isOpen: false, item: null, action: null });
   };
 
-  // 3. Simple passthrough for Opportunities
   const handleSubmitJoinRequest = async (rosterId, rosterName, managerId) => {
       await submitJoinRequest(rosterId, rosterName, managerId);
       alert("Request sent!");
   };
 
+  // New: Handle clicking "Details" on an event invite in Action Items
+  const handleViewEventAction = async (actionItem) => {
+      if (actionItem.relatedEntityId) {
+          // Fetch the full event object fresh
+          const eventData = await getEvent(actionItem.relatedEntityId);
+          if (eventData) {
+              setSelectedEvent(eventData);
+          } else {
+              alert("Event not found (it may have been cancelled).");
+              // Optionally cleanup the dead action item here
+          }
+      }
+  };
+
   const handlers = {
       initiateResponse,
-      submitJoinRequest: handleSubmitJoinRequest
+      submitJoinRequest: handleSubmitJoinRequest,
+      handleViewEventAction // passed down to DetailView
+  };
+
+  const legacyActionsCount = dashboardStats?.actions?.total || 0;
+  const newActionsCount = actionItems.length;
+  
+  const getCounts = () => {
+      return {
+          actions: legacyActionsCount + newActionsCount,
+          events: events.length,
+          notifications: unreadCount,
+          opportunities: dashboardStats?.opportunities?.total || 0
+      };
+  };
+  const counts = getCounts();
+
+  const handleOpenCreateEvent = () => {
+      setCreateEventInitialData({});
+      setIsCreateEventOpen(true);
   };
 
   const gridContainerStyle = isMobile ? {
@@ -210,11 +317,9 @@ function Home() {
       display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px'
   };
 
-  // Helper to determine Modal Title/Body
   const getModalContent = () => {
       if (!actionModal.item) return {};
       const isReject = actionModal.action === 'reject';
-      
       return {
           title: isReject ? "Decline Request" : "Accept Request",
           description: isReject 
@@ -224,45 +329,106 @@ function Home() {
           buttonColor: isReject ? "danger" : "primary"
       };
   };
-
   const modalContent = getModalContent();
 
   return (
     <div className="view-container" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Header title="Dashboard" style={{ maxWidth: '1100px', margin: '0 auto', width: '100%' }} />
+      
+      {/* HEADER */}
+      <div style={{ maxWidth: '1100px', margin: '0 auto', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Header title="Dashboard" style={{ margin: 0 }} />
+      </div>
+
       <div className="view-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: isMobile ? '0' : '20px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            
             {!activeSection && (
                 <div className="fade-in" style={gridContainerStyle}>
-                    <DashboardCard title="Actions Needed" count={dashboardStats.actions.total} breakdown={dashboardStats.actions.breakdown} color="#ff5252" onClick={() => setActiveSection('actions')} isMobile={isMobile} />
-                    
+                    <DashboardCard 
+                        title="Actions Needed" 
+                        count={counts.actions} 
+                        breakdown={{ 'Pending': counts.actions }} 
+                        color="#ff5252" 
+                        onClick={() => setActiveSection('actions')} 
+                        isMobile={isMobile} 
+                    />
                     <DashboardCard 
                         title="Notifications" 
-                        count={unreadCount} 
+                        count={counts.notifications} 
                         breakdown={{ 'Unread': unreadCount }} 
                         color="#ffab40" 
                         onClick={() => setActiveSection('notifications')} 
                         isMobile={isMobile} 
                     />
-
-                    <DashboardCard title="Upcoming Events" count={dashboardStats.events.total} breakdown={dashboardStats.events.breakdown} color="#448aff" onClick={() => setActiveSection('events')} isMobile={isMobile} />
-                    <DashboardCard title="Opportunities" count={dashboardStats.opportunities.total} breakdown={dashboardStats.opportunities.breakdown} color="#69f0ae" onClick={() => setActiveSection('opportunities')} isMobile={isMobile} />
+                    <DashboardCard 
+                        title="Upcoming Events" 
+                        count={counts.events} 
+                        breakdown={{ 'Scheduled': counts.events }} 
+                        color="#448aff" 
+                        onClick={() => setActiveSection('events')} 
+                        isMobile={isMobile} 
+                    />
+                    <DashboardCard 
+                        title="Opportunities" 
+                        count={counts.opportunities} 
+                        breakdown={dashboardStats?.opportunities?.breakdown} 
+                        color="#69f0ae" 
+                        onClick={() => setActiveSection('opportunities')} 
+                        isMobile={isMobile} 
+                    />
                 </div>
             )}
+
             {activeSection && (
                 <DetailView 
                     section={activeSection} 
                     items={dashboardStats[activeSection]?.items || []} 
                     notifications={notifications} 
                     onDismissNotification={dismissNotification}
+                    actionItems={actionItems}
+                    dismissActionItem={dismissActionItem}
+                    events={events}
+                    onOpenEvent={setSelectedEvent}
                     onBack={() => setActiveSection(null)} 
                     handlers={handlers}
+                    
+                    headerAction={activeSection === 'events' ? (
+                        <Button 
+                            onClick={handleOpenCreateEvent}
+                            size="sm"
+                            className="flex items-center gap-1"
+                        >
+                            <Plus size={16} /> New Event
+                        </Button>
+                    ) : null}
                 />
             )}
         </div>
       </div>
 
-      {/* ACTION CONFIRMATION MODAL */}
+      {/* --- MODALS --- */}
+      {isCreateEventOpen && (
+        <Modal 
+            isOpen={isCreateEventOpen} 
+            onClose={() => setIsCreateEventOpen(false)}
+            title="Create New Event"
+        >
+            <CreateEventForm 
+                initialData={createEventInitialData}
+                onSuccess={() => setIsCreateEventOpen(false)}
+                onCancel={() => setIsCreateEventOpen(false)}
+            />
+        </Modal>
+      )}
+
+      {selectedEvent && (
+        <EventDetailsModal 
+            event={selectedEvent}
+            isOpen={!!selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+        />
+      )}
+
       {actionModal.isOpen && (
           <Modal
             title={modalContent.title}
@@ -297,7 +463,7 @@ function Home() {
 }
 
 const styles = {
-    itemCard: { background: '#252525', padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #333' },
+    itemCard: { background: '#252525', padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #333', marginBottom: '12px' },
     itemTitle: { fontWeight: 'bold', fontSize: '16px', color: '#fff', marginBottom: '4px' },
     itemDesc: { color: '#aaa', fontSize: '13px' },
     btn: { border: 'none', padding: '8px 16px', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer' },

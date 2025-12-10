@@ -1,19 +1,20 @@
 import { useState, useCallback } from 'react';
 import { 
   collection, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, 
-  query, where, arrayUnion, arrayRemove, serverTimestamp, deleteField, setDoc, onSnapshot 
+  query, where, arrayUnion, arrayRemove, serverTimestamp, deleteField, setDoc, onSnapshot,
+  writeBatch 
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
 import { useGroupManager } from './useGroupManager'; 
 import { useNotifications } from './useNotifications';
-import { useChatManager } from './useChatManager'; // NEW
+import { useChatManager } from './useChatManager'; 
 
 export const useRosterManager = () => {
   const { loggedInUser } = useAuth();
   const { createGroup } = useGroupManager(); 
   const { sendResponseNotification } = useNotifications();
-  const { sendSystemMessage } = useChatManager(); // NEW
+  const { sendSystemMessage } = useChatManager(); 
   const [loading, setLoading] = useState(false);
 
   // --- SUBSCRIPTIONS (Real-time) ---
@@ -29,6 +30,17 @@ export const useRosterManager = () => {
       }
     });
   }, []);
+
+  // NEW: Listen to all rosters managed by the current user
+  const subscribeToManagedRosters = useCallback((callback) => {
+    if (!loggedInUser) return () => {};
+    const rostersRef = collection(db, "rosters");
+    const q = query(rostersRef, where("createdBy", "==", loggedInUser.uid));
+    return onSnapshot(q, (snapshot) => {
+      const rosters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(rosters);
+    });
+  }, [loggedInUser]);
 
   const subscribeToIncomingRequests = useCallback((callback) => {
     if (!loggedInUser) return () => {};
@@ -158,6 +170,9 @@ export const useRosterManager = () => {
   const invitePlayer = async (teamId, teamName, playerId, message = "") => {
     if (!loggedInUser) return false;
     try {
+        const batch = writeBatch(db);
+
+        // 1. Check for existing
         const requestsRef = collection(db, "rosterRequests");
         const q = query(
             requestsRef, 
@@ -171,7 +186,9 @@ export const useRosterManager = () => {
              return { success: false, message: "Invite already pending" };
         }
 
-        await addDoc(requestsRef, {
+        // 2. Create Roster Request
+        const newRequestRef = doc(collection(db, "rosterRequests"));
+        batch.set(newRequestRef, {
             rosterId: teamId,
             rosterName: teamName,
             managerId: loggedInUser.uid, 
@@ -182,6 +199,25 @@ export const useRosterManager = () => {
             status: 'pending',
             createdAt: serverTimestamp()
         });
+
+        // 3. Create Action Item (The Inbox Notification)
+        const newActionRef = doc(collection(db, "actionItems"));
+        batch.set(newActionRef, {
+            ownerId: playerId, // The recipient
+            type: 'roster_invite',
+            relatedEntityId: newRequestRef.id,
+            status: 'pending',
+            isDismissable: true,
+            createdAt: serverTimestamp(),
+            data: {
+                title: `Team Invite: ${teamName}`,
+                message: `${loggedInUser.playerName} invited you to join.`,
+                rosterName: teamName,
+                managerName: loggedInUser.playerName
+            }
+        });
+
+        await batch.commit();
         return { success: true };
     } catch (error) {
         console.error("Error sending invite:", error);
@@ -202,15 +238,29 @@ export const useRosterManager = () => {
   const respondToInvite = async (requestId, accept, message = "") => {
      if (!loggedInUser) return false;
      try {
+         const batch = writeBatch(db);
+         
          const requestRef = doc(db, "rosterRequests", requestId);
          const requestSnap = await getDoc(requestRef); 
          if (!requestSnap.exists()) return false;
          
          const requestData = requestSnap.data();
          
-         await updateDoc(requestRef, {
+         batch.update(requestRef, {
              status: accept ? 'accepted' : 'rejected'
          });
+
+         const actionQ = query(
+             collection(db, "actionItems"),
+             where("relatedEntityId", "==", requestId),
+             where("ownerId", "==", loggedInUser.uid)
+         );
+         const actionSnap = await getDocs(actionQ);
+         actionSnap.forEach(doc => {
+             batch.update(doc.ref, { status: 'completed', updatedAt: serverTimestamp() });
+         });
+
+         await batch.commit();
 
          if (accept) {
              await addPlayerToRoster(requestData.rosterId, loggedInUser.email);
@@ -326,20 +376,16 @@ export const useRosterManager = () => {
         playerIDs: arrayUnion(playerDoc.id), players: arrayUnion(playerSummary) 
       });
 
-      // Update Linked Chat
       const chatsRef = collection(db, "chats");
       const chatQ = query(chatsRef, where("rosterId", "==", rosterId));
       const chatSnapshot = await getDocs(chatQ);
 
       if (!chatSnapshot.empty) {
         const chatDoc = chatSnapshot.docs[0];
-        
         await setDoc(chatDoc.ref, {
           participants: arrayUnion(playerDoc.id), visibleTo: arrayUnion(playerDoc.id),
           participantDetails: arrayUnion(playerSummary), [`unreadCounts.${playerDoc.id}`]: 0 
         }, { merge: true });
-
-        // FIX: Use Centralized Helper
         await sendSystemMessage(chatDoc.id, `${playerSummary.playerName} joined the team.`);
       }
       return true;
@@ -361,15 +407,12 @@ export const useRosterManager = () => {
 
       if (!chatSnapshot.empty) {
         const chatDoc = chatSnapshot.docs[0];
-        
         await updateDoc(chatDoc.ref, {
             participants: arrayRemove(playerSummary.uid),
             visibleTo: arrayRemove(playerSummary.uid),
             participantDetails: arrayRemove(playerSummary),
             [`unreadCounts.${playerSummary.uid}`]: deleteField() 
         });
-
-        // FIX: Use Centralized Helper
         await sendSystemMessage(chatDoc.id, `${playerSummary.playerName} was removed from the team.`);
       }
 
@@ -431,6 +474,7 @@ export const useRosterManager = () => {
   return {
     loading,
     subscribeToRoster, 
+    subscribeToManagedRosters, // <--- NEW EXPORT
     subscribeToIncomingRequests,
     subscribeToUserRequests,
     subscribeToMyPendingInvites,
