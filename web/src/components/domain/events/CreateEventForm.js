@@ -13,7 +13,14 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
   const { createEvent, loading } = useEventLogic();
   const { fetchManagedRosters } = useRosterManager();
 
-  const isManager = loggedInUser?.role === 'manager';
+  const [managedRosters, setManagedRosters] = useState([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [newOptionLabel, setNewOptionLabel] = useState("");
+
+  // Determine if user can create games (Manager, Developer, or owns a roster)
+  const isManagerRole = loggedInUser?.role === 'manager' || loggedInUser?.role === 'developer';
+  const hasRosters = managedRosters.length > 0;
+  const canCreateGame = isManagerRole || hasRosters;
 
   // --- STATE ---
   const [formData, setFormData] = useState({
@@ -21,9 +28,9 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
     description: '',
     location: '',
     startDateTime: '',
-    type: isManager ? 'game' : 'social',
-    invitedEntities: [], // Stores {id, type, label} objects from UniversalSearch
-    invitees: [], // Manual individual UIDs if needed
+    type: initialData.type || 'social', 
+    invitedEntities: [], 
+    invitees: [],
     rosterId: '', 
     allowInviteOthers: false, 
     responseDeadline: '', 
@@ -34,15 +41,20 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
     ...initialData 
   });
 
-  const [managedRosters, setManagedRosters] = useState([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [newOptionLabel, setNewOptionLabel] = useState("");
-
+  // Load rosters for EVERYONE to check if they are an "Implicit Manager"
   useEffect(() => {
-      if (isManager) {
+      if (loggedInUser) {
           fetchManagedRosters(loggedInUser.uid).then(setManagedRosters);
       }
-  }, [isManager, loggedInUser, fetchManagedRosters]);
+  }, [loggedInUser, fetchManagedRosters]);
+
+  // If user gains "Game" ability (e.g. rosters loaded) and type is unset, update if needed.
+  // Also ensures if passed 'game' in initialData, we respect it.
+  useEffect(() => {
+      if (canCreateGame && !initialData.type && formData.type === 'social') {
+          // Optional: We could auto-switch to game here, but sticking to 'social' default is safer
+      }
+  }, [canCreateGame, initialData, formData.type]);
 
   // --- HANDLERS ---
 
@@ -87,13 +99,16 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
     e.preventDefault();
     if (!formData.title || !formData.startDateTime || !formData.location) return;
 
+    // Security check: If a non-manager somehow selected 'game', revert to 'social'
+    let finalType = formData.type;
+    if (finalType === 'game' && !canCreateGame) finalType = 'social';
+
     const payload = {
         ...formData,
+        type: finalType,
         startDateTime: new Date(formData.startDateTime).toISOString(),
         responseDeadline: formData.responseDeadline ? new Date(formData.responseDeadline).toISOString() : null,
-        // For game types, rosterId can still be manually set via dropdown if legacy behavior used,
-        // but UniversalSearch supercedes it. 
-        rosterId: formData.rosterId, 
+        rosterId: finalType === 'game' ? formData.rosterId : null,
     };
 
     await createEvent(payload);
@@ -118,32 +133,32 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
       marginBottom: '8px'
   };
 
+  const inputStyle = {
+      width: '100%', 
+      padding: '10px', 
+      backgroundColor: '#333', 
+      border: `1px solid ${COLORS.border}`, 
+      borderRadius: '6px', 
+      color: 'white', 
+      outline: 'none'
+  };
+
   return (
     <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
       
-      {/* 1. Event Type Selector */}
-      {isManager && (
-        <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', padding: '10px', backgroundColor: '#333', borderRadius: '8px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <input 
-              type="radio" name="type" value="social" 
-              checked={formData.type === 'social'} 
-              onChange={handleChange}
-              style={{ accentColor: COLORS.primary }}
-            />
-            <span style={{ color: 'white', fontWeight: 500 }}>Social Event</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <input 
-              type="radio" name="type" value="game" 
-              checked={formData.type === 'game'} 
-              onChange={handleChange}
-              style={{ accentColor: COLORS.primary }}
-            />
-            <span style={{ color: 'white', fontWeight: 500 }}>Game</span>
-          </label>
-        </div>
-      )}
+      {/* 1. Event Type Dropdown (Game option visible if Manager/Dev OR has rosters) */}
+      <div style={{ marginBottom: '15px' }}>
+        <label style={labelStyle}>Event Type</label>
+        <select
+            name="type"
+            value={formData.type}
+            onChange={handleChange}
+            style={inputStyle}
+        >
+            <option value="social">Social Event</option>
+            {canCreateGame && <option value="game">Game</option>}
+        </select>
+      </div>
 
       {/* 2. Core Details */}
       <div style={{ marginBottom: '15px' }}>
@@ -155,7 +170,6 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
         />
       </div>
 
-      {/* Date & Time Row */}
       <div style={{ marginBottom: '15px' }}>
         <Input
           label="Date & Time" name="startDateTime" type="datetime-local"
@@ -163,7 +177,6 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
         />
       </div>
       
-      {/* Location Row (Moved down for better visibility) */}
       <div style={{ marginBottom: '15px' }}>
         <Input
           label="Location" name="location"
@@ -175,22 +188,35 @@ const CreateEventForm = ({ onSuccess, onCancel, initialData = {} }) => {
         <label style={labelStyle}>Description</label>
         <textarea
           name="description" rows="3"
-          style={{
-              width: '100%', padding: '10px', backgroundColor: '#333', 
-              border: `1px solid ${COLORS.border}`, borderRadius: '6px', 
-              color: 'white', outline: 'none', resize: 'vertical'
-          }}
+          style={{ ...inputStyle, resize: 'vertical' }}
           value={formData.description} onChange={handleChange}
         />
       </div>
 
-      {/* 3. Invitees Section */}
+      {/* 3. Invitees */}
       <div style={sectionStyle}>
         <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Users size={14} /> Invitees
         </label>
 
-        {/* Universal Search for Users / Groups / Rosters */}
+        {/* Roster Selection (Only if Game + Can Create Game) */}
+        {formData.type === 'game' && canCreateGame && (
+            <div style={{ marginBottom: '15px' }}>
+                <label style={{ fontSize: '12px', color: '#aaa', marginBottom: '5px', display: 'block' }}>Select Team (Optional)</label>
+                <select 
+                    name="rosterId" 
+                    value={formData.rosterId} 
+                    onChange={handleChange}
+                    style={inputStyle}
+                >
+                    <option value="">-- Invite Individual Users Only --</option>
+                    {managedRosters.map(r => (
+                        <option key={r.id} value={r.id}>{r.name} ({r.season})</option>
+                    ))}
+                </select>
+            </div>
+        )}
+
         <UniversalSearch 
             onSelectionChange={handleEntitySelection} 
             placeholder="Search people, groups, or teams..."

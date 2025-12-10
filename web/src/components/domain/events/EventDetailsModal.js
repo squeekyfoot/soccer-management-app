@@ -3,8 +3,9 @@ import Modal from '../../ui/Modal';
 import Button from '../../ui/Button';
 import Avatar from '../../ui/Avatar';
 import RSVPSelector from './RSVPSelector';
-import UniversalSearch from '../shared/UniversalSearch'; 
+import UserSearch from '../shared/UniversalSearch'; 
 import { useEventLogic } from '../../../hooks/useEventLogic';
+import { useUserManager } from '../../../hooks/useUserManager';
 import { useAuth } from '../../../context/AuthContext';
 import { MapPin, Clock, Calendar as CalIcon, Users, Lock, MessageSquare, X, Send, Shield } from 'lucide-react';
 import { COLORS } from '../../../lib/constants';
@@ -12,6 +13,7 @@ import { COLORS } from '../../../lib/constants';
 const EventDetailsModal = ({ event, isOpen, onClose }) => {
   const { loggedInUser } = useAuth();
   const { submitRSVP, inviteUsersToEvent, loading } = useEventLogic();
+  const { searchUsers } = useUserManager();
   
   const [selectedOption, setSelectedOption] = useState(null);
   const [note, setNote] = useState('');
@@ -19,6 +21,8 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
   const [showInviteesModal, setShowInviteesModal] = useState(false);
   const [isEditingResponse, setIsEditingResponse] = useState(false);
   const [shareList, setShareList] = useState([]);
+  
+  const [pendingUsers, setPendingUsers] = useState([]);
 
   useEffect(() => {
       if (event && loggedInUser) {
@@ -29,6 +33,26 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
       }
   }, [event, loggedInUser]);
 
+  useEffect(() => {
+      const loadPendingDetails = async () => {
+          if (!event || !showInviteesModal) return;
+
+          const respondedIds = Object.keys(event.responses || {});
+          const pendingIds = (event.invitees || []).filter(uid => !respondedIds.includes(uid));
+
+          if (pendingIds.length === 0) {
+              setPendingUsers([]);
+              return;
+          }
+
+          const allUsers = await searchUsers(""); 
+          const resolved = allUsers.filter(u => pendingIds.includes(u.uid));
+          setPendingUsers(resolved);
+      };
+
+      loadPendingDetails();
+  }, [event, showInviteesModal, searchUsers]);
+
   if (!event) return null;
 
   const startDate = new Date(event.startDateTime);
@@ -37,9 +61,13 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
   const myResponse = event.responses?.[loggedInUser?.uid];
   const canShare = event.allowInviteOthers === true || event.authorId === loggedInUser?.uid;
 
-  // Calculate Pending
   const respondedIds = Object.keys(event.responses || {});
   const pendingCount = (event.invitees || []).filter(uid => !respondedIds.includes(uid)).length;
+
+  // Resolve Organizer
+  const organizerResponse = event.responses?.[event.authorId];
+  const organizerName = organizerResponse?.userName || "Unknown";
+  const organizerAvatar = organizerResponse?.userAvatar;
 
   const handleSaveRSVP = async () => {
     if (!selectedOption) return;
@@ -49,7 +77,6 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
 
   const handleInviteSelected = async () => {
       if (shareList.length === 0) return;
-      // Filter for users only when sharing via this modal (simplified flow)
       const uids = shareList.filter(i => i.type === 'user').map(u => u.id);
       if (uids.length > 0) await inviteUsersToEvent(event.id, event.title, uids);
       setShareList([]); 
@@ -67,26 +94,68 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
           
           {/* 1. DETAILS SECTION */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: 'white', margin: 0 }}>{event.title}</h2>
-              {isLocked && <span style={{ backgroundColor: '#7f1d1d', color: '#fecaca', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Lock size={12}/> Locked</span>}
-            </div>
-            <p style={{ color: '#9ca3af', marginTop: '4px', fontSize: '14px' }}>{event.description}</p>
             
-            <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', backgroundColor: '#252525', padding: '15px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d1d5db' }}><CalIcon size={18} color={COLORS.primary}/> {startDate.toLocaleDateString()}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d1d5db' }}><Clock size={18} color={COLORS.primary}/> {startDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d1d5db', gridColumn: '1 / -1' }}><MapPin size={18} color={COLORS.primary}/> {event.location}</div>
+            {/* CENTERED TITLE */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: 'white', margin: 0 }}>{event.title}</h2>
+                    {isLocked && <span style={{ backgroundColor: '#7f1d1d', color: '#fecaca', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Lock size={12}/> Locked</span>}
+                </div>
+            </div>
+            
+            {/* CONSOLIDATED DETAILS BOX */}
+            <div style={{ backgroundColor: '#252525', padding: '20px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+                
+                {/* Description */}
+                <div style={{ marginBottom: '20px' }}>
+                    <h5 style={{ fontSize: '11px', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Description
+                    </h5>
+                    <p style={{ color: '#d1d5db', fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
+                        {event.description || "No description provided."}
+                    </p>
+                </div>
+
+                {/* Organizer (Centered) */}
+                <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <h5 style={{ fontSize: '11px', fontWeight: 'bold', color: '#888', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Organizer
+                    </h5>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Avatar size={24} text={organizerName[0]} src={organizerAvatar} />
+                        <span style={{ color: '#d1d5db', fontSize: '14px', fontWeight: '500' }}>
+                            {organizerName}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: '1px', backgroundColor: COLORS.border, marginBottom: '20px' }} />
+
+                {/* Grid: Time & Location */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#d1d5db' }}>
+                        <CalIcon size={18} color={COLORS.primary}/> 
+                        <span style={{ fontSize: '14px' }}>{startDate.toLocaleDateString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#d1d5db' }}>
+                        <Clock size={18} color={COLORS.primary}/> 
+                        <span style={{ fontSize: '14px' }}>{startDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#d1d5db', gridColumn: '1 / -1' }}>
+                        <MapPin size={18} color={COLORS.primary}/> 
+                        <span style={{ fontSize: '14px' }}>{event.location}</span>
+                    </div>
+                </div>
             </div>
           </div>
 
           <div style={{ height: '1px', backgroundColor: COLORS.border }} />
 
-          {/* 2. INVITES SECTION (New) */}
+          {/* 2. INVITES SECTION */}
           <div>
               <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Invites</h4>
               
-              {/* Linked Groups */}
               {event.linkedGroups && event.linkedGroups.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
                       {event.linkedGroups.map((g, idx) => (
@@ -109,7 +178,6 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
           <div>
             <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '15px' }}>Responses</h4>
             
-            {/* Logic: If response exists & not editing, show details. Else show form. */}
             {!isEditingResponse && myResponse ? (
                 <div style={{ backgroundColor: '#252525', padding: '15px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -143,13 +211,13 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
             </Button>
           </div>
 
-          {/* 4. SHARE SECTION (Conditional) */}
+          {/* 4. SHARE SECTION */}
           {canShare && (
               <>
                 <div style={{ height: '1px', backgroundColor: COLORS.border }} />
                 <div>
                     <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '10px' }}>Share Event</h4>
-                    <UniversalSearch onSelectionChange={setShareList} placeholder="Invite others..." />
+                    <UserSearch onSelectionChange={setShareList} placeholder="Invite others..." />
                     {shareList.length > 0 && (
                         <div style={{ marginTop: '10px', textAlign: 'right' }}>
                             <Button onClick={handleInviteSelected} isLoading={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -163,7 +231,7 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
         </div>
       </Modal>
 
-      {/* OVERLAY: RESPONSES */}
+      {/* OVERLAY: RESPONDERS */}
       {showResponsesModal && (
           <OverlayModal title="Responders" onClose={() => setShowResponsesModal(false)}>
               {Object.values(event.responses || {}).map((resp, idx) => (
@@ -175,15 +243,31 @@ const EventDetailsModal = ({ event, isOpen, onClose }) => {
       {/* OVERLAY: INVITEES (Pending) */}
       {showInviteesModal && (
           <OverlayModal title="Pending Invitees" onClose={() => setShowInviteesModal(false)}>
-              {(event.invitees || [])
-                  .filter(uid => !Object.keys(event.responses || {}).includes(uid))
-                  .map((uid, idx) => (
-                      <div key={idx} style={{ padding: '10px', borderBottom: `1px solid ${COLORS.border}`, color: '#ccc', fontSize: '13px' }}>
-                          User ID: {uid.substring(0, 8)}... (Pending)
+              {pendingUsers.length > 0 ? (
+                  pendingUsers.map((user) => (
+                      <div key={user.uid} style={{ 
+                          backgroundColor: '#252525', 
+                          padding: '12px', 
+                          borderRadius: '6px', 
+                          marginBottom: '10px', 
+                          border: `1px solid ${COLORS.border}`,
+                          display: 'flex', 
+                          alignItems: 'center',
+                          gap: '12px'
+                      }}>
+                          <Avatar size={32} text={user.playerName?.[0]} src={user.photoURL} />
+                          <div>
+                              <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>{user.playerName || "Unknown"}</div>
+                              <div style={{ color: '#888', fontSize: '12px' }}>{user.email}</div>
+                          </div>
+                          <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Pending</span>
                       </div>
                   ))
-              }
-              {pendingCount === 0 && <p style={{ color: '#888', textAlign: 'center', padding: '20px' }}>No pending invites.</p>}
+              ) : (
+                  <p style={{ color: '#888', textAlign: 'center', padding: '20px' }}>
+                      {pendingCount > 0 ? 'Loading...' : 'No pending invites.'}
+                  </p>
+              )}
           </OverlayModal>
       )}
     </>
@@ -205,8 +289,6 @@ const OverlayModal = ({ title, children, onClose }) => (
 
 const ResponderRow = ({ response }) => {
     const [showNote, setShowNote] = useState(false);
-    
-    // Style logic for badges
     const getBadgeStyle = () => {
         const base = { padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' };
         if (response.response === 'yes') return { ...base, backgroundColor: '#14532d', color: '#bbf7d0' };

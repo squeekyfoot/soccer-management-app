@@ -14,12 +14,11 @@ import Button from '../../ui/Button';
 import Input from '../../ui/Input'; 
 import Modal from '../../ui/Modal';
 import UserSearch from '../users/UserSearch';
-import CreateEventForm from '../events/CreateEventForm'; // <--- NEW IMPORT
+import CreateEventForm from '../events/CreateEventForm'; 
 import { COLORS } from '../../../lib/constants';
 import { 
   UserPlus, Edit2, Save, X, MessageCircle, Calendar, Clock, Trophy, 
-  Link as LinkIcon, CheckCircle, AlertCircle, RefreshCw, Unlink, Mail, Phone, User,
-  CalendarPlus // <--- NEW ICON
+  Link as LinkIcon, CheckCircle, RefreshCw, Unlink, CalendarPlus 
 } from 'lucide-react';
 
 const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }) => {
@@ -35,7 +34,7 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
   
   const { 
     createGroup, linkGroupToRoster, unlinkGroupFromRoster, 
-    fetchUserGroups, addGroupMembers 
+    fetchUserGroups 
   } = useGroupManager();
   
   const { fetchLeagues } = useLeagueManager();
@@ -55,8 +54,10 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showGroupSelectModal, setShowGroupSelectModal] = useState(false);
-  const [showCreateEventModal, setShowCreateEventModal] = useState(false); // <--- NEW STATE
-  const [selectedEmails, setSelectedEmails] = useState([]);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  
+  // Renamed from selectedEmails to selectedUsers to reflect that they are Objects now
+  const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchKey, setSearchKey] = useState(0);
 
   // 1. Subscription (Live Data for everyone)
@@ -113,12 +114,14 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
   };
 
   const handleAddPlayers = async () => {
-      for (const email of selectedEmails) {
+      for (const user of selectedUsers) {
+          // Fix: Extract email from object if necessary (UserSearch now returns objects)
+          const email = user.email || user; 
           await addPlayerToRoster(roster.id, email);
       }
       setShowAddModal(false);
-      setSelectedEmails([]);
-      setSearchKey(k => k + 1);
+      setSelectedUsers([]);
+      setSearchKey(k => k + 1); // Reset UserSearch
   };
 
   // --- RENDER HELPERS ---
@@ -319,7 +322,7 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
           {/* 1. Add Players Modal */}
           {showAddModal && (
               <Modal title="Add Players" onClose={() => setShowAddModal(false)}>
-                  <UserSearch key={searchKey} onSelectionChange={setSelectedEmails} />
+                  <UserSearch key={searchKey} onSelectionChange={setSelectedUsers} />
                   <Button onClick={handleAddPlayers} style={{ marginTop: '20px', width: '100%' }}>Add Selected</Button>
               </Modal>
           )}
@@ -335,11 +338,10 @@ const RosterDetail = ({ rosterId, initialRosterData, viewMode = 'view', onBack }
                </Modal>
           )}
 
-          {/* 3. Schedule Game Modal (NEW) */}
+          {/* 3. Schedule Game Modal */}
           {showCreateEventModal && (
               <Modal title="Schedule Game" onClose={() => setShowCreateEventModal(false)}>
                   <CreateEventForm 
-                      // Pass initial data to pre-fill the form with Game mode + this Roster ID
                       initialData={{ type: 'game', rosterId: roster.id }}
                       onSuccess={() => setShowCreateEventModal(false)}
                       onCancel={() => setShowCreateEventModal(false)}

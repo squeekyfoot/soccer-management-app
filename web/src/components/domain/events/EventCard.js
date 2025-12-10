@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, MapPin, Clock, Users } from 'lucide-react';
+import { MapPin, Clock, Users } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { COLORS } from '../../../lib/constants';
@@ -11,8 +11,9 @@ const EventCard = ({ event, onOpen }) => {
   // Helper to count RSVPs
   const attendingCount = Object.values(responses || {}).filter(r => r.response === 'yes').length;
 
-  // Determine accent color based on type
-  const accentColor = type === 'game' ? '#ffab40' : '#448aff'; // Orange vs Blue
+  // Determine accent color (Case Insensitive)
+  const isGame = type && type.toLowerCase() === 'game';
+  const accentColor = isGame ? '#ffab40' : '#448aff'; 
 
   return (
     <Card 
@@ -27,15 +28,9 @@ const EventCard = ({ event, onOpen }) => {
     >
         {/* Date Badge */}
         <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            backgroundColor: '#333', 
-            padding: '10px', 
-            borderRadius: '8px', 
-            minWidth: '60px',
-            marginRight: '15px'
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+            backgroundColor: '#333', padding: '10px', borderRadius: '8px', 
+            minWidth: '60px', marginRight: '15px', border: `1px solid ${COLORS.border}`
         }}>
           <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
             {startDate.toLocaleString('default', { month: 'short' })}
@@ -49,12 +44,8 @@ const EventCard = ({ event, onOpen }) => {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span style={{ 
-                fontSize: '10px', 
-                fontWeight: 'bold', 
-                padding: '2px 6px', 
-                borderRadius: '4px', 
-                textTransform: 'uppercase',
-                backgroundColor: type === 'game' ? 'rgba(255, 171, 64, 0.15)' : 'rgba(68, 138, 255, 0.15)',
+                fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase',
+                backgroundColor: isGame ? 'rgba(255, 171, 64, 0.15)' : 'rgba(68, 138, 255, 0.15)',
                 color: accentColor
             }}>
               {type}

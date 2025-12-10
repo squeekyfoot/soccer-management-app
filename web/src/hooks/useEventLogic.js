@@ -56,19 +56,53 @@ export const useEventLogic = () => {
       const batch = writeBatch(db);
       const creatorId = loggedInUser.uid;
 
-      // 1. Expand Groups/Rosters into individual UIDs
+      // 1. Expand Universal Search Entities (Groups/Rosters/Users)
       const entityMemberIds = await expandEntities(eventData.invitedEntities || []);
       
-      // 2. Merge with individual invitees and Creator
-      const finalInvitees = [...new Set([...(eventData.invitees || []), ...entityMemberIds, creatorId])];
+      // 2. Handle Explicit Roster Selection (Game Mode)
+      let rosterMemberIds = [];
+      let rosterLinkedGroup = null;
 
-      // 3. Create Event Document
+      if (eventData.rosterId) {
+          const rosterSnap = await getDoc(doc(db, 'rosters', eventData.rosterId));
+          if (rosterSnap.exists()) {
+              const rData = rosterSnap.data();
+              // Add all players from the roster
+              if (rData.playerIDs) {
+                  rosterMemberIds = rData.playerIDs;
+              }
+              // Create display object for "Invites" section
+              rosterLinkedGroup = {
+                  id: eventData.rosterId,
+                  type: 'roster',
+                  label: rData.name || 'Team'
+              };
+          }
+      }
+
+      // 3. Merge all invitees (Manual + Search Entities + Game Roster + Creator)
+      // Use Set to deduplicate
+      const finalInvitees = [...new Set([
+          ...(eventData.invitees || []), 
+          ...entityMemberIds, 
+          ...rosterMemberIds, 
+          creatorId
+      ])];
+
+      // 4. Prepare Linked Groups for Display (Deduplicate by ID)
+      const rawLinkedGroups = [
+          ...(eventData.invitedEntities || []).filter(e => e.type !== 'user'),
+          ...(rosterLinkedGroup ? [rosterLinkedGroup] : [])
+      ];
+      // Dedupe linked groups based on ID
+      const linkedGroups = Array.from(new Map(rawLinkedGroups.map(item => [item.id, item])).values());
+
+      // 5. Create Event Document
       const eventRef = doc(collection(db, 'events'));
       batch.set(eventRef, {
         ...eventData,
         invitees: finalInvitees,
-        // Store linked entities for display
-        linkedGroups: (eventData.invitedEntities || []).filter(e => e.type !== 'user'),
+        linkedGroups: linkedGroups,
         authorId: creatorId,
         createdAt: serverTimestamp(),
         responses: {
@@ -83,7 +117,7 @@ export const useEventLogic = () => {
         updatedAt: serverTimestamp()
       });
 
-      // 4. Create Action Items (Skip Creator)
+      // 6. Create Action Items (Skip Creator)
       if (finalInvitees.length > 0) {
         finalInvitees.forEach((userId) => {
           if (userId === creatorId) return; 
