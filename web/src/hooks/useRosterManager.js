@@ -8,13 +8,15 @@ import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
 import { useGroupManager } from './useGroupManager'; 
 import { useNotifications } from './useNotifications';
-import { useChatManager } from './useChatManager'; 
+import { useChatManager } from './useChatManager';
+import { useSystemNotification } from './useSystemNotification';
 
 export const useRosterManager = () => {
   const { loggedInUser } = useAuth();
   const { createGroup } = useGroupManager(); 
   const { sendResponseNotification } = useNotifications();
-  const { sendSystemMessage } = useChatManager(); 
+  const { sendSystemMessage } = useChatManager();
+  const { showNotification } = useSystemNotification();
   const [loading, setLoading] = useState(false);
 
   // --- SUBSCRIPTIONS (Real-time) ---
@@ -152,7 +154,7 @@ export const useRosterManager = () => {
        const requestsRef = collection(db, "rosterRequests");
        const q = query(requestsRef, where("rosterId", "==", rosterId), where("userId", "==", loggedInUser.uid));
        const existing = await getDocs(q);
-       if (!existing.empty) { alert("Already requested."); return false; }
+       if (!existing.empty) { showNotification('warning', "You have already requested to join this team."); return false; }
 
        await addDoc(requestsRef, {
          rosterId, rosterName, managerId,
@@ -364,7 +366,7 @@ export const useRosterManager = () => {
       const q = query(usersRef, where("email", "==", playerEmail));
       const querySnapshot = await getDocs(q);
 
-      if (querySnapshot.empty) { alert("No player found."); return false; }
+      if (querySnapshot.empty) { showNotification('error', "No player found with that email."); return false; }
 
       const playerDoc = querySnapshot.docs[0];
       const playerData = playerDoc.data();

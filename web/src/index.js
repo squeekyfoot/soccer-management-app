@@ -14,16 +14,16 @@ import { ConfirmationProvider } from './context/ConfirmationContext';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <BrowserRouter>
-    <AuthProvider>
-      <NotificationProvider>
+    <NotificationProvider>
+      <AuthProvider>
         {/* Wrap DataProvider and ChatProvider so they can also use confirmations if needed */}
         <ConfirmationProvider>
             <ChatProvider>
               <App />
             </ChatProvider>
         </ConfirmationProvider>
-      </NotificationProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </NotificationProvider>
   </BrowserRouter>
 );
 

@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, Info, AlertCircle } from 'lucide-react';
+import { CheckCircle, Info, AlertCircle, AlertTriangle } from 'lucide-react';
 
 const ICONS = {
   success: CheckCircle,
   info: Info,
+  warning: AlertTriangle,
   error: AlertCircle
 };
 
 const THEMES = {
   success: { bg: 'rgba(76, 175, 80, 0.95)', border: '#4caf50' },
   info: { bg: 'rgba(33, 150, 243, 0.95)', border: '#2196f3' },
+  warning: { bg: 'rgba(240, 173, 78, 0.95)', border: '#f0ad4e' },
   error: { bg: 'rgba(244, 67, 54, 0.95)', border: '#f44336' }
 };
 

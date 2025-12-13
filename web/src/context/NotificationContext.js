@@ -8,7 +8,7 @@ export const NotificationProvider = ({ children }) => {
 
   /**
    * Show a system notification
-   * @param {'success' | 'info' | 'error'} type 
+   * @param {'success' | 'info' | 'warning' | 'error'} type 
    * @param {string} message 
    */
   const showNotification = useCallback((type, message) => {

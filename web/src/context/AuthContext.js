@@ -13,6 +13,7 @@ import {
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../lib/firebase"; 
 import { useStorage } from '../hooks/useStorage';
+import { useSystemNotification } from '../hooks/useSystemNotification';
 
 const AuthContext = createContext();
 
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [needsReauth, setNeedsReauth] = useState(false);
   const { upload, remove } = useStorage();
+  const { showNotification } = useSystemNotification();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -64,14 +66,14 @@ export const AuthProvider = ({ children }) => {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       console.error("Error signing in:", error);
-      alert("Error: " + error.message);
+      showNotification('error', error.message);
     }
     setIsLoading(false);
   };
 
   const signUp = async (formData) => {
     if (formData.password.length < 6) {
-        alert("Password must be 6+ chars.");
+        showNotification('error', "Password must be 6+ characters.");
         return;
     }
     
@@ -109,7 +111,7 @@ export const AuthProvider = ({ children }) => {
 
     } catch (error) {
       console.error("Error signing up:", error);
-      alert("Error: " + error.message);
+      showNotification('error', error.message);
       if (userCredential?.user) await deleteUser(userCredential.user);
     }
   };
@@ -195,7 +197,7 @@ export const AuthProvider = ({ children }) => {
       setNeedsReauth(false); 
       return true; 
     } catch (error) {
-      alert("Error: " + error.message);
+      showNotification('error', error.message);
       return false;
     }
   };
@@ -213,7 +215,7 @@ export const AuthProvider = ({ children }) => {
       setSoccerDetails(data);
       return true; 
     } catch (error) {
-      alert("Error: " + error.message);
+      showNotification('error', error.message);
       return false;
     }
   };

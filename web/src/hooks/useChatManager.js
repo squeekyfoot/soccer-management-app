@@ -6,12 +6,14 @@ import {
 } from "firebase/firestore"; 
 import { db } from "../lib/firebase"; 
 import { useAuth } from '../context/AuthContext';
+import { useSystemNotification } from './useSystemNotification';
 
 /**
  * @description The "Brain" for Chat Logic. 
  */
 export const useChatManager = () => {
   const { loggedInUser } = useAuth();
+  const { showNotification } = useSystemNotification();
 
   // --- HELPER: Centralized System Message Logic ---
   const sendSystemMessage = async (chatId, text) => {
@@ -85,7 +87,7 @@ export const useChatManager = () => {
       }
 
       if (participantIds.length < 2) {
-        alert("Could not find any valid users to chat with.");
+        showNotification('error', "Could not find any valid users to chat with.");
         return false;
       }
 
@@ -109,7 +111,7 @@ export const useChatManager = () => {
 
     } catch (error) {
       console.error("Error creating chat:", error);
-      alert("Error: " + error.message);
+      showNotification('error', error.message);
       return false;
     }
   };
@@ -152,7 +154,7 @@ export const useChatManager = () => {
       return true;
     } catch (error) {
       console.error("Error sending message:", error);
-      alert("Error: " + error.message);
+      showNotification('error', error.message);
       return false;
     }
   };
@@ -176,7 +178,7 @@ export const useChatManager = () => {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            alert("User not found.");
+            showNotification('error', "User not found.");
             return false;
         }
 
@@ -193,7 +195,7 @@ export const useChatManager = () => {
         const chatData = chatSnap.data();
 
         if (chatData.participants.includes(newUser.uid)) {
-            alert("User is already in the group.");
+            showNotification('warning', "User is already in the group.");
             return false;
         }
 
@@ -215,7 +217,7 @@ export const useChatManager = () => {
         return true;
     } catch (error) {
         console.error("Error adding participant:", error);
-        alert("Error adding user: " + error.message);
+        showNotification('error', "Error adding user: " + error.message);
         return false;
     }
   };

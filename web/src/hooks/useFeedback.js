@@ -6,9 +6,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from '../context/AuthContext';
+import { useSystemNotification } from './useSystemNotification';
 
 export const useFeedback = () => {
   const { loggedInUser } = useAuth();
+  const { showNotification } = useSystemNotification();
   const [feedbackItems, setFeedbackItems] = useState([]);
 
   // Subscribe to feedback list
@@ -45,7 +47,7 @@ export const useFeedback = () => {
       return true;
     } catch (error) {
       console.error("Error creating feedback:", error);
-      alert("Error submitting feedback: " + error.message);
+      showNotification('error', "Error submitting feedback: " + error.message);
       return false;
     }
   };
@@ -58,7 +60,7 @@ export const useFeedback = () => {
       if (feedbackSnap.exists()) {
         const data = feedbackSnap.data();
         if (data.status === 'Completed' || data.status === 'Rejected') {
-          alert("Voting is closed for this item.");
+          showNotification('warning', "Voting is closed for this item.");
           return false;
         }
         
